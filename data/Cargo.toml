@@ -1,0 +1,8 @@
+[package]
+name = "data"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+charybdis = "0.7.0"
+scylla = "0.13.0"
