@@ -1,5 +1,7 @@
 use charybdis::scylla::CqlValue;
-use scylla::_macro_internal::{CellWriter, ColumnType, FromCqlValError, SerializationError, SerializeCql, WrittenCellProof};
+use scylla::_macro_internal::{
+    CellWriter, ColumnType, FromCqlValError, SerializationError, SerializeCql, WrittenCellProof,
+};
 use scylla::cql_to_rust::FromCqlVal;
 
 #[derive(Debug, Hash, Eq, PartialEq)]
@@ -15,7 +17,11 @@ pub enum UserPermission {
 }
 
 impl SerializeCql for UserPermission {
-    fn serialize<'b>(&self, typ: &ColumnType, writer: CellWriter<'b>) -> Result<WrittenCellProof<'b>, SerializationError> {
+    fn serialize<'b>(
+        &self,
+        typ: &ColumnType,
+        writer: CellWriter<'b>,
+    ) -> Result<WrittenCellProof<'b>, SerializationError> {
         let as_i8: i8 = self.into();
         as_i8.serialize(typ, writer)
     }
@@ -24,8 +30,10 @@ impl SerializeCql for UserPermission {
 impl FromCqlVal<CqlValue> for UserPermission {
     fn from_cql(cql_val: CqlValue) -> Result<Self, FromCqlValError> {
         match cql_val {
-            CqlValue::TinyInt(val) => { UserPermission::try_from(val).map_err(|_| FromCqlValError::BadVal) }
-            _ => Err(FromCqlValError::BadCqlType)
+            CqlValue::TinyInt(val) => {
+                UserPermission::try_from(val).map_err(|_| FromCqlValError::BadVal)
+            }
+            _ => Err(FromCqlValError::BadCqlType),
         }
     }
 }
@@ -58,7 +66,7 @@ impl TryFrom<i8> for UserPermission {
             6i8 => Ok(UserPermission::Rename),
             7i8 => Ok(UserPermission::Delete),
             8i8 => Ok(UserPermission::Move),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }

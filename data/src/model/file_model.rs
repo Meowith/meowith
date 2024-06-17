@@ -4,10 +4,10 @@ use charybdis::types::{BigInt, Boolean, Counter, Frozen, Set, Text, Timestamp, T
 #[charybdis_udt_model(type_name = file_chunk)]
 #[derive(Hash, Eq, PartialEq)]
 pub struct FileChunk {
-    server_id: Uuid,
-    chunk_id: Uuid,
-    chunk_size: BigInt,
-    chunk_order: TinyInt,
+    pub server_id: Uuid,
+    pub chunk_id: Uuid,
+    pub chunk_size: BigInt,
+    pub chunk_order: TinyInt,
 }
 
 #[charybdis_model(
@@ -19,13 +19,13 @@ pub struct FileChunk {
     static_columns = []
 )]
 pub struct File {
-    bucket_id: Uuid,
-    directory: Text,
-    name: Text,
-    size: BigInt,
-    chunk_ids: Set<Frozen<FileChunk>>,
-    created: Timestamp,
-    last_modified: Timestamp,
+    pub bucket_id: Uuid,
+    pub directory: Text,
+    pub name: Text,
+    pub size: BigInt,
+    pub chunk_ids: Set<Frozen<FileChunk>>,
+    pub created: Timestamp,
+    pub last_modified: Timestamp,
 }
 
 #[charybdis_model(
@@ -37,12 +37,12 @@ pub struct File {
     static_columns = []
 )]
 pub struct Bucket {
-    app_id: Uuid,
-    name: Text,
-    id: Uuid,
-    encrypted: Boolean,
-    quota: BigInt,       // in bytes
-    file_count: Counter, // avoid querying count(*)
-    created: Timestamp,
-    last_modified: Timestamp,
+    pub app_id: Uuid,
+    pub name: Text,
+    pub id: Uuid,
+    pub encrypted: Boolean,
+    pub quota: BigInt,       // in bytes
+    pub file_count: Counter, // avoid querying count(*)
+    pub created: Timestamp,
+    pub last_modified: Timestamp,
 }
