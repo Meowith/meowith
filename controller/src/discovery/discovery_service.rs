@@ -35,6 +35,7 @@ pub async fn perform_register_node(
         address: node_addr,
         created: Utc::now(),
         register_code: "".to_string(),
+        token: "TODO".to_string()
     };
 
     code.valid = false;

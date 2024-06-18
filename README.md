@@ -21,7 +21,7 @@ A horizontally scalable, distributed blob storage solution.
 # Buckets
 
 Buckets contain a flat list of file entries identified by their unique name.
-While the list is flat it can still be queried using folder paths.
+While the list is flat, it can still be queried using folder paths.
 
 The Bucket structure is as follows:
 
@@ -59,13 +59,11 @@ We allow any unicode string as a file name up to a length of 2048 characters. No
 # Applications
 
 The Meowith Application is a top-level data organization unit, containing [Buckets](#buckets), which hold the actual data,
-and [Users](#users) that can access the data in a way specified by their permissions.
+and [members](#users) that can access the data in a way specified by their permissions.
 
 ## Users
 
-Each Application has its own set of users, who are able to access specified resources within it.
-By Default One Administrative account with the provided credentials is created, this account can manage the entire application and as such, access to it should be limited.
-This account cannot be deleted to prevent accidental lock-outs.
+Each user can be an owner of many applications, as well as be a member of other applications.
 
 Account permissions are determined by the role(s) assigned to the account.
 
@@ -74,11 +72,11 @@ Account permissions are determined by the role(s) assigned to the account.
 An account role is a template containing permissions which will be granted to the user owning the role.
 Most permissions require a permission scope, specifying the buckets on which the permission is applicable.
 
-The permission scope is a string consisting of a bucket name and/or glob-like wildcards.
+The permission has one or more scopes, being a string consisting of a bucket name and/or glob-like wildcards.
 For example:
 
-The scope `bucket1` -  Will match only the bucket named "bucket1"   
-`bucket*` -  Will match any bucket starting with "bucket"
+The scope `bucket1` - Will match only the bucket named "bucket1"   
+`bucket*` - Will match any bucket starting with "bucket"
 
 The available permission types are as follows:
 
@@ -97,14 +95,11 @@ The combined quota of all the buckets owned by the app must not exceed the Summa
 
 ## Node creation
 
-1. A node worker is started up with the generated register code. (And any required ssl certificates if necessary)
-2. The worker registers with the CnC server using the code.
-3. The worker receives a renewal token, and all the necessary configuration.
-4. Using the renewal token generates an access token.
+[See docs](docs/NodeCreation.md)
 
 ## Connection Security
 
-CnC server generates a ssl certificate for each node based on its domain configuration in the database then the server distributes the certificate to desired node as well as a CA file so that all nodes can verify it.
+[See docs](docs/NodeConnectivity.md)
 
 ## Architecture
 ![](https://ksancloud.pl:5000/api/file/download/public/najd(1).png)

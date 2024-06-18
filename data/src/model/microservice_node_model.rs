@@ -20,6 +20,7 @@ pub struct MicroserviceNode {
     pub id: Uuid,
     pub max_space: Option<BigInt>, // bytes
     pub used_space: Option<BigInt>,
+    pub token: Text,
     pub address: Inet,
     pub created: Timestamp,
     pub register_code: Text,
