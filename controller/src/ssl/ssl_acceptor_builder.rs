@@ -1,7 +1,10 @@
-use openssl::ssl::{SslAcceptor, SslAcceptorBuilder, SslFiletype, SslMethod};
 use crate::config::controller_config::ControllerConfig;
+use openssl::ssl::{SslAcceptor, SslAcceptorBuilder, SslFiletype, SslMethod};
 
-pub fn build_ssl_acceptor_builder(config: ControllerConfig, use_ssl: &mut bool) -> SslAcceptorBuilder {
+pub fn build_ssl_acceptor_builder(
+    config: ControllerConfig,
+    use_ssl: &mut bool,
+) -> SslAcceptorBuilder {
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     if config.ssl_certificate.is_some() && config.ssl_private_key.is_some() {
         builder

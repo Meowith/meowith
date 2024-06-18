@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use crate::config::error::ConfigError;
+use std::str::FromStr;
 
 #[derive(Debug)]
 enum SizeUnit {
@@ -36,8 +36,12 @@ pub fn parse_size(size_str: &str) -> Result<u64, ConfigError> {
         }
     }
 
-    let number: u64 = number_part.parse().map_err(|_| ConfigError::InvalidSizeNumber)?;
-    let unit: SizeUnit = unit_part.parse().map_err(|_| ConfigError::InvalidSizeUnit)?;
+    let number: u64 = number_part
+        .parse()
+        .map_err(|_| ConfigError::InvalidSizeNumber)?;
+    let unit: SizeUnit = unit_part
+        .parse()
+        .map_err(|_| ConfigError::InvalidSizeUnit)?;
 
     let bytes = match unit {
         SizeUnit::Bytes => number,

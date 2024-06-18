@@ -7,5 +7,5 @@ pub enum ConfigError {
     InsufficientDiskSpace,
 
     InvalidSizeNumber,
-    InvalidSizeUnit
+    InvalidSizeUnit,
 }

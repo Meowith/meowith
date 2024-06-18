@@ -1,10 +1,10 @@
+use crate::config::error::ConfigError;
+use crate::config::size_parser::parse_size;
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::net::IpAddr;
 use sysinfo::Disks;
-use crate::config::error::ConfigError;
-use crate::config::size_parser::parse_size;
 
 const MIN_STORAGE_VALUE: u64 = 2 * 1024 * 1024 * 1024;
 
@@ -15,7 +15,7 @@ pub(crate) struct NodeConfig {
     max_space: String,
     //internal network config
     addr: String,
-    port: u16
+    port: u16,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -24,7 +24,7 @@ pub(crate) struct NodeConfigInstance {
     cnc_port: u16,
     max_space: u64,
     addr: String,
-    port: u16
+    port: u16,
 }
 
 impl NodeConfig {

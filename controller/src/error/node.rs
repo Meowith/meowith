@@ -1,16 +1,16 @@
-use derive_more::Display;
 use actix_web::{
     error,
     http::{header::ContentType, StatusCode},
     HttpResponse,
 };
+use derive_more::Display;
 
 #[derive(Debug, Display)]
 pub enum NodeError {
     #[display(fmt = "internal error")]
     InternalError,
     #[display(fmt = "bad request")]
-    BadRequest
+    BadRequest,
 }
 
 impl error::ResponseError for NodeError {

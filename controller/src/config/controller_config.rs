@@ -13,7 +13,7 @@ pub(crate) struct ControllerConfig {
 
     pub database_nodes: Vec<String>,
     pub db_username: String,
-    pub db_password: String
+    pub db_password: String,
 }
 
 impl ControllerConfig {

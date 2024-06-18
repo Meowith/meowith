@@ -8,3 +8,4 @@ charybdis = "0.7.0"
 scylla = "0.13.0"
 strum = { version = "0.26.2", features = ["derive"] }
 uuid = "1.8.0"
+serde = { version = "1.0.203", features = ["derive"] }
