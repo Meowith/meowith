@@ -12,14 +12,19 @@ const MIN_STORAGE_VALUE: u64 = 2 * 1024 * 1024 * 1024;
 pub(crate) struct NodeConfig {
     cnc_addr: String,
     cnc_port: u16,
-    max_space: String
+    max_space: String,
+    //internal network config
+    addr: String,
+    port: u16
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct NodeConfigInstance {
     cnc_addr: String,
     cnc_port: u16,
-    max_space: u64
+    max_space: u64,
+    addr: String,
+    port: u16
 }
 
 impl NodeConfig {
@@ -43,6 +48,8 @@ impl NodeConfig {
             cnc_addr: "127.0.0.1".to_string(),
             cnc_port: 9000,
             max_space: "100mb".to_string(),
+            addr: "127.0.0.1".to_string(),
+            port: 8080,
         };
         let mut new_file = OpenOptions::new()
             .write(true)
@@ -67,6 +74,14 @@ impl NodeConfig {
             return Err(ConfigError::InvalidPort);
         }
 
+        if self.addr.parse::<IpAddr>().is_err() {
+            return Err(ConfigError::InvalidIpAddress);
+        }
+
+        if self.port == 0 {
+            return Err(ConfigError::InvalidPort);
+        }
+
         let max_space_bytes = parse_size(&self.max_space)?;
 
         let disks = Disks::new_with_refreshed_list();
@@ -81,6 +96,8 @@ impl NodeConfig {
             cnc_addr: self.cnc_addr,
             cnc_port: self.cnc_port,
             max_space: max_space_bytes,
+            addr: self.addr,
+            port: self.port,
         })
     }
 }
