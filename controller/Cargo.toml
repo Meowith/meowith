@@ -5,3 +5,10 @@ edition = "2021"
 
 [dependencies]
 rcgen = "0.13.1"
+actix-rt = "2.10.0"
+actix-web = { version = "4.7.0", features = ["openssl"] }
+futures = "0.3.30"
+serde = { version = "1.0.203", features = ["derive"] }
+serde_yaml = "0.9.34+deprecated"
+openssl = "0.10.64"
+actix-cors = "0.7.0"
