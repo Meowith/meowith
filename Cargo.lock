@@ -520,11 +520,17 @@ dependencies = [
  "actix-cors",
  "actix-rt",
  "actix-web",
+ "charybdis",
+ "data",
+ "derive_more",
  "futures",
  "openssl",
  "rcgen",
+ "scylla",
  "serde",
  "serde_yaml",
+ "strum",
+ "uuid",
 ]
 
 [[package]]
