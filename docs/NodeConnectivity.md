@@ -27,3 +27,15 @@ The controller also validates requests between nodes in the following fashion:
 
 Requests going from the controller to the node use the node's own access token, so that the node can validate
 the request by comparing the token.
+
+# Certificate auto-generation
+
+The Controller possesses the CA private key and the CA root certificate.
+The root certificate is to be distributed by the operator to all nodes.
+
+The generation process begins with a node generating its own private key.
+Then, using the private key, it generates a certificate signing request, and sends it to the controller along with its
+refresh token.
+The controller, using the signing request and its CA private key, the controller creates a certificate
+(effectively, public key) and returns it to the node.
+The node now possesses its private key, and its signed public key.
