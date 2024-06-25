@@ -5,11 +5,11 @@ use chrono::prelude::*;
 use scylla::CachingSession;
 use uuid::Uuid;
 
-use data::access::microservice_node_access::{get_service_register_code, insert_microservice_node, update_service_register_code};
+use data::access::microservice_node_access::{get_microservice_by_ip, get_service_register_code, insert_microservice_node, update_service_register_code};
 use data::error::MeowithDataError;
 use data::model::microservice_node_model::MicroserviceNode;
 
-use crate::discovery::routes::NodeRegisterRequest;
+use crate::discovery::routes::{NodeRegisterRequest, UpdateStorageNodeProperties};
 use crate::error::node::NodeError;
 
 pub async fn perform_register_node(
@@ -43,6 +43,16 @@ pub async fn perform_register_node(
     insert_microservice_node(service, session).await.map_err(|_| NodeError::InternalError)?;
 
     Ok(())
+}
+
+pub async fn perform_storage_node_properties_update(
+    req: UpdateStorageNodeProperties,
+    session: &CachingSession,
+    node_addr: IpAddr
+) -> Result<(), NodeError> {
+
+
+
 }
 
 // Note: Its worth considering a self-reported address as it allows for potential proxy usage
