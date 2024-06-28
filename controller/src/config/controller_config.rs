@@ -11,6 +11,10 @@ pub(crate) struct ControllerConfig {
     pub ssl_certificate: Option<String>,
     pub ssl_private_key: Option<String>,
 
+    pub ca_certificate: String,
+    pub ca_private_key: String,
+    pub autogen_ssl_validity: u32,
+
     pub database_nodes: Vec<String>,
     pub db_username: String,
     pub db_password: String,
@@ -40,6 +44,11 @@ impl ControllerConfig {
             controller_port: 8080,
             ssl_certificate: None,
             ssl_private_key: None,
+
+            ca_certificate: String::from("abc"),
+            ca_private_key: String::from("def"),
+            autogen_ssl_validity: 30,
+
             database_nodes: vec!["127.0.0.1".to_string()],
             db_username: "root".to_string(),
             db_password: "root".to_string(),

@@ -1,11 +1,14 @@
-use std::net::IpAddr;
 use actix_web::HttpRequest;
+use std::net::IpAddr;
 
 use chrono::prelude::*;
 use scylla::CachingSession;
 use uuid::Uuid;
 
-use data::access::microservice_node_access::{get_microservice_by_ip, get_service_register_code, insert_microservice_node, update_service_register_code};
+use data::access::microservice_node_access::{
+    get_microservice_by_ip, get_service_register_code, insert_microservice_node,
+    update_service_register_code,
+};
 use data::error::MeowithDataError;
 use data::model::microservice_node_model::MicroserviceNode;
 
@@ -15,17 +18,19 @@ use crate::error::node::NodeError;
 pub async fn perform_register_node(
     req: NodeRegisterRequest,
     session: &CachingSession,
-    node_addr: IpAddr
+    node_addr: IpAddr,
 ) -> Result<(), NodeError> {
     let code = get_service_register_code(req.code, session).await;
     if let Err(err) = code {
         return match err {
             MeowithDataError::NotFound => Err(NodeError::BadRequest),
-            _ => Err(NodeError::InternalError)
+            _ => Err(NodeError::InternalError),
         };
     }
     let mut code = code.unwrap();
-    if !code.valid { return Err(NodeError::BadRequest); }
+    if !code.valid {
+        return Err(NodeError::BadRequest);
+    }
 
     let service = MicroserviceNode {
         microservice_type: req.service_type,
@@ -35,12 +40,16 @@ pub async fn perform_register_node(
         address: node_addr,
         created: Utc::now(),
         register_code: "".to_string(),
-        token: "TODO".to_string()
+        token: "TODO".to_string(),
     };
 
     code.valid = false;
-    update_service_register_code(code, session).await.map_err(|_| NodeError::InternalError)?;
-    insert_microservice_node(service, session).await.map_err(|_| NodeError::InternalError)?;
+    update_service_register_code(code, session)
+        .await
+        .map_err(|_| NodeError::InternalError)?;
+    insert_microservice_node(service, session)
+        .await
+        .map_err(|_| NodeError::InternalError)?;
 
     Ok(())
 }
@@ -48,11 +57,8 @@ pub async fn perform_register_node(
 pub async fn perform_storage_node_properties_update(
     req: UpdateStorageNodeProperties,
     session: &CachingSession,
-    node_addr: IpAddr
+    node_addr: IpAddr,
 ) -> Result<(), NodeError> {
-
-
-
 }
 
 // Note: Its worth considering a self-reported address as it allows for potential proxy usage

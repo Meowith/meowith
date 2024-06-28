@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rcgen = "0.13.1"
-rsa = "0.9.6"
+openssl = "0.10.64"
 rand = "0.8.5"
+reqwest = { version = "0.12.5", features = ["__rustls"] }
 time = "0.3.36"
-reqwest = "0.12.5"
+uuid = { version = "1.9.1", features = ["v4"] }
+
+data = { path = "../data", version = "0.1.0" }

@@ -11,6 +11,8 @@ pub enum NodeError {
     InternalError,
     #[display(fmt = "bad request")]
     BadRequest,
+    #[display(fmt = "bad auth")]
+    BadAuth,
 }
 
 impl error::ResponseError for NodeError {
@@ -18,6 +20,7 @@ impl error::ResponseError for NodeError {
         match *self {
             NodeError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             NodeError::BadRequest => StatusCode::BAD_REQUEST,
+            NodeError::BadAuth=> StatusCode::UNAUTHORIZED
         }
     }
 

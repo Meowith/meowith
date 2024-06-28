@@ -1,4 +1,3 @@
-use std::net::IpAddr;
 use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
 use scylla::transport::session::TypedRowIter;

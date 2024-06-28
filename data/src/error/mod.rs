@@ -1,12 +1,39 @@
+use std::fmt::{Display, Formatter};
 use charybdis::errors::CharybdisError;
 use scylla::transport::errors::QueryError;
-use strum::Display;
+use actix_web::{
+    error::ResponseError,
+    http::{header::ContentType, StatusCode},
+    HttpResponse,
+};
+use derive_more::Display;
+
+#[derive(Debug, Display)]
+pub enum DataResponseError {
+    #[display(fmt = "bad auth")]
+    BadAuth
+}
+impl ResponseError for DataResponseError {
+    fn status_code(&self) -> StatusCode {
+        match *self {
+            DataResponseError::BadAuth => StatusCode::UNAUTHORIZED,
+        }
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::build(self.status_code())
+            .insert_header(ContentType::html())
+            .body(self.to_string())
+    }
+}
+
 
 #[derive(Debug, Display)]
 pub enum MeowithDataError {
     QueryError(QueryError),
     InternalFailure(CharybdisError),
     NotFound,
+    UnknownFailure
 }
 
 impl From<CharybdisError> for MeowithDataError {

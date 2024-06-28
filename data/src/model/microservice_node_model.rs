@@ -6,6 +6,9 @@ use scylla::_macro_internal::{
 };
 use scylla::cql_to_rust::FromCqlVal;
 use serde::{Deserialize, Serialize};
+use actix_web::{FromRequest, HttpMessage, HttpRequest};
+use actix_web::dev::Payload;
+use crate::error::DataResponseError;
 
 #[charybdis_model(
     table_name = microservice_nodes,
@@ -15,6 +18,7 @@ use serde::{Deserialize, Serialize};
     local_secondary_indexes = [],
     static_columns = []
 )]
+#[derive(Debug, Clone)]
 pub struct MicroserviceNode {
     pub microservice_type: MicroserviceType,
     pub id: Uuid,
@@ -53,7 +57,7 @@ impl SerializeCql for MicroserviceType {
         writer: CellWriter<'b>,
     ) -> Result<WrittenCellProof<'b>, SerializationError> {
         let as_i8: i8 = self.into();
-        as_i8.serialize(typ, writer)
+        SerializeCql::serialize(&as_i8, typ, writer)
     }
 }
 
@@ -86,5 +90,17 @@ impl TryFrom<i8> for MicroserviceType {
             2i8 => Ok(MicroserviceType::PanelApi),
             _ => Err(()),
         }
+    }
+}
+
+impl FromRequest for MicroserviceNode {
+    type Error = DataResponseError;
+    type Future = futures::future::Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        return match req.extensions().get::<MicroserviceNode>() {
+            Some(node) => futures::future::ok(node.clone()),
+            None => futures::future::err(DataResponseError::BadAuth),
+        };
     }
 }
