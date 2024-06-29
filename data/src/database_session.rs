@@ -7,9 +7,12 @@ pub async fn build_session(
     password: &String,
     cache_size: usize,
 ) -> Result<CachingSession, NewSessionError> {
-    Ok(CachingSession::from(SessionBuilder::new()
+    Ok(CachingSession::from(
+        SessionBuilder::new()
             .known_nodes(known_nodes)
             .user(user, password)
             .build()
-            .await?, cache_size))
+            .await?,
+        cache_size,
+    ))
 }

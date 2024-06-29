@@ -1,21 +1,21 @@
 extern crate openssl;
 
-use std::error::Error;
+use crate::context::{NodeRequestContext, RequestContext};
 use openssl::error::ErrorStack;
 use openssl::pkey::{PKey, Private};
 use openssl::rsa::Rsa;
 use openssl::x509::extension::SubjectAlternativeName;
 use openssl::x509::{X509NameBuilder, X509Req, X509ReqBuilder, X509};
+use std::error::Error;
 use std::net::IpAddr;
-use crate::context::{NodeRequestContext, RequestContext};
 
 pub struct SigningData {
     pub ip_addr: IpAddr,
     pub validity_days: u32,
 }
 
-pub fn generate_private_key(bits: u32) -> Result<PKey<Private>, ErrorStack> {
-    let rsa = Rsa::generate(bits)?;
+pub fn generate_private_key() -> Result<PKey<Private>, ErrorStack> {
+    let rsa = Rsa::generate(4096)?;
     PKey::from_rsa(rsa)
 }
 
@@ -57,15 +57,20 @@ pub fn sign_csr(
     Ok(cert_builder.build())
 }
 
-pub async fn perform_certificate_request(ctx: &NodeRequestContext) -> Result<(PKey<Private>, X509), Box<dyn Error>> {
-    let pkey = generate_private_key(4096)?;
+pub async fn perform_certificate_request(
+    ctx: &NodeRequestContext,
+) -> Result<(PKey<Private>, X509), Box<dyn Error>> {
+    let pkey = generate_private_key()?;
     let csr = generate_csr(&pkey)?;
 
-    let resp = ctx.client()
+    let resp = ctx
+        .client()
         .post(ctx.controller("/api/internal/security/csr"))
         .body(csr.to_der()?)
-        .send().await?
-        .bytes().await?;
+        .send()
+        .await?
+        .bytes()
+        .await?;
 
     Ok((pkey, X509::from_der(resp.as_ref())?))
 }
@@ -113,7 +118,7 @@ mod tests {
     fn test_request() {
         let (ca, ca_private_key) = gen_ca();
 
-        let key = generate_private_key(2048).expect("Key gen failed");
+        let key = generate_private_key().expect("Key gen failed");
         let request = generate_csr(&key).expect("CSR gen failed");
 
         let cert = sign_csr(

@@ -1,6 +1,6 @@
-use actix_web::{post, web, HttpRequest};
 use actix_web::web::Bytes;
-use data::model::microservice_node_model::MicroserviceType;
+use actix_web::{post, web, HttpRequest};
+use data::model::microservice_node_model::{MicroserviceNode, MicroserviceType};
 use openssl::x509::X509Req;
 
 use crate::discovery::discovery_service::{
@@ -11,7 +11,9 @@ use crate::AppState;
 use network::autoconfigure::ssl_conf::{sign_csr, SigningData};
 
 #[derive(serde::Serialize)]
-pub struct NodeRegisterResponse {}
+pub struct NodeRegisterResponse {
+    pub token: String,
+}
 
 #[derive(serde::Deserialize)]
 pub struct NodeRegisterRequest {
@@ -25,15 +27,19 @@ pub struct UpdateStorageNodeProperties {
     pub used_space: u64,
 }
 
+#[derive(serde::Serialize)]
+pub struct UpdateStorageNodeResponse {}
+
 #[post("/security/csr")]
 pub async fn security_csr(
     state: web::Data<AppState>,
     body: Bytes,
+    _node: MicroserviceNode,
     http_request: HttpRequest,
 ) -> Result<Bytes, NodeError> {
     let csr = X509Req::from_der(body.as_ref()).map_err(|_| NodeError::BadRequest)?;
     let signing_data = SigningData {
-        ip_addr: get_address(&http_request)?,
+        ip_addr: get_address(&http_request).map_err(|_| NodeError::BadRequest)?,
         validity_days: state.config.autogen_ssl_validity,
     };
     let cert = sign_csr(&csr, &state.ca_cert, &state.ca_private_key, &signing_data)
@@ -49,19 +55,23 @@ pub async fn register_node(
     req: web::Json<NodeRegisterRequest>,
     http_request: HttpRequest,
 ) -> Result<web::Json<NodeRegisterResponse>, NodeError> {
-    perform_register_node(req.0, &state.session, get_address(&http_request)?).await?;
-
-    Ok(web::Json(NodeRegisterResponse {}))
+    Ok(web::Json(
+        perform_register_node(
+            req.0,
+            &state.session,
+            get_address(&http_request).map_err(|_| NodeError::BadRequest)?,
+        )
+        .await?,
+    ))
 }
 
 #[post("/storage")]
 pub async fn update_storage_node_properties(
     state: web::Data<AppState>,
+    node: MicroserviceNode,
     req: web::Json<UpdateStorageNodeProperties>,
-    http_request: HttpRequest,
-) -> Result<web::Json<NodeRegisterResponse>, NodeError> {
-    perform_storage_node_properties_update(req.0, &state.session, get_address(&http_request)?)
-        .await?;
+) -> Result<web::Json<UpdateStorageNodeResponse>, NodeError> {
+    perform_storage_node_properties_update(req.0, &state.session, node).await?;
 
-    Ok(web::Json(NodeRegisterResponse {}))
+    Ok(web::Json(UpdateStorageNodeResponse {}))
 }

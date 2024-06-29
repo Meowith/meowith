@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use reqwest::{Certificate, Client, ClientBuilder};
-use reqwest::header::{AUTHORIZATION, HeaderMap};
-use uuid::Uuid;
 use data::model::microservice_node_model::MicroserviceNode;
+use reqwest::header::{HeaderMap, AUTHORIZATION};
+use reqwest::{Certificate, Client, ClientBuilder};
+use std::collections::HashMap;
+use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct NodeRequestContext {
@@ -32,7 +32,8 @@ impl RequestContext for NodeRequestContext {
             .use_rustls_tls()
             .add_root_certificate(self.root_certificate.clone())
             .default_headers(headers)
-            .build().unwrap()
+            .build()
+            .unwrap()
     }
 }
 

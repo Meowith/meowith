@@ -20,7 +20,7 @@ impl error::ResponseError for NodeError {
         match *self {
             NodeError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             NodeError::BadRequest => StatusCode::BAD_REQUEST,
-            NodeError::BadAuth=> StatusCode::UNAUTHORIZED
+            NodeError::BadAuth => StatusCode::UNAUTHORIZED,
         }
     }
 

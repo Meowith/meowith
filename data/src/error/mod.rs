@@ -1,17 +1,16 @@
-use std::fmt::{Display, Formatter};
-use charybdis::errors::CharybdisError;
-use scylla::transport::errors::QueryError;
 use actix_web::{
     error::ResponseError,
     http::{header::ContentType, StatusCode},
     HttpResponse,
 };
+use charybdis::errors::CharybdisError;
 use derive_more::Display;
+use scylla::transport::errors::QueryError;
 
 #[derive(Debug, Display)]
 pub enum DataResponseError {
     #[display(fmt = "bad auth")]
-    BadAuth
+    BadAuth,
 }
 impl ResponseError for DataResponseError {
     fn status_code(&self) -> StatusCode {
@@ -27,13 +26,12 @@ impl ResponseError for DataResponseError {
     }
 }
 
-
 #[derive(Debug, Display)]
 pub enum MeowithDataError {
     QueryError(QueryError),
     InternalFailure(CharybdisError),
     NotFound,
-    UnknownFailure
+    UnknownFailure,
 }
 
 impl From<CharybdisError> for MeowithDataError {

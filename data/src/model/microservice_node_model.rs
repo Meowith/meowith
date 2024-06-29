@@ -1,3 +1,6 @@
+use crate::error::DataResponseError;
+use actix_web::dev::Payload;
+use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use charybdis::macros::charybdis_model;
 use charybdis::scylla::CqlValue;
 use charybdis::types::{BigInt, Boolean, Inet, Text, Timestamp, Uuid};
@@ -6,9 +9,7 @@ use scylla::_macro_internal::{
 };
 use scylla::cql_to_rust::FromCqlVal;
 use serde::{Deserialize, Serialize};
-use actix_web::{FromRequest, HttpMessage, HttpRequest};
-use actix_web::dev::Payload;
-use crate::error::DataResponseError;
+use std::str::FromStr;
 
 #[charybdis_model(
     table_name = microservice_nodes,
@@ -48,6 +49,21 @@ pub struct ServiceRegisterCode {
 pub enum MicroserviceType {
     StorageNode,
     PanelApi,
+}
+
+impl Default for MicroserviceNode {
+    fn default() -> Self {
+        MicroserviceNode {
+            microservice_type: MicroserviceType::StorageNode,
+            id: Default::default(),
+            max_space: None,
+            used_space: None,
+            token: "".to_string(),
+            address: Inet::from_str("0.0.0.0").unwrap(),
+            created: Default::default(),
+            register_code: "".to_string(),
+        }
+    }
 }
 
 impl SerializeCql for MicroserviceType {

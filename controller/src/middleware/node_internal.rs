@@ -1,22 +1,22 @@
 use std::future::{ready, Ready};
 
+use actix_web::web::Data;
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-    Error, FromRequest, HttpMessage,
+    Error, HttpMessage,
 };
-use actix_web::web::Data;
 use futures_util::future::LocalBoxFuture;
 
-use crate::AppState;
 use crate::error::node::NodeError;
+use crate::AppState;
 
 pub struct NodeVerify;
 
 impl<S, B> Transform<S, ServiceRequest> for NodeVerify
-    where
-        S: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
-        S::Future: 'static,
-        B: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
 {
     type Response = ServiceResponse<B>;
     type Error = Error;
@@ -42,10 +42,10 @@ fn remove_bearer_prefix(token: &str) -> String {
 }
 
 impl<S, B> Service<ServiceRequest> for NodeVerifyMiddleware<S>
-    where
-        S: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
-        S::Future: 'static,
-        B: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
 {
     type Response = ServiceResponse<B>;
     type Error = Error;
@@ -64,12 +64,13 @@ impl<S, B> Service<ServiceRequest> for NodeVerifyMiddleware<S>
             return Box::pin(async { Err(Error::from(NodeError::BadAuth)) });
         }
 
-        let user = app_data.req_ctx.token_node.get(&String::from(token_str.unwrap())).cloned();
-        if user.is_none() {
+        let clean_token = remove_bearer_prefix(token_str.unwrap());
+        let node = app_data.req_ctx.token_node.get(&clean_token).cloned();
+        if node.is_none() {
             return Box::pin(async { Err(Error::from(NodeError::BadAuth)) });
         }
 
-        let user_obj = user.unwrap();
+        let user_obj = node.unwrap();
         req.extensions_mut().insert(user_obj);
         let fut = self.service.call(req);
         Box::pin(async move {

@@ -10,9 +10,10 @@ actix-web = { version = "4.7.0", features = ["openssl"] }
 derive_more = "0.99.17"
 futures = "0.3.30"
 serde = { version = "1.0.203", features = ["derive"] }
-serde_yaml = "0.9.34+deprecated"
+serde_yaml = "0.9.34"
 openssl = "0.10.64"
 actix-cors = "0.7.0"
+rand_chacha = { version = "0.9.0-alpha.1", features = ["default"] }
 lazy_static = "1.5.0"
 
 # Data dependencies
@@ -29,3 +30,4 @@ uuid = { version = "1.8.0", features = ["v4"] }
 chrono = "0.4.38"
 futures-util = "0.3.30"
 tokio = "1.38.0"
+rand = "0.8.5"

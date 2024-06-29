@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
+use std::net::IpAddr;
+use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct ControllerConfig {
@@ -14,6 +16,7 @@ pub(crate) struct ControllerConfig {
     pub ca_certificate: String,
     pub ca_private_key: String,
     pub autogen_ssl_validity: u32,
+    pub internal_ip_addr: IpAddr,
 
     pub database_nodes: Vec<String>,
     pub db_username: String,
@@ -48,6 +51,7 @@ impl ControllerConfig {
             ca_certificate: String::from("abc"),
             ca_private_key: String::from("def"),
             autogen_ssl_validity: 30,
+            internal_ip_addr: IpAddr::from_str("1.2.3.4").unwrap(),
 
             database_nodes: vec!["127.0.0.1".to_string()],
             db_username: "root".to_string(),
