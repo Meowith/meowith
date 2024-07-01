@@ -10,21 +10,23 @@ const MIN_STORAGE_VALUE: u64 = 2 * 1024 * 1024 * 1024;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct NodeConfig {
-    cnc_addr: String,
-    cnc_port: u16,
-    max_space: String,
+    pub cnc_addr: String,
+    pub cnc_port: u16,
+    pub max_space: String,
+    pub ca_certificate: String,
     //internal network config
-    addr: String,
-    port: u16,
+    pub addr: String,
+    pub port: u16,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct NodeConfigInstance {
-    cnc_addr: String,
-    cnc_port: u16,
-    max_space: u64,
-    addr: String,
-    port: u16,
+    pub cnc_addr: String,
+    pub cnc_port: u16,
+    pub max_space: u64,
+    pub ca_certificate: String,
+    pub addr: String,
+    pub port: u16,
 }
 
 impl NodeConfig {
@@ -47,6 +49,7 @@ impl NodeConfig {
         let default_config = NodeConfig {
             cnc_addr: "127.0.0.1".to_string(),
             cnc_port: 9000,
+            ca_certificate: "ca_cert.pem".to_string(),
             max_space: "100mb".to_string(),
             addr: "127.0.0.1".to_string(),
             port: 8080,
@@ -95,6 +98,7 @@ impl NodeConfig {
         Ok(NodeConfigInstance {
             cnc_addr: self.cnc_addr,
             cnc_port: self.cnc_port,
+            ca_certificate: self.ca_certificate,
             max_space: max_space_bytes,
             addr: self.addr,
             port: self.port,

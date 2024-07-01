@@ -28,21 +28,20 @@ pub fn generate_renewal_token() -> String {
     generate_token(64)
 }
 
+pub fn generate_access_token() -> String {
+    generate_token(64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use network::autoconfigure::auth_conf::{is_access_token_valid, is_renewal_token_valid};
 
     #[test]
     fn test_generate_token_length() {
         let len = 32;
         let token = generate_token(len);
         assert_eq!(token.len(), len, "Token length should be {}", len);
-    }
-
-    #[test]
-    fn test_generate_renewal_token_length() {
-        let token = generate_renewal_token();
-        assert_eq!(token.len(), 64, "Renewal token length should be 64");
     }
 
     #[test]
@@ -56,11 +55,16 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_renewal_token_charset() {
+    fn test_generate_renewal_token_validity() {
         let token = generate_renewal_token();
 
-        for c in token.chars() {
-            assert!(CHARSET.contains(&c), "Character {} is not in CHARSET", c);
-        }
+        assert!(is_renewal_token_valid(&token), "Renewal Token is not valid");
+    }
+
+    #[test]
+    fn test_generate_access_token_validity() {
+        let token = generate_access_token();
+
+        assert!(is_access_token_valid(&token), "Access Token is not valid");
     }
 }

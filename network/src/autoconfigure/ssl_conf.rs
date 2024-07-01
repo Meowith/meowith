@@ -1,6 +1,6 @@
 extern crate openssl;
 
-use crate::context::{NodeRequestContext, RequestContext};
+use crate::context::request_context::{NodeRequestContext, RequestContext};
 use openssl::error::ErrorStack;
 use openssl::pkey::{PKey, Private};
 use openssl::rsa::Rsa;
@@ -57,6 +57,7 @@ pub fn sign_csr(
     Ok(cert_builder.build())
 }
 
+/// Expects BOTH of the tokens.
 pub async fn perform_certificate_request(
     ctx: &NodeRequestContext,
 ) -> Result<(PKey<Private>, X509), Box<dyn Error>> {
@@ -66,6 +67,7 @@ pub async fn perform_certificate_request(
     let resp = ctx
         .client()
         .post(ctx.controller("/api/internal/security/csr"))
+        .header("Sec-Authorization", ctx.renewal_token.clone())
         .body(csr.to_der()?)
         .send()
         .await?

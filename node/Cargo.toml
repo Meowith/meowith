@@ -8,3 +8,9 @@ serde = { version = "1.0.203", features = ["derive"] }
 serde_yaml = "0.9.34"
 sysinfo = "0.30.12"
 actix-web = "4.7.0"
+openssl = "0.10.64"
+
+logging = { path = "../logging", version = "0.1.0" }
+network = { path = "../network", version = "0.1.0"}
+data = { path = "../data", version = "0.1.0" }
+reqwest = "0.12.5"

@@ -4,7 +4,7 @@ Node creation is performed using the node register code in the following fashion
 
 1. A node instance is created and provided with:
     - The CA file to validate SSL connections
-    - The valid node register code
+    - The valid node register code, via the `REGISTER_CODE` env var
     - The socket address of the controller /internal web server
 2. Upon starting with the `--register-code <code>` commandline argument the node performs a request to the controller
    server with the register code and its node type

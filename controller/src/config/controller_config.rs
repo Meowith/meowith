@@ -15,6 +15,7 @@ pub(crate) struct ControllerConfig {
 
     pub ca_certificate: String,
     pub ca_private_key: String,
+    pub ca_private_key_password: Option<String>,
     pub autogen_ssl_validity: u32,
     pub internal_ip_addr: IpAddr,
 
@@ -48,8 +49,9 @@ impl ControllerConfig {
             ssl_certificate: None,
             ssl_private_key: None,
 
-            ca_certificate: String::from("abc"),
-            ca_private_key: String::from("def"),
+            ca_certificate: String::from("ca_cert.pem"),
+            ca_private_key: String::from("ca_key.pem"),
+            ca_private_key_password: Some("my-password".to_string()),
             autogen_ssl_validity: 30,
             internal_ip_addr: IpAddr::from_str("1.2.3.4").unwrap(),
 

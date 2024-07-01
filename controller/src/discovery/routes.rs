@@ -1,25 +1,18 @@
 use actix_web::web::Bytes;
 use actix_web::{post, web, HttpRequest};
-use data::model::microservice_node_model::{MicroserviceNode, MicroserviceType};
+use data::dto::controller::{
+    AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
+};
+use data::model::microservice_node_model::MicroserviceNode;
+use network::autoconfigure::ssl_conf::{sign_csr, SigningData};
 use openssl::x509::X509Req;
 
 use crate::discovery::discovery_service::{
     get_address, perform_register_node, perform_storage_node_properties_update,
+    perform_token_creation,
 };
 use crate::error::node::NodeError;
 use crate::AppState;
-use network::autoconfigure::ssl_conf::{sign_csr, SigningData};
-
-#[derive(serde::Serialize)]
-pub struct NodeRegisterResponse {
-    pub token: String,
-}
-
-#[derive(serde::Deserialize)]
-pub struct NodeRegisterRequest {
-    pub code: String,
-    pub service_type: MicroserviceType,
-}
 
 #[derive(serde::Deserialize)]
 pub struct UpdateStorageNodeProperties {
@@ -34,9 +27,20 @@ pub struct UpdateStorageNodeResponse {}
 pub async fn security_csr(
     state: web::Data<AppState>,
     body: Bytes,
-    _node: MicroserviceNode,
+    node: MicroserviceNode,
     http_request: HttpRequest,
 ) -> Result<Bytes, NodeError> {
+    let renewal_token = http_request.headers().get("Sec-Authorization");
+    if renewal_token.is_none()
+        || node.renewal_token
+            != renewal_token
+                .unwrap()
+                .to_str()
+                .map_err(|_| NodeError::BadRequest)?
+    {
+        return Err(NodeError::BadAuth);
+    }
+
     let csr = X509Req::from_der(body.as_ref()).map_err(|_| NodeError::BadRequest)?;
     let signing_data = SigningData {
         ip_addr: get_address(&http_request).map_err(|_| NodeError::BadRequest)?,
@@ -58,11 +62,20 @@ pub async fn register_node(
     Ok(web::Json(
         perform_register_node(
             req.0,
+            &state.req_ctx,
             &state.session,
             get_address(&http_request).map_err(|_| NodeError::BadRequest)?,
         )
         .await?,
     ))
+}
+
+#[post("/authenticate")]
+pub async fn authenticate_node(
+    state: web::Data<AppState>,
+    req: web::Json<AuthenticationRequest>,
+) -> Result<web::Json<AuthenticationResponse>, NodeError> {
+    Ok(web::Json(perform_token_creation(state, req.0).await?))
 }
 
 #[post("/storage")]

@@ -25,7 +25,9 @@ pub struct MicroserviceNode {
     pub id: Uuid,
     pub max_space: Option<BigInt>, // bytes
     pub used_space: Option<BigInt>,
-    pub token: Text,
+    pub access_token: Option<Text>,
+    pub access_token_issued_at: Timestamp,
+    pub renewal_token: Text,
     pub address: Inet,
     pub created: Timestamp,
     pub register_code: Text,
@@ -45,7 +47,7 @@ pub struct ServiceRegisterCode {
     pub valid: Boolean,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum MicroserviceType {
     StorageNode,
     PanelApi,
@@ -58,7 +60,9 @@ impl Default for MicroserviceNode {
             id: Default::default(),
             max_space: None,
             used_space: None,
-            token: "".to_string(),
+            access_token: None,
+            access_token_issued_at: Default::default(),
+            renewal_token: "".to_string(),
             address: Inet::from_str("0.0.0.0").unwrap(),
             created: Default::default(),
             register_code: "".to_string(),

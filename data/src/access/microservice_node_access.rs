@@ -4,7 +4,8 @@ use crate::model::microservice_node_model::{
 };
 use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
-use charybdis::types::{BigInt, Uuid};
+use charybdis::types::{BigInt, Text, Timestamp, Uuid};
+use chrono::Utc;
 use scylla::transport::session::TypedRowIter;
 use scylla::{CachingSession, QueryResult};
 
@@ -16,6 +17,14 @@ partial_microservice_node!(
     microservice_type,
     used_space,
     max_space
+);
+
+partial_microservice_node!(
+    UpdateMicroseviceNodeAccessToken,
+    id,
+    microservice_type,
+    access_token,
+    access_token_issued_at
 );
 
 pub async fn get_microservices(
@@ -101,4 +110,18 @@ pub async fn update_service_register_code(
     session: &CachingSession,
 ) -> Result<QueryResult, MeowithDataError> {
     node.update().execute(session).await.map_err(|e| e.into())
+}
+
+pub async fn update_service_access_token(
+    node: &MicroserviceNode,
+    session: &CachingSession,
+    issued_at: chrono::DateTime<Utc>,
+) -> Result<QueryResult, MeowithDataError> {
+    let update = UpdateMicroseviceNodeAccessToken {
+        microservice_type: node.microservice_type,
+        id: node.id,
+        access_token_issued_at: issued_at,
+        access_token: node.access_token.clone(),
+    };
+    update.update().execute(session).await.map_err(|e| e.into())
 }
