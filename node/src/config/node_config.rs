@@ -14,7 +14,7 @@ pub(crate) struct NodeConfig {
     pub cnc_port: u16,
     pub max_space: String,
     pub ca_certificate: String,
-    //internal network config
+    //internal commons config
     pub addr: String,
     pub port: u16,
 }

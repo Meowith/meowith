@@ -1,13 +1,7 @@
 use crate::config::node_config::NodeConfig;
-use crate::init_procedure::send_init_handshake;
-use data::model::microservice_node_model::MicroserviceType;
+use crate::init_procedure::register_node;
 use logging::initialize_logging;
-use network::autoconfigure::auth_conf::register_procedure;
-use network::context::request_context::NodeRequestContext;
-use openssl::x509::X509;
-use reqwest::Certificate;
-use std::collections::HashMap;
-use std::fs;
+
 use std::path::Path;
 
 mod config;
@@ -29,26 +23,7 @@ async fn main() -> std::io::Result<()> {
         .validate_config()
         .expect("Failed to validate config");
 
-    let ca_cert = X509::from_pem(
-        fs::read(&config.ca_certificate)
-            .expect("Unable to read ca cert file")
-            .as_slice(),
-    )
-    .expect("Invalid ca cert format");
-
-    let mut ctx = NodeRequestContext::new(
-        config.cnc_addr.clone(),
-        HashMap::new(),
-        "".to_string(),
-        "".to_string(),
-        Certificate::from_pem(ca_cert.to_pem().unwrap().as_slice())
-            .expect("Invalid certificate file"),
-        MicroserviceType::StorageNode,
-    );
-
-    let _reg_res = register_procedure(&mut ctx).await;
-
-    send_init_handshake(&config);
+    register_node(&config).await;
 
     Ok(())
 }

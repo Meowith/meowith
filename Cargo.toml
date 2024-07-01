@@ -9,7 +9,8 @@ members = [
     "node",
     "data",
     "controller",
-    "network"
-, "logging"]
+    "commons",
+    "logging"
+]
 
 [dependencies]

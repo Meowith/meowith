@@ -19,7 +19,7 @@ use data::dto::controller::{
 };
 use data::error::MeowithDataError;
 use data::model::microservice_node_model::MicroserviceNode;
-use network::context::request_context::ControllerRequestContext;
+use network::context::controller_request_context::ControllerRequestContext;
 
 pub async fn perform_register_node(
     req: NodeRegisterRequest,

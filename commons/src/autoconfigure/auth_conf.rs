@@ -7,7 +7,8 @@ use std::fmt::Debug;
 use std::{env, fs};
 
 use crate::autoconfigure::ssl_conf::perform_certificate_request;
-use crate::context::request_context::{NodeRequestContext, RequestContext};
+use crate::context::microservice_request_context::MicroserviceRequestContext;
+use crate::context::request_context::RequestContext;
 use data::dto::controller::{
     AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
 };
@@ -33,7 +34,7 @@ pub struct RegistrationResult {
 /// Lastly, if everything succeeded, the node sends out a health report
 ///
 /// If an error occurs, a panic is issued.
-pub async fn register_procedure(ctx: &mut NodeRequestContext) -> RegistrationResult {
+pub async fn register_procedure(ctx: &mut MicroserviceRequestContext) -> RegistrationResult {
     let token = read_renewal_token();
     if let Ok(token) = token {
         info!("Renewal token present");
@@ -77,12 +78,15 @@ pub fn read_renewal_token() -> Result<String, Box<dyn Error>> {
     }
 }
 
-pub async fn fetch_access_token(ctx: &NodeRequestContext) -> Result<String, Box<dyn Error>> {
+pub async fn fetch_access_token(
+    ctx: &MicroserviceRequestContext,
+) -> Result<String, Box<dyn Error>> {
     let req = AuthenticationRequest {
         renewal_token: ctx.renewal_token.clone(),
     };
     Ok(ctx
         .client()
+        .await
         .post(ctx.controller("/api/internal/authenticate"))
         .json(&req)
         .send()
@@ -92,7 +96,9 @@ pub async fn fetch_access_token(ctx: &NodeRequestContext) -> Result<String, Box<
         .access_token)
 }
 
-pub async fn perform_registration(ctx: &NodeRequestContext) -> Result<String, Box<dyn Error>> {
+pub async fn perform_registration(
+    ctx: &MicroserviceRequestContext,
+) -> Result<String, Box<dyn Error>> {
     let register_code =
         env::var("REGISTER_CODE").expect("No env var REGISTER_CODE provided. Unable to register!");
     let register_request = NodeRegisterRequest {
@@ -102,6 +108,7 @@ pub async fn perform_registration(ctx: &NodeRequestContext) -> Result<String, Bo
 
     let register_response = ctx
         .client()
+        .await
         .post(ctx.controller("/api/internal/register"))
         .json(&register_request)
         .send()

@@ -101,7 +101,7 @@
  *
  *   To "convey" a work means any kind of propagation that enables other
  * parties to make or receive copies.  Mere interaction with a user through
- * a computer network, with no transfer of a copy, is not conveying.
+ * a computer commons, with no transfer of a copy, is not conveying.
  *
  *   An interactive user interface displays "Appropriate Legal Notices"
  * to the extent that it includes a convenient and prominently visible
@@ -267,7 +267,7 @@
  *     medium customarily used for software interchange, for a price no
  *     more than your reasonable cost of physically performing this
  *     conveying of source, or (2) access to copy the
- *     Corresponding Source from a network server at no charge.
+ *     Corresponding Source from a commons server at no charge.
  *
  *     c) Convey individual copies of the object code with a copy of the
  *     written offer to provide the Corresponding Source.  This
@@ -280,7 +280,7 @@
  *     Corresponding Source in the same way through the same place at no
  *     further charge.  You need not require recipients to copy the
  *     Corresponding Source along with the object code.  If the place to
- *     copy the object code is a network server, the Corresponding Source
+ *     copy the object code is a commons server, the Corresponding Source
  *     may be on a different server (operated by you or a third party)
  *     that supports equivalent copying facilities, provided you maintain
  *     clear directions next to the object code saying where to find the
@@ -333,9 +333,9 @@
  * requirement to continue to provide support service, warranty, or updates
  * for a work that has been modified or installed by the recipient, or for
  * the User Product in which it has been modified or installed.  Access to a
- * network may be denied when the modification itself materially and
- * adversely affects the operation of the network or violates the rules and
- * protocols for communication across the network.
+ * commons may be denied when the modification itself materially and
+ * adversely affects the operation of the commons or violates the rules and
+ * protocols for communication across the commons.
  *
  *   Corresponding Source conveyed, and Installation Information provided,
  * in accord with this section must be in a format that is publicly
@@ -502,7 +502,7 @@
  *   If you convey a covered work, knowingly relying on a patent license,
  * and the Corresponding Source of the work is not available for anyone
  * to copy, free of charge and under the terms of this License, through a
- * publicly available network server or other readily accessible means,
+ * publicly available commons server or other readily accessible means,
  * then you must either (1) cause the Corresponding Source to be so
  * available, or (2) arrange to deprive yourself of the benefit of the
  * patent license for this particular work, or (3) arrange, in a manner
@@ -560,7 +560,7 @@
  * combined work, and to convey the resulting work.  The terms of this
  * License will continue to apply to the part which is the covered work,
  * but the special requirements of the GNU Affero General Public License,
- * section 13, concerning interaction through a network will apply to the
+ * section 13, concerning interaction through a commons will apply to the
  * combination as such.
  *
  *   14. Revised Versions of this License.

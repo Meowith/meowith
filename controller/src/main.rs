@@ -19,7 +19,7 @@ use data::database_session::build_session;
 use data::model::microservice_node_model::MicroserviceNode;
 use logging::initialize_logging;
 use network::autoconfigure::ssl_conf::{generate_csr, generate_private_key, sign_csr, SigningData};
-use network::context::request_context::ControllerRequestContext;
+use network::context::controller_request_context::ControllerRequestContext;
 use network::ssl_acceptor::{
     build_autogen_ssl_acceptor_builder, build_provided_ssl_acceptor_builder,
 };
