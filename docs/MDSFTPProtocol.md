@@ -15,7 +15,7 @@ All the packet data is stored in the content field
 
 ## Chunk
 
-- **File upload/download** (`file_chunk` Packet ID: 0x000001)
+- **File upload/download** (`file_chunk` Packet ID: 0x01)
 
 | Flags  | Chunk ID | content   |
 |--------|----------|-----------|
@@ -23,13 +23,13 @@ All the packet data is stored in the content field
 
 Flags: `is_last` (true/false)
 
-- **Retrieve** (`retreive` Packet ID: 0x000002)
+- **Retrieve** (`retreive` Packet ID: 0x02)
 
 | Chunk ID |
 |----------|
 | 36 Bytes |
 
-- **Put** (`put` Packet ID: 0x000003)
+- **Put** (`put` Packet ID: 0x03)
 
 | Chunk ID | Chunk Size |
 |----------|------------|
@@ -37,19 +37,19 @@ Flags: `is_last` (true/false)
 
 ## Reserve
 
-- **Reserve** (`reserve` Packet ID: 0x000004)
+- **Reserve** (`reserve` Packet ID: 0x04)
 
 | Desired Size |
 |--------------|
 | 8 Bytes      |
 
-- **Reserve success** (`reserve_ok` Packet ID: 0x000005)
+- **Reserve success** (`reserve_ok` Packet ID: 0x05)
 
 | Chunk ID |
 |----------|
 | 36 Bytes |
 
-- **Reserve error** (`reserve_err` Packet ID: 0x000006)
+- **Reserve error** (`reserve_err` Packet ID: 0x06)
 
 | Max space |
 |-----------|
@@ -57,7 +57,7 @@ Flags: `is_last` (true/false)
 
 ## Locks
 
-- **Lock request** (`lock_req` Packet ID: 0x000007)
+- **Lock request** (`lock_req` Packet ID: 0x07)
 
 | Flags   | Chunk ID  |
 |---------|-----------|
@@ -65,7 +65,7 @@ Flags: `is_last` (true/false)
 
 Flags: `kind` (read/write)
 
-- **Lock acquire** (`lock_acquire` Packet ID: 0x000008)
+- **Lock acquire** (`lock_acquire` Packet ID: 0x08)
 
 | Flags   | Chunk ID  |
 |---------|-----------|
@@ -73,7 +73,7 @@ Flags: `kind` (read/write)
 
 Flags: `kind` (read/write)
 
-- **Lock Error** (`lock_err` Packet ID: 0x000009)
+- **Lock Error** (`lock_err` Packet ID: 0x09)
 
 | Flags   | Chunk ID  |
 |---------|-----------|
@@ -81,6 +81,22 @@ Flags: `kind` (read/write)
 
 Flags: `kind` (read/write)
 
+## Channels
 
+- **Channel open** (`channel_open` Packet ID: 0x80)
 
+| Channel ID |
+|------------|
+| 4 Bytes    |
 
+- **Channel close** (`channel_close` Packet ID: 0x81)
+
+| Channel ID |
+|------------|
+| 4 Bytes    |
+
+- **Channel open error** (`channel_err` Packet ID: 0x82)
+
+| Channel ID |
+|------------|
+| 4 Bytes    |

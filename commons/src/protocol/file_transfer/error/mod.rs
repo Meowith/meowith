@@ -9,6 +9,11 @@ pub enum MDSFTPError {
     SSLError,
     NoSuchNode,
     AddressResolutionError,
+
+    NoSuchChunkId,
+    #[display(fmt = "ReserveError max_space = {_0}")]
+    ReserveError(u64),
+    MaxChannels
 }
 
 impl From<ErrorStack> for MDSFTPError {

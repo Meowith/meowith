@@ -1,11 +1,17 @@
-use std::net::{SocketAddr, TcpStream};
+use std::net::SocketAddr;
 use std::sync::Arc;
 
-use openssl::ssl::{SslConnector, SslMethod, SslStream};
+use openssl::ssl::{Ssl, SslContext, SslMethod};
 use openssl::x509::X509;
+use rand::{Rng, thread_rng};
+use tokio::net::TcpStream;
+use tokio::sync::Mutex;
+use tokio_openssl::SslStream;
 
-use crate::protocol::file_transfer::channel::MDSFTPChannel;
+use crate::protocol::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
 use crate::protocol::file_transfer::error::{MDSFTPError, MDSFTPResult};
+use crate::protocol::file_transfer::net::packet_reader::PacketReader;
+use crate::protocol::file_transfer::net::packet_writer::PacketWriter;
 
 #[derive(Clone)]
 pub struct MDSFTPConnection {
@@ -13,12 +19,11 @@ pub struct MDSFTPConnection {
 }
 
 impl MDSFTPConnection {
-    pub fn new(node_address: SocketAddr, certificate: &X509) -> MDSFTPResult<Self> {
+    pub async fn new(node_address: SocketAddr, certificate: &X509) -> MDSFTPResult<Self> {
         Ok(MDSFTPConnection {
-            _internal_connection: Arc::new(InternalMDSFTPConnection::new(
-                node_address,
-                certificate,
-            )?),
+            _internal_connection: Arc::new(
+                InternalMDSFTPConnection::new(node_address, certificate).await?,
+            ),
         })
     }
 
@@ -33,26 +38,74 @@ impl MDSFTPConnection {
 
 #[allow(unused)]
 struct InternalMDSFTPConnection {
-    stream: SslStream<TcpStream>,
+    writer: Arc<Mutex<PacketWriter>>,
+    reader: Arc<PacketReader>,
+    local: bool
 }
 
 impl InternalMDSFTPConnection {
-    fn new(addr: SocketAddr, certificate: &X509) -> MDSFTPResult<Self> {
-        let mut connector_builder = SslConnector::builder(SslMethod::tls())?;
+    async fn new(addr: SocketAddr, certificate: &X509) -> MDSFTPResult<Self> {
+        let mut ctx = SslContext::builder(SslMethod::tls())?;
 
-        connector_builder.set_certificate(certificate)?;
+        ctx.set_certificate(certificate)?;
 
-        let connector = connector_builder.build();
-
-        let stream = TcpStream::connect(addr).map_err(|_| MDSFTPError::ConnectionError)?;
-        let stream = connector
-            .connect(addr.ip().to_string().as_str(), stream)
+        let stream = TcpStream::connect(addr)
+            .await
             .map_err(|_| MDSFTPError::ConnectionError)?;
 
-        Ok(Self { stream })
+        let stream = SslStream::new(Ssl::new(&ctx.build()).map_err(|_| MDSFTPError::SSLError)?, stream)
+            .map_err(|_| MDSFTPError::SSLError)?;
+
+
+        // Note: no idea whether u can avoid using a mutex here (it is used internally),
+        // preventing simultaneous access to reads and writes
+        // (Or, so I think, the async r/w might help).
+        // Note: U can on the raw tcp stream.
+        // Note: In any case, actix uses the tokio runtime anyway.
+        let split = tokio::io::split(stream);
+
+        Ok(Self {
+            writer: Arc::new(Mutex::new(PacketWriter::new(split.1))),
+            reader: Arc::new(PacketReader::new(Arc::new(Mutex::new(split.0)))),
+            local: true
+        })
+    }
+
+    async fn generate_id(&self) -> MDSFTPResult<u32> {
+        let mut rng = thread_rng();
+        let map = self.reader.conn_map.read().await;
+        let max_tries = 5;
+        let max_ids = 1_000_000usize;
+
+        if map.len() >= max_ids {
+            return Err(MDSFTPError::MaxChannels)
+        }
+
+        let remote_offset = if self.local { 0u32 } else { 0x80000000u32 };
+        for _i in 0 .. max_tries {
+            let id = rng.gen_range(0 .. 0x80000000u32 ) + remote_offset;
+            if !map.contains_key(&id) {
+                return Ok(id)
+            }
+        }
+
+        Err(MDSFTPError::MaxChannels)
     }
 
     pub(crate) async fn create_channel(&self) -> MDSFTPResult<MDSFTPChannel> {
-        todo!()
+
+        let id = self.generate_id().await?;
+
+        let internal_ref = Arc::new(InternalMDSFTPChannel::new(
+            id,
+            Arc::downgrade(&self.writer),
+            Arc::downgrade(&self.reader),
+        ));
+
+        self.reader.add_channel(internal_ref.clone()).await;
+
+        Ok(MDSFTPChannel {
+            _internal_channel: internal_ref
+        })
     }
 }

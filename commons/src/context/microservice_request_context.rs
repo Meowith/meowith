@@ -1,11 +1,11 @@
 use crate::context::request_context::RequestContext;
-use async_rwlock::{RwLock, RwLockReadGuard};
 use data::model::microservice_node_model::MicroserviceType;
 use openssl::x509::X509;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use reqwest::{Certificate, Client, ClientBuilder};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::{RwLock, RwLockReadGuard};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]

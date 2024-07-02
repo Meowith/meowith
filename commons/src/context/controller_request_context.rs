@@ -1,10 +1,10 @@
 use crate::context::request_context::RequestContext;
-use async_rwlock::{RwLock, RwLockReadGuard};
 use data::model::microservice_node_model::MicroserviceNode;
 use reqwest::header::AUTHORIZATION;
 use reqwest::{Certificate, Client, ClientBuilder, Method, RequestBuilder};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::{RwLock, RwLockReadGuard};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
