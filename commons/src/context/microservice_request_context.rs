@@ -1,9 +1,11 @@
 use crate::context::request_context::RequestContext;
+use data::dto::controller::{ValidatePeerRequest, ValidatePeerResponse};
 use data::model::microservice_node_model::MicroserviceType;
 use openssl::x509::X509;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use reqwest::{Certificate, Client, ClientBuilder};
 use std::collections::HashMap;
+use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard};
 use uuid::Uuid;
@@ -65,6 +67,26 @@ impl MicroserviceRequestContext {
             .default_headers(headers)
             .build()
             .unwrap()
+    }
+
+    pub async fn validate_peer_token(
+        &self,
+        peer_token: String,
+        id: Uuid,
+    ) -> Result<ValidatePeerResponse, Box<dyn Error>> {
+        let resp = self
+            .client()
+            .await
+            .post(self.controller("/api/internal/"))
+            .json(&ValidatePeerRequest {
+                node_token: peer_token,
+                node_id: id,
+            })
+            .send()
+            .await?
+            .json::<ValidatePeerResponse>()
+            .await?;
+        Ok(resp)
     }
 
     pub fn controller(&self, path: &str) -> String {

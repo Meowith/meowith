@@ -6,12 +6,12 @@ use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use uuid::{Bytes, Uuid};
 
-use crate::protocol::file_transfer::data::{ChunkErrorKind, LockKind};
-use crate::protocol::file_transfer::error::{MDSFTPError, MDSFTPResult};
-use crate::protocol::file_transfer::net::packet_reader::PacketReader;
-use crate::protocol::file_transfer::net::packet_type::MDSFTPPacketType;
-use crate::protocol::file_transfer::net::packet_writer::PacketWriter;
-use crate::protocol::file_transfer::net::wire::{MDSFTPRawPacket, HEADER_SIZE};
+use crate::file_transfer::data::{ChunkErrorKind, LockKind};
+use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
+use crate::file_transfer::net::packet_reader::PacketReader;
+use crate::file_transfer::net::packet_type::MDSFTPPacketType;
+use crate::file_transfer::net::packet_writer::PacketWriter;
+use crate::file_transfer::net::wire::{MDSFTPRawPacket, HEADER_SIZE};
 
 pub struct MDSFTPChannel {
     pub(crate) _internal_channel: Arc<Mutex<InternalMDSFTPChannel>>,

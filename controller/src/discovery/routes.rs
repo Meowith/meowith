@@ -1,18 +1,18 @@
-use actix_web::web::Bytes;
-use actix_web::{post, web, HttpRequest};
-use data::dto::controller::{
-    AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
-};
-use data::model::microservice_node_model::MicroserviceNode;
-use network::autoconfigure::ssl_conf::{sign_csr, SigningData};
-use openssl::x509::X509Req;
-
 use crate::discovery::discovery_service::{
     get_address, perform_register_node, perform_storage_node_properties_update,
     perform_token_creation,
 };
 use crate::error::node::NodeError;
 use crate::AppState;
+use actix_web::web::Bytes;
+use actix_web::{post, web, HttpRequest};
+use commons::autoconfigure::ssl_conf::{sign_csr, SigningData};
+use data::dto::controller::{
+    AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
+    ValidatePeerRequest, ValidatePeerResponse,
+};
+use data::model::microservice_node_model::MicroserviceNode;
+use openssl::x509::X509Req;
 
 #[derive(serde::Deserialize)]
 pub struct UpdateStorageNodeProperties {
@@ -30,6 +30,7 @@ pub async fn security_csr(
     node: MicroserviceNode,
     http_request: HttpRequest,
 ) -> Result<Bytes, NodeError> {
+    // TODO, move to service
     let renewal_token = http_request.headers().get("Sec-Authorization");
     if renewal_token.is_none()
         || node.renewal_token
@@ -68,6 +69,22 @@ pub async fn register_node(
         )
         .await?,
     ))
+}
+
+#[post("/validate/peer")]
+pub async fn validate_peer(
+    state: web::Data<AppState>,
+    req: web::Json<ValidatePeerRequest>,
+) -> Result<web::Json<ValidatePeerResponse>, NodeError> {
+    let map = state.req_ctx.node_token.read().await;
+
+    if let Some(token) = map.get(&req.0.node_id) {
+        Ok(web::Json(ValidatePeerResponse {
+            valid: *token == req.node_token,
+        }))
+    } else {
+        Ok(web::Json(ValidatePeerResponse { valid: false }))
+    }
 }
 
 #[post("/authenticate")]

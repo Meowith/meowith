@@ -10,7 +10,8 @@ members = [
     "data",
     "controller",
     "commons",
-    "logging"
+    "logging",
+    "protocol"
 ]
 
 [dependencies]

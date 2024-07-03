@@ -1,4 +1,4 @@
-use crate::protocol::file_transfer::net::packet_type::MDSFTPPacketType;
+use crate::file_transfer::net::packet_type::MDSFTPPacketType;
 use std::io::Write;
 
 pub(crate) const HEADER_SIZE: usize = 7usize;

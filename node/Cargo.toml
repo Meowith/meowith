@@ -11,6 +11,6 @@ actix-web = "4.7.0"
 openssl = "0.10.64"
 
 logging = { path = "../logging", version = "0.1.0" }
-network = { path = "../commons", version = "0.1.0"}
+commons = { path = "../commons", version = "0.1.0"}
 data = { path = "../data", version = "0.1.0" }
 reqwest = "0.12.5"

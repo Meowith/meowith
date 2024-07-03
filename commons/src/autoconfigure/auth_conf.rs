@@ -1,3 +1,9 @@
+use crate::autoconfigure::ssl_conf::perform_certificate_request;
+use crate::context::microservice_request_context::MicroserviceRequestContext;
+use crate::context::request_context::RequestContext;
+use data::dto::controller::{
+    AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
+};
 use log::info;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
@@ -5,13 +11,7 @@ use regex::Regex;
 use std::error::Error;
 use std::fmt::Debug;
 use std::{env, fs};
-
-use crate::autoconfigure::ssl_conf::perform_certificate_request;
-use crate::context::microservice_request_context::MicroserviceRequestContext;
-use crate::context::request_context::RequestContext;
-use data::dto::controller::{
-    AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
-};
+use uuid::Uuid;
 
 static TOKEN_PATH: &str = "tkn.store";
 

@@ -1,4 +1,4 @@
-use crate::protocol::file_transfer::channel::MDSFTPChannel;
+use crate::file_transfer::channel::MDSFTPChannel;
 use uuid::Uuid;
 
 pub trait ChannelHandler: Send {

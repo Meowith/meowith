@@ -1,12 +1,12 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::protocol::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
-use crate::protocol::file_transfer::error::{MDSFTPError, MDSFTPResult};
-use crate::protocol::file_transfer::net::packet_reader::{GlobalHandler, PacketReader};
-use crate::protocol::file_transfer::net::packet_type::MDSFTPPacketType;
-use crate::protocol::file_transfer::net::packet_writer::PacketWriter;
-use crate::protocol::file_transfer::net::wire::MDSFTPRawPacket;
+use crate::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
+use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
+use crate::file_transfer::net::packet_reader::{GlobalHandler, PacketReader};
+use crate::file_transfer::net::packet_type::MDSFTPPacketType;
+use crate::file_transfer::net::packet_writer::PacketWriter;
+use crate::file_transfer::net::wire::MDSFTPRawPacket;
 use openssl::ssl::{Ssl, SslContext, SslMethod};
 use openssl::x509::X509;
 use rand::{thread_rng, Rng};
@@ -30,7 +30,8 @@ impl MDSFTPConnection {
     ) -> MDSFTPResult<Self> {
         Ok(MDSFTPConnection {
             _internal_connection: Arc::new(
-                InternalMDSFTPConnection::new(node_address, certificate, id, auth_token, handler).await?,
+                InternalMDSFTPConnection::new(node_address, certificate, id, auth_token, handler)
+                    .await?,
             ),
         })
     }
@@ -72,7 +73,7 @@ impl InternalMDSFTPConnection {
             Ssl::new(&ctx.build()).map_err(|_| MDSFTPError::SSLError)?,
             stream,
         )
-            .map_err(|_| MDSFTPError::SSLError)?;
+        .map_err(|_| MDSFTPError::SSLError)?;
 
         // Note: no idea whether u can avoid using a mutex here (it is used internally),
         // preventing simultaneous access to reads and writes
@@ -94,8 +95,18 @@ impl InternalMDSFTPConnection {
 
         reader.start(Arc::downgrade(&channel_factory));
 
-        writer.lock().await.write_bytes(auth_token.as_bytes()).await.map_err(|_| MDSFTPError::ConnectionError)?;
-        writer.lock().await.write_bytes(id.as_bytes()).await.map_err(|_| MDSFTPError::ConnectionError)?;
+        writer
+            .lock()
+            .await
+            .write_bytes(auth_token.as_bytes())
+            .await
+            .map_err(|_| MDSFTPError::ConnectionError)?;
+        writer
+            .lock()
+            .await
+            .write_bytes(id.as_bytes())
+            .await
+            .map_err(|_| MDSFTPError::ConnectionError)?;
 
         Ok(Self {
             writer,
@@ -139,7 +150,11 @@ pub(crate) struct ChannelFactory {
 }
 
 impl ChannelFactory {
-    pub(crate) async fn materialize_channel(&self, id: u32, alert: bool) -> MDSFTPResult<MDSFTPChannel> {
+    pub(crate) async fn materialize_channel(
+        &self,
+        id: u32,
+        alert: bool,
+    ) -> MDSFTPResult<MDSFTPChannel> {
         let internal_ref = Arc::new(Mutex::new(InternalMDSFTPChannel::new(
             id,
             Arc::downgrade(&self.writer),
@@ -160,7 +175,6 @@ impl ChannelFactory {
                 .await
                 .map_err(|_| MDSFTPError::ConnectionError)?;
         }
-
 
         Ok(MDSFTPChannel {
             _internal_channel: internal_ref,

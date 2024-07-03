@@ -1,10 +1,10 @@
-use crate::protocol::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
-use crate::protocol::file_transfer::connection::ChannelFactory;
-use crate::protocol::file_transfer::error::MDSFTPError;
-use crate::protocol::file_transfer::handler::PacketHandler;
-use crate::protocol::file_transfer::net::packet_type::MDSFTPPacketType;
-use crate::protocol::file_transfer::net::packet_writer::PacketWriter;
-use crate::protocol::file_transfer::net::wire::{read_header, MDSFTPRawPacket, HEADER_SIZE};
+use crate::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
+use crate::file_transfer::connection::ChannelFactory;
+use crate::file_transfer::error::MDSFTPError;
+use crate::file_transfer::handler::PacketHandler;
+use crate::file_transfer::net::packet_type::MDSFTPPacketType;
+use crate::file_transfer::net::packet_writer::PacketWriter;
+use crate::file_transfer::net::wire::{read_header, MDSFTPRawPacket, HEADER_SIZE};
 use log::debug;
 use std::collections::HashMap;
 use std::future::Future;

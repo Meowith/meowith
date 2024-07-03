@@ -1,4 +1,4 @@
-use crate::protocol::file_transfer::error::MDSFTPError;
+use crate::file_transfer::error::MDSFTPError;
 
 pub enum LockKind {
     Read,

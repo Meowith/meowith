@@ -1,9 +1,10 @@
 [package]
-name = "commons"
+name = "protocol"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+commons = { path = "../commons", version = "0.1.0" }
 openssl = "0.10.64"
 rand = "0.8.5"
 reqwest = { version = "0.12.5", features = ["__rustls", "json"] }
@@ -16,3 +17,5 @@ derive_more = "0.99.18"
 log = "0.4.22"
 tokio = "1.38.0"
 tokio-openssl = "0.6.4"
+rustls = "0.23.10"
+tokio-rustls = "0.26.0"

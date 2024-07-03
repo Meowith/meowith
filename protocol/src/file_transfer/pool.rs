@@ -1,18 +1,18 @@
+use crate::file_transfer::channel::MDSFTPChannel;
+use crate::file_transfer::connection::MDSFTPConnection;
+use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
+use crate::file_transfer::handler::PacketHandler;
+use crate::file_transfer::net::packet_reader::GlobalHandler;
+use commons::context::microservice_request_context::MicroserviceRequestContext;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
-
-use tokio::sync::RwLock;
+use tokio::net::TcpStream;
 use tokio::sync::Mutex;
+use tokio::sync::RwLock;
+use tokio_rustls::TlsStream;
 use uuid::Uuid;
-
-use crate::context::microservice_request_context::MicroserviceRequestContext;
-use crate::protocol::file_transfer::channel::MDSFTPChannel;
-use crate::protocol::file_transfer::connection::MDSFTPConnection;
-use crate::protocol::file_transfer::error::{MDSFTPError, MDSFTPResult};
-use crate::protocol::file_transfer::handler::PacketHandler;
-use crate::protocol::file_transfer::net::packet_reader::GlobalHandler;
 
 #[derive(Clone)]
 pub struct MDSFTPPool {
@@ -58,9 +58,14 @@ impl InternalMDSFTPPool {
             return Ok(connection);
         }
 
-        let packet_handler = self.packet_handler.as_ref().ok_or(MDSFTPError::NoPacketHandler)?;
+        let packet_handler = self
+            .packet_handler
+            .as_ref()
+            .ok_or(MDSFTPError::NoPacketHandler)?;
 
-        let new_connection = self.create_connection(node_id, packet_handler.clone()).await?;
+        let new_connection = self
+            .create_connection(node_id, packet_handler.clone())
+            .await?;
         map_mut.insert(*node_id, new_connection.clone());
 
         Ok(new_connection)
@@ -96,5 +101,9 @@ impl InternalMDSFTPPool {
             handler,
         )
         .await
+    }
+
+    async fn add_connection(conn: TlsStream<TcpStream>) {
+        todo!()
     }
 }

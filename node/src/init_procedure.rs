@@ -1,7 +1,7 @@
 use crate::config::node_config::NodeConfigInstance;
+use commons::autoconfigure::auth_conf::register_procedure;
+use commons::context::microservice_request_context::MicroserviceRequestContext;
 use data::model::microservice_node_model::MicroserviceType;
-use network::autoconfigure::auth_conf::register_procedure;
-use network::context::microservice_request_context::MicroserviceRequestContext;
 use openssl::x509::X509;
 use reqwest::Certificate;
 use std::collections::HashMap;

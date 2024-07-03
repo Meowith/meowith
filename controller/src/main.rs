@@ -14,15 +14,15 @@ use openssl::x509::X509;
 use reqwest::Certificate;
 use scylla::CachingSession;
 
+use commons::autoconfigure::ssl_conf::{generate_csr, generate_private_key, sign_csr, SigningData};
+use commons::context::controller_request_context::ControllerRequestContext;
+use commons::ssl_acceptor::{
+    build_autogen_ssl_acceptor_builder, build_provided_ssl_acceptor_builder,
+};
 use data::access::microservice_node_access::get_microservices;
 use data::database_session::build_session;
 use data::model::microservice_node_model::MicroserviceNode;
 use logging::initialize_logging;
-use network::autoconfigure::ssl_conf::{generate_csr, generate_private_key, sign_csr, SigningData};
-use network::context::controller_request_context::ControllerRequestContext;
-use network::ssl_acceptor::{
-    build_autogen_ssl_acceptor_builder, build_provided_ssl_acceptor_builder,
-};
 
 use crate::config::controller_config::ControllerConfig;
 use crate::discovery::routes::{register_node, security_csr};

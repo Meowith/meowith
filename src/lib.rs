@@ -634,8 +634,8 @@
  * state the exclusion of warranty; and each file should have at least
  * the "copyright" line and a pointer to where the full notice is found.
  *
- *     {one line to give the program's name and a brief idea of what it does.}
- *     Copyright (C) {year}  {name of author}
+ *     Meowith - distributed file server system
+ *     Copyright (C) 2025 CatCompany
  *
  *     This program is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
@@ -655,7 +655,7 @@
  *   If the program does terminal interaction, make it output a short
  * notice like this when it starts in an interactive mode:
  *
- *     {project}  Copyright (C) {year}  {fullname}
+ *     Meowith  Copyright (C) 2025 CatCompany
  *     This program comes with ABSOLUTELY NO WARRANTY; for details type `show w'.
  *     This is free software, and you are welcome to redistribute it
  *     under certain conditions; type `show c' for details.

@@ -1,6 +1,4 @@
-use crate::protocol::file_transfer::net::wire::{
-    write_header, MDSFTPHeader, MDSFTPRawPacket, PAYLOAD_SIZE,
-};
+use crate::file_transfer::net::wire::{write_header, MDSFTPHeader, MDSFTPRawPacket, PAYLOAD_SIZE};
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
 use tokio_openssl::SslStream;
