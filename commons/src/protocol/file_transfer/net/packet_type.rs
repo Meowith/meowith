@@ -1,3 +1,4 @@
+#[derive(Copy, Clone)]
 pub(crate) enum MDSFTPPacketType {
     FileChunk,
     Retrieve,
@@ -37,7 +38,7 @@ impl TryFrom<u8> for MDSFTPPacketType {
             128u8 => Ok(MDSFTPPacketType::ChannelOpen),
             129u8 => Ok(MDSFTPPacketType::ChannelClose),
             130u8 => Ok(MDSFTPPacketType::ChannelErr),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }

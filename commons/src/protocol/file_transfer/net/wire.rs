@@ -1,5 +1,5 @@
-use std::io::Write;
 use crate::protocol::file_transfer::net::packet_type::MDSFTPPacketType;
+use std::io::Write;
 
 pub(crate) const HEADER_SIZE: usize = 7usize;
 pub(crate) const PAYLOAD_SIZE: usize = 65535usize;
@@ -9,12 +9,13 @@ pub(crate) const MAX_PACKET_SIZE: usize = HEADER_SIZE + PAYLOAD_SIZE;
 pub(crate) struct MDSFTPHeader {
     pub(crate) packet_id: u8,
     pub(crate) stream_id: u32,
-    pub(crate) payload_size: u16
+    pub(crate) payload_size: u16,
 }
 
 pub(crate) struct MDSFTPRawPacket {
     pub(crate) packet_type: MDSFTPPacketType,
-    pub(crate) payload: Vec<u8>
+    pub(crate) stream_id: u32,
+    pub(crate) payload: Vec<u8>,
 }
 
 pub(crate) fn read_header(raw: &[u8; 7]) -> MDSFTPHeader {
@@ -39,7 +40,7 @@ pub(crate) fn write_header(header: &MDSFTPHeader, buf: &mut [u8]) {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::file_transfer::net::wire::{MDSFTPHeader, read_header, write_header};
+    use crate::protocol::file_transfer::net::wire::{read_header, write_header, MDSFTPHeader};
 
     #[test]
     fn test_header() {
@@ -52,7 +53,5 @@ mod tests {
 
         write_header(&header, &mut buf);
         let read = read_header(&buf);
-
     }
-
 }

@@ -13,7 +13,10 @@ pub enum MDSFTPError {
     NoSuchChunkId,
     #[display(fmt = "ReserveError max_space = {_0}")]
     ReserveError(u64),
-    MaxChannels
+    MaxChannels,
+    Interrupted,
+    RemoteError,
+    NoPacketHandler,
 }
 
 impl From<ErrorStack> for MDSFTPError {

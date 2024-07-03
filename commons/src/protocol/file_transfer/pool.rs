@@ -4,12 +4,15 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::context::microservice_request_context::MicroserviceRequestContext;
 use crate::protocol::file_transfer::channel::MDSFTPChannel;
 use crate::protocol::file_transfer::connection::MDSFTPConnection;
 use crate::protocol::file_transfer::error::{MDSFTPError, MDSFTPResult};
+use crate::protocol::file_transfer::handler::PacketHandler;
+use crate::protocol::file_transfer::net::packet_reader::GlobalHandler;
 
 #[derive(Clone)]
 pub struct MDSFTPPool {
@@ -35,6 +38,7 @@ impl MDSFTPPool {
 struct InternalMDSFTPPool {
     req_ctx: Arc<MicroserviceRequestContext>,
     connection_map: RwLock<HashMap<Uuid, MDSFTPConnection>>,
+    packet_handler: Option<GlobalHandler>,
 }
 
 impl InternalMDSFTPPool {
@@ -42,6 +46,7 @@ impl InternalMDSFTPPool {
         InternalMDSFTPPool {
             req_ctx,
             connection_map: RwLock::new(HashMap::new()),
+            packet_handler: None,
         }
     }
 
@@ -53,7 +58,9 @@ impl InternalMDSFTPPool {
             return Ok(connection);
         }
 
-        let new_connection = self.create_connection(node_id).await?;
+        let packet_handler = self.packet_handler.as_ref().ok_or(MDSFTPError::NoPacketHandler)?;
+
+        let new_connection = self.create_connection(node_id, packet_handler.clone()).await?;
         map_mut.insert(*node_id, new_connection.clone());
 
         Ok(new_connection)
@@ -64,7 +71,15 @@ impl InternalMDSFTPPool {
         conn.create_channel().await
     }
 
-    async fn create_connection(&self, target: &Uuid) -> MDSFTPResult<MDSFTPConnection> {
+    pub(crate) fn set_packet_handler(&mut self, handler: Box<dyn PacketHandler>) {
+        self.packet_handler = Some(Arc::new(Mutex::new(handler)));
+    }
+
+    async fn create_connection(
+        &self,
+        target: &Uuid,
+        handler: GlobalHandler,
+    ) -> MDSFTPResult<MDSFTPConnection> {
         let port = 6969; // TODO
 
         let map = self.req_ctx.node_addr.read().await;
@@ -76,6 +91,9 @@ impl InternalMDSFTPPool {
                 port,
             ),
             &self.req_ctx.root_x509,
+            *target,
+            &self.req_ctx.access_token,
+            handler,
         )
         .await
     }

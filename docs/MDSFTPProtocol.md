@@ -27,13 +27,13 @@ Flags: `is_last` (true/false)
 
 | Chunk ID |
 |----------|
-| 36 Bytes |
+| 16 Bytes |
 
 - **Put** (`put` Packet ID: 0x03)
 
 | Chunk ID | Chunk Size |
 |----------|------------|
-| 36 Bytes | 8 Bytes    |
+| 16 Bytes | 8 Bytes    |
 
 ## Reserve
 
@@ -47,7 +47,7 @@ Flags: `is_last` (true/false)
 
 | Chunk ID |
 |----------|
-| 36 Bytes |
+| 16 Bytes |
 
 - **Reserve error** (`reserve_err` Packet ID: 0x06)
 
@@ -59,44 +59,32 @@ Flags: `is_last` (true/false)
 
 - **Lock request** (`lock_req` Packet ID: 0x07)
 
-| Flags   | Chunk ID  |
-|---------|-----------|
-| 1 Bytes | 36 Bytes  |
+| Flags   | Chunk ID |
+|---------|----------|
+| 1 Bytes | 16 Bytes |
 
 Flags: `kind` (read/write)
 
 - **Lock acquire** (`lock_acquire` Packet ID: 0x08)
 
-| Flags   | Chunk ID  |
-|---------|-----------|
-| 1 Bytes | 36 Bytes  |
+| Flags   | Chunk ID |
+|---------|----------|
+| 1 Bytes | 16 Bytes |
 
 Flags: `kind` (read/write)
 
 - **Lock Error** (`lock_err` Packet ID: 0x09)
 
-| Flags   | Chunk ID  |
-|---------|-----------|
-| 1 Bytes | 36 Bytes  |
+| Flags   | Chunk ID |
+|---------|----------|
+| 1 Bytes | 16 Bytes |
 
-Flags: `kind` (read/write)
+Flags: `lock_kind` (read/write) `error_kind` (not_found/internal)
 
 ## Channels
 
 - **Channel open** (`channel_open` Packet ID: 0x80)
 
-| Channel ID |
-|------------|
-| 4 Bytes    |
-
 - **Channel close** (`channel_close` Packet ID: 0x81)
 
-| Channel ID |
-|------------|
-| 4 Bytes    |
-
 - **Channel open error** (`channel_err` Packet ID: 0x82)
-
-| Channel ID |
-|------------|
-| 4 Bytes    |
