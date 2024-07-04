@@ -1,40 +1,37 @@
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::future::Future;
-use std::ops::Deref;
 use std::sync::{Arc, Weak};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use log::debug;
+use log::{debug, warn};
 use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::TcpStream;
 use tokio::sync::{Mutex, MutexGuard, RwLock};
 use tokio::task::JoinHandle;
-use tokio_openssl::SslStream;
 use tokio_rustls::TlsStream;
 use uuid::Uuid;
 
-use crate::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
+use crate::file_transfer::channel::{InternalMDSFTPChannel};
 use crate::file_transfer::connection::ChannelFactory;
-use crate::file_transfer::error::MDSFTPError;
 use crate::file_transfer::handler::PacketHandler;
 use crate::file_transfer::net::packet_type::MDSFTPPacketType;
-use crate::file_transfer::net::packet_writer::PacketWriter;
+use crate::file_transfer::net::validate::PreValidate;
 use crate::file_transfer::net::wire::{HEADER_SIZE, MDSFTPRawPacket, read_header};
 
 pub type ConnectionMap = Arc<RwLock<HashMap<u32, Arc<Mutex<InternalMDSFTPChannel>>>>>;
 pub type GlobalHandler = Arc<Mutex<Box<dyn PacketHandler>>>;
 
-#[allow(unused)]
 pub(crate) struct PacketReader {
-    stream: Arc<Mutex<ReadHalf<TlsStream<TcpStream>>>>,
+    pub(crate) stream: Arc<Mutex<ReadHalf<TlsStream<TcpStream>>>>,
     pub(crate) conn_map: ConnectionMap,
     running: Arc<AtomicBool>,
     global_handler: GlobalHandler,
     conn_id: Uuid,
+    channel_count: Arc<AtomicUsize>
 }
 
 impl PacketReader {
-    pub fn new(
+    pub(crate) fn new(
         stream: Arc<Mutex<ReadHalf<TlsStream<TcpStream>>>>,
         global_handler: GlobalHandler,
         conn_id: Uuid,
@@ -45,48 +42,54 @@ impl PacketReader {
             running: Arc::new(AtomicBool::new(false)),
             global_handler,
             conn_id,
+            channel_count: Arc::new(AtomicUsize::new(0))
         }
     }
 
-    pub async fn close(conn_map: &ConnectionMap) {
+    pub(crate) async fn close_map(conn_map: &ConnectionMap, channels: &Arc<AtomicUsize>) {
         let mut map_mut = conn_map.write().await;
         for internal_channel in map_mut.iter() {
             internal_channel.1.lock().await.interrupt().await;
         }
-        map_mut.clear()
+        map_mut.clear();
+        channels.store(0, Ordering::SeqCst);
     }
 
-    pub fn start(&self, channel_factory: Weak<ChannelFactory>) -> JoinHandle<()> {
+    pub(crate) fn start(&self, channel_factory: Weak<ChannelFactory>) -> JoinHandle<()> {
         let stream_ref = self.stream.clone();
         let conn_map = self.conn_map.clone();
         let running = self.running.clone();
         let handler = self.global_handler.clone();
         let conn_id = self.conn_id;
+        let channels = self.channel_count.clone();
         tokio::spawn(async move {
             let mut stream = stream_ref.lock().await;
             let mut header_buf: [u8; HEADER_SIZE] = [0; HEADER_SIZE];
 
             while running.load(Ordering::Relaxed) {
                 if stream.read_exact(&mut header_buf).await.is_err() {
-                    Self::close(&conn_map).await;
+                    Self::close_map(&conn_map, &channels).await;
                     break;
                 };
 
                 let header = read_header(&header_buf);
-
-                let mut payload: Vec<u8> = Vec::with_capacity(header.payload_size as usize);
-                if stream.read_exact(payload.as_mut_slice()).await.is_err() {
-                    Self::close(&conn_map).await;
-                    break;
-                };
-
                 let packet_type = MDSFTPPacketType::try_from(header.packet_id);
-
                 if packet_type.is_err() {
-                    Self::close(&conn_map).await;
+                    Self::close_map(&conn_map, &channels).await;
                     break;
                 }
                 let packet_type = packet_type.unwrap();
+                if !packet_type.pre_validate(&header) {
+                    Self::close_map(&conn_map, &channels).await;
+                    break;
+                }
+
+                let mut payload: Vec<u8> = Vec::with_capacity(header.payload_size as usize);
+                if stream.read_exact(payload.as_mut_slice()).await.is_err() {
+                    Self::close_map(&conn_map, &channels).await;
+                    break;
+                };
+
                 let raw = MDSFTPRawPacket {
                     packet_type,
                     payload,
@@ -148,13 +151,33 @@ impl PacketReader {
         }
     }
 
-    pub async fn add_channel(&self, id: u32, channel: Arc<Mutex<InternalMDSFTPChannel>>) {
+    pub(crate) async fn add_channel(&self, id: u32, channel: Arc<Mutex<InternalMDSFTPChannel>>) {
         let mut map = self.conn_map.write().await;
-        map.insert(id, channel);
+        let entry = map.entry(id);
+        match entry {
+            Entry::Occupied(_) => {
+                warn!("Duplicate channel ID {id}")
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(channel);
+                self.channel_count.fetch_add(1, Ordering::Relaxed);
+            }
+        }
     }
 
-    pub async fn remove_channel(&self, channel_id: u32) {
+    pub(crate) async fn remove_channel(&self, channel_id: u32) {
         let mut map = self.conn_map.write().await;
-        let _ = map.remove(&channel_id);
+        let removed = map.remove(&channel_id);
+        if removed.is_some() {
+            self.channel_count.fetch_sub(1, Ordering::Relaxed);
+        }
+    }
+
+    pub(crate) fn channel_count(&self) -> usize {
+        self.channel_count.load(Ordering::Relaxed)
+    }
+
+    pub(crate) async fn close(&self) {
+        Self::close_map(&self.conn_map, &self.channel_count).await;
     }
 }

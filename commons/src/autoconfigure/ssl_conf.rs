@@ -69,7 +69,10 @@ pub async fn perform_certificate_request(
         .client()
         .await
         .post(ctx.controller("/api/internal/security/csr"))
-        .header("Sec-Authorization", ctx.renewal_token.clone())
+        .header(
+            "Sec-Authorization",
+            ctx.security_context.renewal_token.clone(),
+        )
         .body(csr.to_der()?)
         .send()
         .await?

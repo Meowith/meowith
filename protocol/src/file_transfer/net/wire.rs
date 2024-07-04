@@ -1,8 +1,8 @@
 use crate::file_transfer::net::packet_type::MDSFTPPacketType;
-use std::io::Write;
 
 pub(crate) const HEADER_SIZE: usize = 7usize;
 pub(crate) const PAYLOAD_SIZE: usize = 65535usize;
+#[allow(unused)]
 pub(crate) const MAX_PACKET_SIZE: usize = HEADER_SIZE + PAYLOAD_SIZE;
 
 #[derive(Eq, PartialEq, Clone, Copy)]
@@ -40,7 +40,7 @@ pub(crate) fn write_header(header: &MDSFTPHeader, buf: &mut [u8]) {
 
 #[cfg(test)]
 mod tests {
-    use crate::protocol::file_transfer::net::wire::{read_header, write_header, MDSFTPHeader};
+    use crate::file_transfer::net::wire::{read_header, write_header, MDSFTPHeader};
 
     #[test]
     fn test_header() {

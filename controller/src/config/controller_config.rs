@@ -3,6 +3,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::net::IpAddr;
 use std::str::FromStr;
+use data::dto::config::GeneralConfiguration;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct ControllerConfig {
@@ -22,6 +23,8 @@ pub(crate) struct ControllerConfig {
     pub database_nodes: Vec<String>,
     pub db_username: String,
     pub db_password: String,
+
+    pub general_configuration: GeneralConfiguration
 }
 
 impl ControllerConfig {
@@ -58,6 +61,8 @@ impl ControllerConfig {
             database_nodes: vec!["127.0.0.1".to_string()],
             db_username: "root".to_string(),
             db_password: "root".to_string(),
+
+            general_configuration: Default::default()
         };
         let mut new_file = OpenOptions::new()
             .write(true)

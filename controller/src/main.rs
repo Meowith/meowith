@@ -3,9 +3,9 @@ use std::path::Path;
 
 use actix_cors::Cors;
 use actix_rt::Runtime;
+use actix_web::{App, HttpServer, web};
 use actix_web::dev::Server;
 use actix_web::web::Data;
-use actix_web::{web, App, HttpServer};
 use futures::future;
 use log::{debug, info};
 use openssl::pkey::{PKey, Private};
@@ -25,8 +25,9 @@ use data::model::microservice_node_model::MicroserviceNode;
 use logging::initialize_logging;
 
 use crate::config::controller_config::ControllerConfig;
-use crate::discovery::routes::{register_node, security_csr};
+use crate::discovery::routes::{authenticate_node, config_fetch, register_node, security_csr, update_storage_node_properties, validate_peer};
 use crate::ioutils::read_file;
+use crate::middleware::node_internal::NodeVerify;
 
 mod config;
 mod discovery;
@@ -158,12 +159,20 @@ async fn main() -> std::io::Result<()> {
         let internode_app_data = app_data.clone();
         let cors = Cors::permissive();
         let internal_scope = web::scope("/api/internal")
-            .service(register_node)
+            .wrap( NodeVerify {} )
+            .service(validate_peer)
+            .service(config_fetch)
+            .service(update_storage_node_properties)
             .service(security_csr);
+
+        let init_scope = web::scope("/api/internal/initialize")
+            .service(authenticate_node)
+            .service(register_node);
 
         App::new()
             .app_data(internode_app_data)
             .service(internal_scope)
+            .service(init_scope)
             .wrap(cors)
     });
 

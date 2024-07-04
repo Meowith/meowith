@@ -17,7 +17,7 @@ pub enum MDSFTPError {
     Interrupted,
     RemoteError,
     NoPacketHandler,
-    NoPool
+    NoPool,
 }
 
 impl From<ErrorStack> for MDSFTPError {

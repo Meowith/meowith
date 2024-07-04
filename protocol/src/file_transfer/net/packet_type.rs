@@ -1,4 +1,4 @@
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub(crate) enum MDSFTPPacketType {
     FileChunk,
     Retrieve,

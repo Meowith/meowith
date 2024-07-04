@@ -1,6 +1,6 @@
-use std::{env, fs};
 use std::error::Error;
 use std::fmt::Debug;
+use std::{env, fs};
 
 use log::info;
 use openssl::pkey::{PKey, Private};
@@ -40,14 +40,14 @@ pub async fn register_procedure(ctx: &mut MicroserviceRequestContext) -> Registr
     let token = read_renewal_token();
     if let Ok(token) = token {
         info!("Renewal token present");
-        ctx.renewal_token = token;
+        ctx.security_context.renewal_token = token;
     } else {
         info!("Performing registration...");
-        ctx.renewal_token = perform_registration(ctx).await.unwrap();
+        ctx.security_context.renewal_token = perform_registration(ctx).await.unwrap();
         info!("Done.");
     }
     info!("Fetching access token...");
-    ctx.access_token = fetch_access_token(ctx)
+    ctx.security_context.access_token = fetch_access_token(ctx)
         .await
         .expect("Failed to fetch the access token");
     ctx.update_client();
@@ -84,12 +84,12 @@ pub async fn fetch_access_token(
     ctx: &MicroserviceRequestContext,
 ) -> Result<String, Box<dyn Error>> {
     let req = AuthenticationRequest {
-        renewal_token: ctx.renewal_token.clone(),
+        renewal_token: ctx.security_context.renewal_token.clone(),
     };
     Ok(ctx
         .client()
         .await
-        .post(ctx.controller("/api/internal/authenticate"))
+        .post(ctx.controller("/api/internal/initialize/authenticate"))
         .json(&req)
         .send()
         .await?
@@ -111,7 +111,7 @@ pub async fn perform_registration(
     let register_response = ctx
         .client()
         .await
-        .post(ctx.controller("/api/internal/register"))
+        .post(ctx.controller("/api/internal/initialize/register"))
         .json(&register_request)
         .send()
         .await?

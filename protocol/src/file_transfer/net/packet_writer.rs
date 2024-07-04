@@ -2,24 +2,19 @@ use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
 use tokio_rustls::TlsStream;
 
-use crate::file_transfer::net::wire::{MDSFTPHeader, MDSFTPRawPacket, PAYLOAD_SIZE, write_header};
+use crate::file_transfer::net::wire::{write_header, MDSFTPHeader, MDSFTPRawPacket, PAYLOAD_SIZE};
 
-#[allow(unused)]
 pub(crate) struct PacketWriter {
-    stream: WriteHalf<TlsStream<TcpStream>>,
+    pub(crate) stream: WriteHalf<TlsStream<TcpStream>>,
     header_buf: [u8; 7],
 }
 
 impl PacketWriter {
-    pub fn new(stream: WriteHalf<TlsStream<TcpStream>>) -> Self {
+    pub(crate) fn new(stream: WriteHalf<TlsStream<TcpStream>>) -> Self {
         PacketWriter {
             stream,
             header_buf: [0u8; 7],
         }
-    }
-
-    pub(crate) async fn write_bytes(&mut self, data: &[u8]) -> std::io::Result<()> {
-        self.stream.write_all(data).await
     }
 
     pub(crate) async fn write_raw_packet(&mut self, data: MDSFTPRawPacket) -> std::io::Result<()> {
@@ -39,4 +34,6 @@ impl PacketWriter {
         self.stream.write_all(&self.header_buf).await?;
         self.stream.write_all(&data.payload).await
     }
+
+    pub(crate) fn close(&mut self) {}
 }

@@ -1,25 +1,24 @@
-use actix_web::{web, HttpRequest};
-use std::net::IpAddr;
-
-use chrono::prelude::*;
-use futures_util::TryFutureExt;
-use scylla::CachingSession;
-use uuid::Uuid;
-
 use crate::discovery::routes::UpdateStorageNodeProperties;
 use crate::error::node::NodeError;
 use crate::token_service::{generate_access_token, generate_renewal_token};
 use crate::AppState;
+use actix_web::web::Bytes;
+use actix_web::{web, HttpRequest};
+use chrono::prelude::*;
+use commons::autoconfigure::ssl_conf::SigningData;
 use commons::context::controller_request_context::ControllerRequestContext;
-use data::access::microservice_node_access::{
-    get_service_register_code, insert_microservice_node, update_service_access_token,
-    update_service_register_code,
-};
+use data::access::microservice_node_access::{get_service_register_code, insert_microservice_node, update_microservice_node, update_service_access_token, update_service_register_code};
 use data::dto::controller::{
     AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
 };
 use data::error::MeowithDataError;
 use data::model::microservice_node_model::MicroserviceNode;
+use futures_util::TryFutureExt;
+use openssl::x509::X509Req;
+use scylla::CachingSession;
+use std::net::IpAddr;
+use actix_web::http::header::HeaderValue;
+use uuid::Uuid;
 
 pub async fn perform_register_node(
     req: NodeRegisterRequest,
@@ -103,12 +102,45 @@ pub async fn perform_token_creation(
     }
 }
 
-#[allow(unused)]
+pub async fn sign_node_csr(
+    renewal_token: Option<&HeaderValue>,
+    node: MicroserviceNode,
+    csr: X509Req,
+    ip_addr: IpAddr,
+    state: web::Data<AppState>,
+) -> Result<Bytes, NodeError> {
+    if renewal_token.is_none()
+        || node.renewal_token
+            != renewal_token
+                .unwrap()
+                .to_str()
+                .map_err(|_| NodeError::BadRequest)?
+    {
+        return Err(NodeError::BadAuth);
+    }
+
+    let signing_data = SigningData {
+        ip_addr,
+        validity_days: state.config.autogen_ssl_validity,
+    };
+    let cert = commons::autoconfigure::ssl_conf::sign_csr(
+        &csr,
+        &state.ca_cert,
+        &state.ca_private_key,
+        &signing_data,
+    )
+    .map_err(|_| NodeError::InternalError)?;
+    Ok(Bytes::from(
+        cert.to_der().map_err(|_| NodeError::InternalError)?,
+    ))
+}
+
 pub async fn perform_storage_node_properties_update(
     req: UpdateStorageNodeProperties,
     session: &CachingSession,
     node: MicroserviceNode,
 ) -> Result<(), NodeError> {
+    update_microservice_node(node, session, req.used_space as i64, req.max_space as i64).await.map_err(|_| NodeError::InternalError)?;
     Ok(())
 }
 

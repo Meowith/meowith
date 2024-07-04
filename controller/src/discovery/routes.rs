@@ -1,18 +1,16 @@
-use crate::discovery::discovery_service::{
-    get_address, perform_register_node, perform_storage_node_properties_update,
-    perform_token_creation,
-};
-use crate::error::node::NodeError;
-use crate::AppState;
+use actix_web::{get, HttpRequest, post, web};
 use actix_web::web::Bytes;
-use actix_web::{post, web, HttpRequest};
-use commons::autoconfigure::ssl_conf::{sign_csr, SigningData};
+use openssl::x509::X509Req;
+use data::dto::config::GeneralConfiguration;
 use data::dto::controller::{
     AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
     ValidatePeerRequest, ValidatePeerResponse,
 };
 use data::model::microservice_node_model::MicroserviceNode;
-use openssl::x509::X509Req;
+
+use crate::AppState;
+use crate::discovery::discovery_service::{get_address, perform_register_node, perform_storage_node_properties_update, perform_token_creation, sign_node_csr};
+use crate::error::node::NodeError;
 
 #[derive(serde::Deserialize)]
 pub struct UpdateStorageNodeProperties {
@@ -30,28 +28,10 @@ pub async fn security_csr(
     node: MicroserviceNode,
     http_request: HttpRequest,
 ) -> Result<Bytes, NodeError> {
-    // TODO, move to service
     let renewal_token = http_request.headers().get("Sec-Authorization");
-    if renewal_token.is_none()
-        || node.renewal_token
-            != renewal_token
-                .unwrap()
-                .to_str()
-                .map_err(|_| NodeError::BadRequest)?
-    {
-        return Err(NodeError::BadAuth);
-    }
-
     let csr = X509Req::from_der(body.as_ref()).map_err(|_| NodeError::BadRequest)?;
-    let signing_data = SigningData {
-        ip_addr: get_address(&http_request).map_err(|_| NodeError::BadRequest)?,
-        validity_days: state.config.autogen_ssl_validity,
-    };
-    let cert = sign_csr(&csr, &state.ca_cert, &state.ca_private_key, &signing_data)
-        .map_err(|_| NodeError::InternalError)?;
-    Ok(Bytes::from(
-        cert.to_der().map_err(|_| NodeError::InternalError)?,
-    ))
+    let ip_addr = get_address(&http_request).map_err(|_| NodeError::BadRequest)?;
+    sign_node_csr(renewal_token, node, csr, ip_addr, state).await
 }
 
 #[post("/register")]
@@ -74,6 +54,7 @@ pub async fn register_node(
 #[post("/validate/peer")]
 pub async fn validate_peer(
     state: web::Data<AppState>,
+    _node: MicroserviceNode,
     req: web::Json<ValidatePeerRequest>,
 ) -> Result<web::Json<ValidatePeerResponse>, NodeError> {
     let map = state.req_ctx.node_token.read().await;
@@ -85,6 +66,15 @@ pub async fn validate_peer(
     } else {
         Ok(web::Json(ValidatePeerResponse { valid: false }))
     }
+}
+
+#[get("/autoconfigure/config")]
+pub async fn config_fetch(
+    state: web::Data<AppState>,
+    _node: MicroserviceNode,
+) -> Result<web::Json<GeneralConfiguration>, NodeError> {
+    let gen_cfg = state.config.general_configuration.clone();
+    Ok(web::Json(gen_cfg))
 }
 
 #[post("/authenticate")]

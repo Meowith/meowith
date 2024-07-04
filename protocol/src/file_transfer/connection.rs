@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use openssl::x509::X509;
 use rand::{Rng, thread_rng};
@@ -35,8 +36,7 @@ impl MDSFTPConnection {
 
         Ok(MDSFTPConnection {
             _internal_connection: Arc::new(
-                InternalMDSFTPConnection::new(id, handler, conn, true)
-                    .await?,
+                InternalMDSFTPConnection::new(id, handler, conn, true).await?,
             ),
         })
     }
@@ -48,23 +48,36 @@ impl MDSFTPConnection {
     ) -> MDSFTPResult<Self> {
         Ok(MDSFTPConnection {
             _internal_connection: Arc::new(
-                InternalMDSFTPConnection::new(id, handler, conn, false)
-                    .await?,
+                InternalMDSFTPConnection::new(id, handler, conn, false).await?,
             ),
         })
     }
 
-    async fn create_conn(certificate: &X509, auth_token: &String, id: &Uuid, addr: &SocketAddr) -> MDSFTPResult<TlsStream<TcpStream>> {
+    async fn create_conn(
+        certificate: &X509,
+        auth_token: &String,
+        id: &Uuid,
+        addr: &SocketAddr,
+    ) -> MDSFTPResult<TlsStream<TcpStream>> {
         let mut root_cert_store = RootCertStore::empty();
-        root_cert_store.add(CertificateDer::from(certificate.to_der().map_err(|_| MDSFTPError::SSLError)?)).map_err(|_| MDSFTPError::SSLError)?;
+        root_cert_store
+            .add(CertificateDer::from(
+                certificate.to_der().map_err(|_| MDSFTPError::SSLError)?,
+            ))
+            .map_err(|_| MDSFTPError::SSLError)?;
         let config = ClientConfig::builder()
             .with_root_certificates(root_cert_store)
             .with_no_client_auth();
         let connector = TlsConnector::from(Arc::new(config));
         let server_name = ServerName::IpAddress(IpAddr::from(addr.ip()));
 
-        let stream = TcpStream::connect(&addr).await.map_err(|_| MDSFTPError::SSLError)?;
-        let mut stream = connector.connect(server_name, stream).await.map_err(|_| MDSFTPError::SSLError)?;
+        let stream = TcpStream::connect(&addr)
+            .await
+            .map_err(|_| MDSFTPError::SSLError)?;
+        let mut stream = connector
+            .connect(server_name, stream)
+            .await
+            .map_err(|_| MDSFTPError::SSLError)?;
 
         stream
             .write_all(auth_token.as_bytes())
@@ -82,8 +95,12 @@ impl MDSFTPConnection {
         self._internal_connection.create_channel().await
     }
 
-    pub fn close(&self) {
-        todo!()
+    pub fn channel_count(&self) -> usize {
+        self._internal_connection.channel_count()
+    }
+
+    pub async fn close(&self) {
+        self._internal_connection.close().await
     }
 }
 
@@ -94,6 +111,7 @@ struct InternalMDSFTPConnection {
     channel_factory: Arc<ChannelFactory>,
     id: Uuid,
     local: bool,
+    is_closing: AtomicBool
 }
 
 impl InternalMDSFTPConnection {
@@ -101,10 +119,8 @@ impl InternalMDSFTPConnection {
         id: Uuid,
         handler: GlobalHandler,
         stream: TlsStream<TcpStream>,
-        local: bool
+        local: bool,
     ) -> MDSFTPResult<Self> {
-
-
         // Note: no idea whether u can avoid using a mutex here (it is used internally),
         // preventing simultaneous access to reads and writes
         // (Or, so I think, the async r/w might help).
@@ -131,6 +147,7 @@ impl InternalMDSFTPConnection {
             channel_factory,
             id,
             local,
+            is_closing: AtomicBool::new(false)
         })
     }
 
@@ -155,9 +172,24 @@ impl InternalMDSFTPConnection {
         Err(MDSFTPError::MaxChannels)
     }
 
+    pub(crate) fn channel_count(&self) -> usize {
+        self.reader.channel_count()
+    }
+
     pub(crate) async fn create_channel(&self) -> MDSFTPResult<MDSFTPChannel> {
+        if self.is_closing.load(Ordering::Relaxed) {
+            return Err(MDSFTPError::Interrupted)
+        }
         let id = self.generate_id().await?;
         self.channel_factory.materialize_channel(id, true).await
+    }
+
+    pub(super) async fn close(&self) {
+        let _ = &self.is_closing.store(true, Ordering::SeqCst);
+        self.reader.close().await;
+        let mut writer = self.writer.lock().await;
+        writer.close();
+        writer.stream.shutdown().await.expect("Shutdown failed");
     }
 }
 
@@ -166,6 +198,7 @@ pub(crate) struct ChannelFactory {
     reader: Arc<PacketReader>,
 }
 
+/// The `ChannelFactory` is Responsible for actually creating and configuring MDSFTP channels.
 impl ChannelFactory {
     pub(crate) async fn materialize_channel(
         &self,

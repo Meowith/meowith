@@ -23,7 +23,7 @@ impl RequestContext for ControllerRequestContext {
     }
 
     fn update_client(&mut self) {
-        todo!()
+        // Noop, as this method is never actually called.
     }
 }
 

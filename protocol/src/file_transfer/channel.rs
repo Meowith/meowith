@@ -8,6 +8,7 @@ use uuid::{Bytes, Uuid};
 
 use crate::file_transfer::data::{ChunkErrorKind, LockKind};
 use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
+use crate::file_transfer::handler::ChannelPacketHandler;
 use crate::file_transfer::net::packet_reader::PacketReader;
 use crate::file_transfer::net::packet_type::MDSFTPPacketType;
 use crate::file_transfer::net::packet_writer::PacketWriter;
@@ -41,6 +42,13 @@ impl MDSFTPChannel {
             .send_chunk(is_last, id, content)
             .await
     }
+
+    pub async fn set_incoming_handler(&self, handler: Box<dyn ChannelPacketHandler>) {
+        self._internal_channel
+            .lock()
+            .await
+            .incoming_handler = Some(Arc::new(Mutex::new(handler)));
+    }
 }
 
 impl Drop for MDSFTPChannel {
@@ -52,11 +60,12 @@ impl Drop for MDSFTPChannel {
     }
 }
 
-#[allow(unused)]
 pub(crate) struct InternalMDSFTPChannel {
     pub(crate) id: u32,
     pub(crate) writer_ref: Weak<Mutex<PacketWriter>>,
     pub(crate) reader_ref: Weak<PacketReader>,
+
+    pub(crate) incoming_handler: Option<Arc<Mutex<Box<dyn ChannelPacketHandler>>>>,
 
     lock_sender: Option<Sender<MDSFTPResult<LockKind>>>,
     reserve_sender: Option<Sender<MDSFTPResult<Uuid>>>,
@@ -74,6 +83,7 @@ impl InternalMDSFTPChannel {
             reader_ref,
             lock_sender: None,
             reserve_sender: None,
+            incoming_handler: None,
         }
     }
 
@@ -182,11 +192,8 @@ impl InternalMDSFTPChannel {
     }
 
     pub(crate) async fn handle_packet(&mut self, packet: MDSFTPRawPacket) {
+        // Note: the packet's payload length is pre-validated by the packet reader.
         match packet.packet_type {
-            MDSFTPPacketType::FileChunk => {}
-            MDSFTPPacketType::Retrieve => {}
-            MDSFTPPacketType::Put => {}
-            MDSFTPPacketType::Reserve => {}
             MDSFTPPacketType::ReserveOk => {
                 if let Some(tx) = &self.reserve_sender {
                     let chunk_id = Uuid::from_bytes(
@@ -212,7 +219,6 @@ impl InternalMDSFTPChannel {
                 }
                 self.reserve_sender = None
             }
-            MDSFTPPacketType::LockReq => {}
             MDSFTPPacketType::LockAcquire => {
                 if let Some(tx) = &self.lock_sender {
                     tx.send(Ok(packet.payload[0].into())).await.unwrap()
@@ -231,6 +237,56 @@ impl InternalMDSFTPChannel {
                 self.lock_sender = None
             }
             _ => {}
+        }
+
+        // Match user managed
+        if self.incoming_handler.is_some() {
+            let handler = &mut self.incoming_handler.as_ref().unwrap().lock().await;
+            match packet.packet_type {
+                MDSFTPPacketType::FileChunk => {
+                    let is_last = packet.payload[0] == 1;
+                    let mut payload_bytes = [0; 4];
+                    payload_bytes.copy_from_slice(packet.payload[1..5].as_ref());
+                    let chunk_id: u32 = u32::from_be_bytes(payload_bytes);
+                    handler.handle_file_chunk(&packet.payload[5..], chunk_id, is_last);
+                }
+                MDSFTPPacketType::Retrieve => {
+                    let bytes = Bytes::try_from(&packet.payload.as_slice()[0..16]);
+                    if bytes.is_ok() {
+                        let chunk_id = Uuid::from_bytes(bytes.unwrap());
+                        handler.handle_retrieve(chunk_id);
+                    }
+                }
+                MDSFTPPacketType::Put => {
+                    let bytes = Bytes::try_from(&packet.payload.as_slice()[0..16]);
+                    if bytes.is_err() {
+                        return;
+                    }
+                    let mut size_bytes = [0; 8];
+                    size_bytes.copy_from_slice(packet.payload[16..24].as_ref());
+                    let chunk_id = Uuid::from_bytes(bytes.unwrap());
+                    let size = u64::from_be_bytes(size_bytes);
+                    handler.handle_put(chunk_id, size);
+                }
+                MDSFTPPacketType::Reserve => {
+                    let mut size_bytes = [0; 8];
+                    size_bytes.copy_from_slice(packet.payload[0..8].as_ref());
+                    let size = u64::from_be_bytes(size_bytes);
+                    handler.handle_reserve(size);
+                }
+                MDSFTPPacketType::LockReq => {
+                    let kind = LockKind::from(packet.payload[0]);
+                    let bytes = Bytes::try_from(&packet.payload.as_slice()[0..16]);
+                    if bytes.is_err() {
+                        return;
+                    }
+                    let chunk_id =  Uuid::from_bytes(bytes.unwrap());
+                    handler.handle_lock_req(chunk_id, kind);
+                }
+                _ => {}
+            }
+        } else {
+            debug!("Received a user managed packet {:?} whilst a handler is not registered", packet.packet_type);
         }
     }
 

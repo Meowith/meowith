@@ -1,4 +1,5 @@
 use crate::context::request_context::RequestContext;
+use data::dto::config::PortConfiguration;
 use data::dto::controller::{ValidatePeerRequest, ValidatePeerResponse};
 use data::model::microservice_node_model::MicroserviceType;
 use openssl::x509::X509;
@@ -14,13 +15,26 @@ use uuid::Uuid;
 pub struct MicroserviceRequestContext {
     pub controller_addr: String,
     pub node_addr: Arc<RwLock<HashMap<Uuid, String>>>,
+    pub security_context: SecurityContext,
+    pub microservice_type: MicroserviceType,
+    pub port_configuration: PortConfiguration,
+    client: Arc<RwLock<Client>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SecurityContext {
     pub access_token: String,
     pub renewal_token: String,
     pub root_certificate: Certificate,
     pub root_x509: X509,
-    pub microservice_type: MicroserviceType,
-    client: Arc<RwLock<Client>>,
 }
+
+#[derive(Debug, Clone, derive_more::Display)]
+pub enum AddressError {
+    InvalidNodeId,
+}
+
+impl Error for AddressError {}
 
 impl RequestContext for MicroserviceRequestContext {
     async fn client(&self) -> RwLockReadGuard<Client> {
@@ -29,8 +43,8 @@ impl RequestContext for MicroserviceRequestContext {
 
     fn update_client(&mut self) {
         self.client = Arc::new(RwLock::new(Self::create_client(
-            &self.access_token,
-            &self.root_certificate,
+            &self.security_context.access_token,
+            &self.security_context.root_certificate,
         )))
     }
 }
@@ -39,21 +53,20 @@ impl MicroserviceRequestContext {
     pub fn new(
         controller_addr: String,
         node_addr: HashMap<Uuid, String>,
-        access_token: String,
-        renewal_token: String,
-        root_x509: X509,
-        root_certificate: Certificate,
+        security_context: SecurityContext,
         microservice_type: MicroserviceType,
+        port_configuration: PortConfiguration,
     ) -> Self {
-        let client = Self::create_client(&access_token, &root_certificate);
+        let client = Self::create_client(
+            &security_context.access_token,
+            &security_context.root_certificate,
+        );
         MicroserviceRequestContext {
             controller_addr,
             node_addr: Arc::new(RwLock::new(node_addr)),
-            access_token,
-            renewal_token,
-            root_certificate,
-            root_x509,
+            security_context,
             microservice_type,
+            port_configuration,
             client: Arc::new(RwLock::new(client)),
         }
     }
@@ -91,5 +104,17 @@ impl MicroserviceRequestContext {
 
     pub fn controller(&self, path: &str) -> String {
         format!("https://{}{path}", self.controller_addr)
+    }
+
+    pub async fn node_internal(&self, node: &Uuid, path: &str) -> Result<String, AddressError> {
+        Ok(format!(
+            "https://{}:{}{path}",
+            self.node_addr
+                .read()
+                .await
+                .get(node)
+                .ok_or(AddressError::InvalidNodeId)?,
+            self.port_configuration.internal_server_port
+        ))
     }
 }
