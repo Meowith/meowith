@@ -1,19 +1,22 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use openssl::x509::X509;
+use rand::{Rng, thread_rng};
+use rustls::{ClientConfig, RootCertStore};
+use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
+use tokio::io::AsyncWriteExt;
+use tokio::net::TcpStream;
+use tokio::sync::Mutex;
+use tokio_rustls::{TlsConnector, TlsStream};
+use uuid::Uuid;
+
 use crate::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
 use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
 use crate::file_transfer::net::packet_reader::{GlobalHandler, PacketReader};
 use crate::file_transfer::net::packet_type::MDSFTPPacketType;
 use crate::file_transfer::net::packet_writer::PacketWriter;
 use crate::file_transfer::net::wire::MDSFTPRawPacket;
-use openssl::ssl::{Ssl, SslContext, SslMethod};
-use openssl::x509::X509;
-use rand::{thread_rng, Rng};
-use tokio::net::TcpStream;
-use tokio::sync::Mutex;
-use tokio_openssl::SslStream;
-use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct MDSFTPConnection {
@@ -28,12 +31,51 @@ impl MDSFTPConnection {
         auth_token: &String,
         handler: GlobalHandler,
     ) -> MDSFTPResult<Self> {
+        let conn = Self::create_conn(certificate, auth_token, &id, &node_address).await?;
+
         Ok(MDSFTPConnection {
             _internal_connection: Arc::new(
-                InternalMDSFTPConnection::new(node_address, certificate, id, auth_token, handler)
+                InternalMDSFTPConnection::new(id, handler, conn, true)
                     .await?,
             ),
         })
+    }
+
+    pub async fn from_conn(
+        id: Uuid,
+        handler: GlobalHandler,
+        conn: TlsStream<TcpStream>,
+    ) -> MDSFTPResult<Self> {
+        Ok(MDSFTPConnection {
+            _internal_connection: Arc::new(
+                InternalMDSFTPConnection::new(id, handler, conn, false)
+                    .await?,
+            ),
+        })
+    }
+
+    async fn create_conn(certificate: &X509, auth_token: &String, id: &Uuid, addr: &SocketAddr) -> MDSFTPResult<TlsStream<TcpStream>> {
+        let mut root_cert_store = RootCertStore::empty();
+        root_cert_store.add(CertificateDer::from(certificate.to_der().map_err(|_| MDSFTPError::SSLError)?)).map_err(|_| MDSFTPError::SSLError)?;
+        let config = ClientConfig::builder()
+            .with_root_certificates(root_cert_store)
+            .with_no_client_auth();
+        let connector = TlsConnector::from(Arc::new(config));
+        let server_name = ServerName::IpAddress(IpAddr::from(addr.ip()));
+
+        let stream = TcpStream::connect(&addr).await.map_err(|_| MDSFTPError::SSLError)?;
+        let mut stream = connector.connect(server_name, stream).await.map_err(|_| MDSFTPError::SSLError)?;
+
+        stream
+            .write_all(auth_token.as_bytes())
+            .await
+            .map_err(|_| MDSFTPError::ConnectionError)?;
+        stream
+            .write_all(id.as_bytes())
+            .await
+            .map_err(|_| MDSFTPError::ConnectionError)?;
+
+        Ok(TlsStream::from(stream))
     }
 
     pub async fn create_channel(&self) -> MDSFTPResult<MDSFTPChannel> {
@@ -56,24 +98,12 @@ struct InternalMDSFTPConnection {
 
 impl InternalMDSFTPConnection {
     async fn new(
-        addr: SocketAddr,
-        certificate: &X509,
         id: Uuid,
-        auth_token: &String,
         handler: GlobalHandler,
+        stream: TlsStream<TcpStream>,
+        local: bool
     ) -> MDSFTPResult<Self> {
-        let mut ctx = SslContext::builder(SslMethod::tls())?;
-        ctx.set_certificate(certificate)?;
 
-        let stream = TcpStream::connect(addr)
-            .await
-            .map_err(|_| MDSFTPError::ConnectionError)?;
-
-        let stream = SslStream::new(
-            Ssl::new(&ctx.build()).map_err(|_| MDSFTPError::SSLError)?,
-            stream,
-        )
-        .map_err(|_| MDSFTPError::SSLError)?;
 
         // Note: no idea whether u can avoid using a mutex here (it is used internally),
         // preventing simultaneous access to reads and writes
@@ -95,25 +125,12 @@ impl InternalMDSFTPConnection {
 
         reader.start(Arc::downgrade(&channel_factory));
 
-        writer
-            .lock()
-            .await
-            .write_bytes(auth_token.as_bytes())
-            .await
-            .map_err(|_| MDSFTPError::ConnectionError)?;
-        writer
-            .lock()
-            .await
-            .write_bytes(id.as_bytes())
-            .await
-            .map_err(|_| MDSFTPError::ConnectionError)?;
-
         Ok(Self {
             writer,
             reader,
             channel_factory,
             id,
-            local: true,
+            local,
         })
     }
 

@@ -1,22 +1,26 @@
-use crate::file_transfer::channel::MDSFTPChannel;
-use crate::file_transfer::connection::MDSFTPConnection;
-use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
-use crate::file_transfer::handler::PacketHandler;
-use crate::file_transfer::net::packet_reader::GlobalHandler;
-use commons::context::microservice_request_context::MicroserviceRequestContext;
+use std::collections::hash_map::Entry::Vacant;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
+
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 use tokio_rustls::TlsStream;
 use uuid::Uuid;
 
+use commons::context::microservice_request_context::MicroserviceRequestContext;
+
+use crate::file_transfer::channel::MDSFTPChannel;
+use crate::file_transfer::connection::MDSFTPConnection;
+use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
+use crate::file_transfer::handler::PacketHandler;
+use crate::file_transfer::net::packet_reader::GlobalHandler;
+
 #[derive(Clone)]
 pub struct MDSFTPPool {
-    _internal_pool: Arc<InternalMDSFTPPool>,
+    pub(crate) _internal_pool: Arc<InternalMDSFTPPool>,
 }
 
 impl MDSFTPPool {
@@ -35,12 +39,13 @@ impl MDSFTPPool {
     }
 }
 
-struct InternalMDSFTPPool {
+pub(crate) struct InternalMDSFTPPool {
     req_ctx: Arc<MicroserviceRequestContext>,
     connection_map: RwLock<HashMap<Uuid, MDSFTPConnection>>,
     packet_handler: Option<GlobalHandler>,
 }
 
+#[allow(unused)]
 impl InternalMDSFTPPool {
     fn new(req_ctx: Arc<MicroserviceRequestContext>) -> Self {
         InternalMDSFTPPool {
@@ -100,10 +105,20 @@ impl InternalMDSFTPPool {
             &self.req_ctx.access_token,
             handler,
         )
-        .await
+            .await
     }
 
-    async fn add_connection(conn: TlsStream<TcpStream>) {
-        todo!()
+    pub(crate) async fn add_connection(&self, id: Uuid, conn: TlsStream<TcpStream>) -> MDSFTPResult<()> {
+        let mut map = self.connection_map.write().await;
+        if let Vacant(entry) = map.entry(id) {
+            let packet_handler = self
+                .packet_handler
+                .as_ref()
+                .ok_or(MDSFTPError::NoPacketHandler)?;
+            let conn_handle = MDSFTPConnection::from_conn(id, packet_handler.clone(), conn).await?;
+            entry.insert(conn_handle);
+            return Ok(());
+        }
+        Err(MDSFTPError::Interrupted)
     }
 }

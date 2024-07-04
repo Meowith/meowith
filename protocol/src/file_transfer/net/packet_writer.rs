@@ -1,16 +1,17 @@
-use crate::file_transfer::net::wire::{write_header, MDSFTPHeader, MDSFTPRawPacket, PAYLOAD_SIZE};
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
-use tokio_openssl::SslStream;
+use tokio_rustls::TlsStream;
+
+use crate::file_transfer::net::wire::{MDSFTPHeader, MDSFTPRawPacket, PAYLOAD_SIZE, write_header};
 
 #[allow(unused)]
 pub(crate) struct PacketWriter {
-    stream: WriteHalf<SslStream<TcpStream>>,
+    stream: WriteHalf<TlsStream<TcpStream>>,
     header_buf: [u8; 7],
 }
 
 impl PacketWriter {
-    pub fn new(stream: WriteHalf<SslStream<TcpStream>>) -> Self {
+    pub fn new(stream: WriteHalf<TlsStream<TcpStream>>) -> Self {
         PacketWriter {
             stream,
             header_buf: [0u8; 7],

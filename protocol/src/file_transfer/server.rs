@@ -1,16 +1,19 @@
-use crate::file_transfer::error::MDSFTPError;
-use crate::file_transfer::pool::MDSFTPPool;
-use commons::context::microservice_request_context::MicroserviceRequestContext;
-use openssl::pkey::{PKey, Private};
-use openssl::x509::X509;
-use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::error::Error;
 use std::io;
 use std::sync::Arc;
-use tokio::io::{split, AsyncReadExt, AsyncWriteExt};
+use log::debug;
+use openssl::pkey::{PKey, Private};
+use openssl::x509::X509;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
-use tokio_rustls::{rustls, TlsAcceptor};
+use tokio_rustls::{rustls, TlsAcceptor, TlsStream};
 use uuid::{Bytes, Uuid};
+
+use commons::context::microservice_request_context::MicroserviceRequestContext;
+
+use crate::file_transfer::error::MDSFTPError;
+use crate::file_transfer::pool::MDSFTPPool;
 
 const ZERO_UUID: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
@@ -19,6 +22,7 @@ pub struct MDSFTPServer {
     req_ctx: Arc<MicroserviceRequestContext>,
 }
 
+#[allow(unused)]
 impl MDSFTPServer {
     pub fn new(req_ctx: Arc<MicroserviceRequestContext>) -> Self {
         MDSFTPServer {
@@ -37,10 +41,10 @@ impl MDSFTPServer {
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
 
         let acceptor = TlsAcceptor::from(Arc::new(config));
-
         let listener = TcpListener::bind("0.0.0.0:80").await?; // todo config
-
         let req_ctx = self.req_ctx.clone();
+
+        let pool = self.pool.clone().ok_or(MDSFTPError::NoPool)?;
 
         tokio::spawn(async move {
             loop {
@@ -48,11 +52,14 @@ impl MDSFTPServer {
                     let (stream, _) = listener.accept().await
                         .map_err(|_| MDSFTPError::ConnectionError)?;
                     let acceptor = acceptor.clone();
-                    let mut stream = acceptor
+                    let stream = acceptor
                         .accept(stream)
                         .await
                         .map_err(|_| MDSFTPError::ConnectionError)?;
 
+                    let mut stream = TlsStream::from(stream);
+
+                    debug!("Validating new MDSFTP remote connection...");
                     // read 64char token + 16byte id
                     let mut auth_header: [u8; 64 + 16] = [0; 64 + 16];
 
@@ -79,8 +86,11 @@ impl MDSFTPServer {
                         return Err(MDSFTPError::ConnectionError);
                     }
 
+                    debug!("Ok. Adding a new remote connection");
+                    pool._internal_pool.add_connection(microservice_id, stream).await?;
+
                     Ok(())
-                    // TODO prevent simulatnious both side conn open
+                    // TODO prevent simulations both side conn open
                 }.await;
 
                 if res.is_err() {

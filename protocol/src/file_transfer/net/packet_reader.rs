@@ -1,29 +1,32 @@
+use std::collections::HashMap;
+use std::future::Future;
+use std::ops::Deref;
+use std::sync::{Arc, Weak};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use log::debug;
+use tokio::io::{AsyncReadExt, ReadHalf};
+use tokio::net::TcpStream;
+use tokio::sync::{Mutex, MutexGuard, RwLock};
+use tokio::task::JoinHandle;
+use tokio_openssl::SslStream;
+use tokio_rustls::TlsStream;
+use uuid::Uuid;
+
 use crate::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
 use crate::file_transfer::connection::ChannelFactory;
 use crate::file_transfer::error::MDSFTPError;
 use crate::file_transfer::handler::PacketHandler;
 use crate::file_transfer::net::packet_type::MDSFTPPacketType;
 use crate::file_transfer::net::packet_writer::PacketWriter;
-use crate::file_transfer::net::wire::{read_header, MDSFTPRawPacket, HEADER_SIZE};
-use log::debug;
-use std::collections::HashMap;
-use std::future::Future;
-use std::ops::Deref;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Weak};
-use tokio::io::{AsyncReadExt, ReadHalf};
-use tokio::net::TcpStream;
-use tokio::sync::{Mutex, MutexGuard, RwLock};
-use tokio::task::JoinHandle;
-use tokio_openssl::SslStream;
-use uuid::Uuid;
+use crate::file_transfer::net::wire::{HEADER_SIZE, MDSFTPRawPacket, read_header};
 
 pub type ConnectionMap = Arc<RwLock<HashMap<u32, Arc<Mutex<InternalMDSFTPChannel>>>>>;
 pub type GlobalHandler = Arc<Mutex<Box<dyn PacketHandler>>>;
 
 #[allow(unused)]
 pub(crate) struct PacketReader {
-    stream: Arc<Mutex<ReadHalf<SslStream<TcpStream>>>>,
+    stream: Arc<Mutex<ReadHalf<TlsStream<TcpStream>>>>,
     pub(crate) conn_map: ConnectionMap,
     running: Arc<AtomicBool>,
     global_handler: GlobalHandler,
@@ -32,7 +35,7 @@ pub(crate) struct PacketReader {
 
 impl PacketReader {
     pub fn new(
-        stream: Arc<Mutex<ReadHalf<SslStream<TcpStream>>>>,
+        stream: Arc<Mutex<ReadHalf<TlsStream<TcpStream>>>>,
         global_handler: GlobalHandler,
         conn_id: Uuid,
     ) -> Self {
