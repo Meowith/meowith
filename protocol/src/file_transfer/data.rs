@@ -10,7 +10,7 @@ impl From<u8> for LockKind {
         match value & 0x01 {
             0u8 => LockKind::Read,
             1u8 => LockKind::Write,
-            _ => LockKind::Write, // This will never happen, but the compiler will cry.
+            _ => unreachable!(),
         }
     }
 }

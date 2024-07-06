@@ -1595,6 +1595,8 @@ dependencies = [
  "serde",
  "serde_yaml",
  "sysinfo",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

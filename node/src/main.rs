@@ -7,6 +7,7 @@ use commons::autoconfigure::general_conf::fetch_general_config;
 
 mod config;
 mod init_procedure;
+mod locking;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
