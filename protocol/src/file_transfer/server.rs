@@ -6,8 +6,8 @@ use std::error::Error;
 use std::io;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio_rustls::{rustls, TlsAcceptor, TlsStream};
@@ -26,11 +26,14 @@ const ZERO_UUID: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 pub struct MDSFTPServer {
     pool: Option<MDSFTPPool>,
     req_ctx: Arc<MicroserviceRequestContext>,
-    running: Arc<AtomicBool>
+    running: Arc<AtomicBool>,
 }
 
 impl MDSFTPServer {
-    pub async fn new(req_ctx: Arc<MicroserviceRequestContext>, incoming_handler: Box<dyn PacketHandler>) -> Self {
+    pub async fn new(
+        req_ctx: Arc<MicroserviceRequestContext>,
+        incoming_handler: Box<dyn PacketHandler>,
+    ) -> Self {
         let mut srv = MDSFTPServer {
             pool: None,
             req_ctx,
@@ -51,7 +54,11 @@ impl MDSFTPServer {
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
 
         let acceptor = TlsAcceptor::from(Arc::new(config));
-        let listener = TcpListener::bind(SocketAddr::new(IpAddr::from_str("0.0.0.0").unwrap(), self.req_ctx.port_configuration.mdsftp_server_port)).await?;
+        let listener = TcpListener::bind(SocketAddr::new(
+            IpAddr::from_str("0.0.0.0").unwrap(),
+            self.req_ctx.port_configuration.mdsftp_server_port,
+        ))
+        .await?;
         let req_ctx = self.req_ctx.clone();
 
         let pool = self.pool.clone().ok_or(MDSFTPError::NoPool)?;
@@ -61,10 +68,7 @@ impl MDSFTPServer {
         tokio::spawn(async move {
             while running.load(Ordering::Relaxed) {
                 let _: Result<(), MDSFTPError> = async {
-                    let (stream, _) = listener
-                        .accept()
-                        .await
-                        .map_err(|_| MDSFTPError::SSLError)?;
+                    let (stream, _) = listener.accept().await.map_err(|_| MDSFTPError::SSLError)?;
                     let acceptor = acceptor.clone();
                     let stream = acceptor
                         .accept(stream)
@@ -104,7 +108,9 @@ impl MDSFTPServer {
                     }
 
                     debug!("Ok. Adding a new remote connection");
-                    pool._internal_pool.lock().await
+                    pool._internal_pool
+                        .lock()
+                        .await
                         .add_connection(microservice_id, stream)
                         .await?;
 

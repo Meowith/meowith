@@ -44,10 +44,7 @@ impl MDSFTPChannel {
     }
 
     pub async fn set_incoming_handler(&self, handler: Box<dyn ChannelPacketHandler>) {
-        self._internal_channel
-            .lock()
-            .await
-            .incoming_handler = Some(Arc::new(Mutex::new(handler)));
+        self._internal_channel.lock().await.incoming_handler = Some(Arc::new(Mutex::new(handler)));
     }
 }
 
@@ -280,13 +277,16 @@ impl InternalMDSFTPChannel {
                     if bytes.is_err() {
                         return;
                     }
-                    let chunk_id =  Uuid::from_bytes(bytes.unwrap());
+                    let chunk_id = Uuid::from_bytes(bytes.unwrap());
                     handler.handle_lock_req(chunk_id, kind);
                 }
                 _ => {}
             }
         } else {
-            debug!("Received a user managed packet {:?} whilst a handler is not registered", packet.packet_type);
+            debug!(
+                "Received a user managed packet {:?} whilst a handler is not registered",
+                packet.packet_type
+            );
         }
     }
 

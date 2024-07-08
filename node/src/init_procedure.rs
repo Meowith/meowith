@@ -7,7 +7,9 @@ use reqwest::Certificate;
 use std::collections::HashMap;
 use std::fs;
 
-pub async fn register_node(config: &NodeConfigInstance) -> (MicroserviceRequestContext, RegistrationResult) {
+pub async fn register_node(
+    config: &NodeConfigInstance,
+) -> (MicroserviceRequestContext, RegistrationResult) {
     let ca_cert = X509::from_pem(
         fs::read(&config.ca_certificate)
             .expect("Unable to read ca cert file")

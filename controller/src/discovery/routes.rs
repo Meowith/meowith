@@ -1,16 +1,19 @@
-use actix_web::{get, HttpRequest, post, web};
 use actix_web::web::Bytes;
-use openssl::x509::X509Req;
+use actix_web::{get, post, web, HttpRequest};
 use data::dto::config::GeneralConfiguration;
 use data::dto::controller::{
     AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
     ValidatePeerRequest, ValidatePeerResponse,
 };
 use data::model::microservice_node_model::MicroserviceNode;
+use openssl::x509::X509Req;
 
-use crate::AppState;
-use crate::discovery::discovery_service::{get_address, perform_register_node, perform_storage_node_properties_update, perform_token_creation, sign_node_csr};
+use crate::discovery::discovery_service::{
+    get_address, perform_register_node, perform_storage_node_properties_update,
+    perform_token_creation, sign_node_csr,
+};
 use crate::error::node::NodeError;
+use crate::AppState;
 
 #[derive(serde::Deserialize)]
 pub struct UpdateStorageNodeProperties {

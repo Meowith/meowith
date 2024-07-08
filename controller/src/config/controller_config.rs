@@ -1,9 +1,9 @@
+use data::dto::config::GeneralConfiguration;
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::net::IpAddr;
 use std::str::FromStr;
-use data::dto::config::GeneralConfiguration;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct ControllerConfig {
@@ -24,7 +24,7 @@ pub(crate) struct ControllerConfig {
     pub db_username: String,
     pub db_password: String,
 
-    pub general_configuration: GeneralConfiguration
+    pub general_configuration: GeneralConfiguration,
 }
 
 impl ControllerConfig {
@@ -62,7 +62,7 @@ impl ControllerConfig {
             db_username: "root".to_string(),
             db_password: "root".to_string(),
 
-            general_configuration: Default::default()
+            general_configuration: Default::default(),
         };
         let mut new_file = OpenOptions::new()
             .write(true)

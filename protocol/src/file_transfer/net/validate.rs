@@ -1,8 +1,7 @@
 use crate::file_transfer::net::packet_type::MDSFTPPacketType;
-use crate::file_transfer::net::wire::{MDSFTPHeader};
+use crate::file_transfer::net::wire::MDSFTPHeader;
 
 pub(crate) trait PreValidate {
-
     /// Checks if the packet is even worth parsing.
     fn pre_validate(&self, packet: &MDSFTPHeader) -> bool;
 }

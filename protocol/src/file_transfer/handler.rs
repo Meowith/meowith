@@ -1,6 +1,6 @@
 use crate::file_transfer::channel::MDSFTPChannel;
-use uuid::Uuid;
 use crate::file_transfer::data::LockKind;
+use uuid::Uuid;
 
 pub trait ChannelPacketHandler: Send {
     fn handle_file_chunk(&mut self, chunk: &[u8], id: u32, is_last: bool);

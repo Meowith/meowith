@@ -1,11 +1,11 @@
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use openssl::x509::X509;
-use rand::{Rng, thread_rng};
-use rustls::{ClientConfig, RootCertStore};
+use rand::{thread_rng, Rng};
 use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
+use rustls::{ClientConfig, RootCertStore};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
@@ -111,7 +111,7 @@ struct InternalMDSFTPConnection {
     channel_factory: Arc<ChannelFactory>,
     id: Uuid,
     local: bool,
-    is_closing: AtomicBool
+    is_closing: AtomicBool,
 }
 
 impl InternalMDSFTPConnection {
@@ -147,7 +147,7 @@ impl InternalMDSFTPConnection {
             channel_factory,
             id,
             local,
-            is_closing: AtomicBool::new(false)
+            is_closing: AtomicBool::new(false),
         })
     }
 
@@ -178,7 +178,7 @@ impl InternalMDSFTPConnection {
 
     pub(crate) async fn create_channel(&self) -> MDSFTPResult<MDSFTPChannel> {
         if self.is_closing.load(Ordering::Relaxed) {
-            return Err(MDSFTPError::Interrupted)
+            return Err(MDSFTPError::Interrupted);
         }
         let id = self.generate_id().await?;
         self.channel_factory.materialize_channel(id, true).await

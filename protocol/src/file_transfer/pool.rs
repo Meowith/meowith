@@ -1,7 +1,7 @@
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use multimap::MultiMap;
 use tokio::net::TcpStream;
@@ -49,7 +49,7 @@ pub(crate) struct InternalMDSFTPPool {
     req_ctx: Arc<MicroserviceRequestContext>,
     connection_map: RwLock<MultiMap<Uuid, MDSFTPConnection>>,
     packet_handler: Option<GlobalHandler>,
-    shutting_down: AtomicBool
+    shutting_down: AtomicBool,
 }
 
 #[allow(unused)]
@@ -59,7 +59,7 @@ impl InternalMDSFTPPool {
             req_ctx,
             connection_map: RwLock::new(MultiMap::new()),
             packet_handler: None,
-            shutting_down: AtomicBool::new(false)
+            shutting_down: AtomicBool::new(false),
         }
     }
 
@@ -69,9 +69,11 @@ impl InternalMDSFTPPool {
 
         if let Some(connections) = cached {
             if !connections.is_empty() {
-                return Ok(
-                    connections.iter().min_by_key(|c| c.channel_count()).unwrap().clone()
-                );
+                return Ok(connections
+                    .iter()
+                    .min_by_key(|c| c.channel_count())
+                    .unwrap()
+                    .clone());
             }
         }
 
@@ -103,7 +105,7 @@ impl InternalMDSFTPPool {
         handler: GlobalHandler,
     ) -> MDSFTPResult<MDSFTPConnection> {
         if self.shutting_down.load(Ordering::SeqCst) {
-            return Err(MDSFTPError::Interrupted)
+            return Err(MDSFTPError::Interrupted);
         }
 
         let port = &self.req_ctx.port_configuration.mdsftp_server_port;
@@ -130,7 +132,7 @@ impl InternalMDSFTPPool {
         conn: TlsStream<TcpStream>,
     ) -> MDSFTPResult<()> {
         if self.shutting_down.load(Ordering::SeqCst) {
-            return Err(MDSFTPError::Interrupted)
+            return Err(MDSFTPError::Interrupted);
         }
         let mut map = self.connection_map.write().await;
 

@@ -27,7 +27,7 @@ impl Default for PortConfiguration {
 impl GeneralConfiguration {
     pub fn new() -> Self {
         GeneralConfiguration {
-            port_configuration: Default::default()
+            port_configuration: Default::default(),
         }
     }
 }

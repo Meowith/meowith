@@ -1,7 +1,7 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::sync::{Arc, Weak};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Weak};
 
 use log::{debug, warn};
 use tokio::io::{AsyncReadExt, ReadHalf};
@@ -11,12 +11,12 @@ use tokio::task::JoinHandle;
 use tokio_rustls::TlsStream;
 use uuid::Uuid;
 
-use crate::file_transfer::channel::{InternalMDSFTPChannel};
+use crate::file_transfer::channel::InternalMDSFTPChannel;
 use crate::file_transfer::connection::ChannelFactory;
 use crate::file_transfer::handler::PacketHandler;
 use crate::file_transfer::net::packet_type::MDSFTPPacketType;
 use crate::file_transfer::net::validate::PreValidate;
-use crate::file_transfer::net::wire::{HEADER_SIZE, MDSFTPRawPacket, read_header};
+use crate::file_transfer::net::wire::{read_header, MDSFTPRawPacket, HEADER_SIZE};
 
 pub type ConnectionMap = Arc<RwLock<HashMap<u32, Arc<Mutex<InternalMDSFTPChannel>>>>>;
 pub type GlobalHandler = Arc<Mutex<Box<dyn PacketHandler>>>;
@@ -27,7 +27,7 @@ pub(crate) struct PacketReader {
     running: Arc<AtomicBool>,
     global_handler: GlobalHandler,
     conn_id: Uuid,
-    channel_count: Arc<AtomicUsize>
+    channel_count: Arc<AtomicUsize>,
 }
 
 impl PacketReader {
@@ -42,7 +42,7 @@ impl PacketReader {
             running: Arc::new(AtomicBool::new(false)),
             global_handler,
             conn_id,
-            channel_count: Arc::new(AtomicUsize::new(0))
+            channel_count: Arc::new(AtomicUsize::new(0)),
         }
     }
 

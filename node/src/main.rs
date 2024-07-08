@@ -2,8 +2,8 @@ use crate::config::node_config::NodeConfig;
 use crate::init_procedure::register_node;
 use logging::initialize_logging;
 
-use std::path::Path;
 use commons::autoconfigure::general_conf::fetch_general_config;
+use std::path::Path;
 
 mod config;
 mod init_procedure;
