@@ -1,3 +1,4 @@
+pub mod authenticator;
 pub mod channel;
 pub mod connection;
 pub mod data;

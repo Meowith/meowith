@@ -1,9 +1,9 @@
+use chrono::{DateTime, Utc};
+use log::{debug, warn};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
-
-use log::{debug, warn};
 use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::TcpStream;
 use tokio::sync::{Mutex, MutexGuard, RwLock};
@@ -28,6 +28,7 @@ pub(crate) struct PacketReader {
     global_handler: GlobalHandler,
     conn_id: Uuid,
     channel_count: Arc<AtomicUsize>,
+    last_read: Arc<Mutex<DateTime<Utc>>>,
 }
 
 impl PacketReader {
@@ -43,6 +44,7 @@ impl PacketReader {
             global_handler,
             conn_id,
             channel_count: Arc::new(AtomicUsize::new(0)),
+            last_read: Arc::new(Mutex::new(DateTime::<Utc>::MIN_UTC)),
         }
     }
 
@@ -62,6 +64,8 @@ impl PacketReader {
         let handler = self.global_handler.clone();
         let conn_id = self.conn_id;
         let channels = self.channel_count.clone();
+        let last_read = self.last_read.clone();
+
         tokio::spawn(async move {
             let mut stream = stream_ref.lock().await;
             let mut header_buf: [u8; HEADER_SIZE] = [0; HEADER_SIZE];
@@ -95,6 +99,11 @@ impl PacketReader {
                     payload,
                     stream_id: header.stream_id,
                 };
+
+                {
+                    let mut last_read = last_read.lock().await;
+                    *last_read = Utc::now();
+                }
 
                 if packet_type.is_system() {
                     Self::handle_global(
@@ -179,5 +188,9 @@ impl PacketReader {
 
     pub(crate) async fn close(&self) {
         Self::close_map(&self.conn_map, &self.channel_count).await;
+    }
+
+    pub(crate) async fn last_read(&self) -> DateTime<Utc> {
+        *self.last_read.lock().await
     }
 }

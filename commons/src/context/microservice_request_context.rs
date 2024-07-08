@@ -11,10 +11,12 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard};
 use uuid::Uuid;
 
+pub type NodeAddrMap = Arc<RwLock<HashMap<Uuid, String>>>;
+
 #[derive(Debug, Clone)]
 pub struct MicroserviceRequestContext {
     pub controller_addr: String,
-    pub node_addr: Arc<RwLock<HashMap<Uuid, String>>>,
+    pub node_addr: NodeAddrMap,
     pub security_context: SecurityContext,
     pub microservice_type: MicroserviceType,
     pub port_configuration: PortConfiguration,

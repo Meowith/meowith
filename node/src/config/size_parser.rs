@@ -7,6 +7,9 @@ enum SizeUnit {
     Kilobytes,
     Megabytes,
     Gigabytes,
+    Terabytes,
+    Petabytes,
+    Exabytes,
 }
 
 impl FromStr for SizeUnit {
@@ -18,6 +21,9 @@ impl FromStr for SizeUnit {
             "kb" => Ok(SizeUnit::Kilobytes),
             "mb" => Ok(SizeUnit::Megabytes),
             "gb" => Ok(SizeUnit::Gigabytes),
+            "tb" => Ok(SizeUnit::Terabytes),
+            "pt" => Ok(SizeUnit::Petabytes),
+            "eb" => Ok(SizeUnit::Exabytes),
             _ => Err(()),
         }
     }
@@ -48,6 +54,9 @@ pub fn parse_size(size_str: &str) -> Result<u64, ConfigError> {
         SizeUnit::Kilobytes => number * 1024,
         SizeUnit::Megabytes => number * 1024 * 1024,
         SizeUnit::Gigabytes => number * 1024 * 1024 * 1024,
+        SizeUnit::Terabytes => number * 1024 * 1024 * 1024 * 1024,
+        SizeUnit::Petabytes => number * 1024 * 1024 * 1024 * 1024 * 1024,
+        SizeUnit::Exabytes => number * 1024 * 1024 * 1024 * 1024 * 1024 * 1024,
     };
 
     Ok(bytes)

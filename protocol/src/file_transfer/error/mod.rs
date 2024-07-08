@@ -9,6 +9,7 @@ pub enum MDSFTPError {
     SSLError,
     NoSuchNode,
     AddressResolutionError,
+    ConnectionAuthenticationError,
 
     NoSuchChunkId,
     #[display(fmt = "ReserveError max_space = {_0}")]

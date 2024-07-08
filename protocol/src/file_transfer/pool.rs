@@ -10,13 +10,13 @@ use tokio::sync::RwLock;
 use tokio_rustls::TlsStream;
 use uuid::Uuid;
 
-use commons::context::microservice_request_context::MicroserviceRequestContext;
-
+use crate::file_transfer::authenticator::ConnectionAuthContext;
 use crate::file_transfer::channel::MDSFTPChannel;
 use crate::file_transfer::connection::MDSFTPConnection;
 use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
 use crate::file_transfer::handler::PacketHandler;
 use crate::file_transfer::net::packet_reader::GlobalHandler;
+use commons::context::microservice_request_context::NodeAddrMap;
 
 #[derive(Clone)]
 pub struct MDSFTPPool {
@@ -26,9 +26,15 @@ pub struct MDSFTPPool {
 // TODO: auto close stale conn's
 
 impl MDSFTPPool {
-    pub fn new(req_ctx: Arc<MicroserviceRequestContext>) -> Self {
+    pub fn new(
+        connection_auth_context: Arc<ConnectionAuthContext>,
+        node_addr_map: NodeAddrMap,
+    ) -> Self {
         MDSFTPPool {
-            _internal_pool: Arc::new(Mutex::new(InternalMDSFTPPool::new(req_ctx))),
+            _internal_pool: Arc::new(Mutex::new(InternalMDSFTPPool::new(
+                connection_auth_context,
+                node_addr_map,
+            ))),
         }
     }
 
@@ -46,20 +52,25 @@ impl MDSFTPPool {
 }
 
 pub(crate) struct InternalMDSFTPPool {
-    req_ctx: Arc<MicroserviceRequestContext>,
     connection_map: RwLock<MultiMap<Uuid, MDSFTPConnection>>,
     packet_handler: Option<GlobalHandler>,
     shutting_down: AtomicBool,
+    connection_auth_context: Arc<ConnectionAuthContext>,
+    node_addr_map: NodeAddrMap,
 }
 
 #[allow(unused)]
 impl InternalMDSFTPPool {
-    fn new(req_ctx: Arc<MicroserviceRequestContext>) -> Self {
+    fn new(
+        connection_auth_context: Arc<ConnectionAuthContext>,
+        node_addr_map: NodeAddrMap,
+    ) -> Self {
         InternalMDSFTPPool {
-            req_ctx,
+            connection_auth_context,
             connection_map: RwLock::new(MultiMap::new()),
             packet_handler: None,
             shutting_down: AtomicBool::new(false),
+            node_addr_map,
         }
     }
 
@@ -108,9 +119,9 @@ impl InternalMDSFTPPool {
             return Err(MDSFTPError::Interrupted);
         }
 
-        let port = &self.req_ctx.port_configuration.mdsftp_server_port;
+        let port = &self.connection_auth_context.port;
 
-        let map = self.req_ctx.node_addr.read().await;
+        let map = self.node_addr_map.read().await;
         let node = map.get(target).cloned().ok_or(MDSFTPError::NoSuchNode)?;
 
         MDSFTPConnection::new(
@@ -118,9 +129,8 @@ impl InternalMDSFTPPool {
                 IpAddr::from_str(node.as_str()).map_err(|_| MDSFTPError::AddressResolutionError)?,
                 *port,
             ),
-            &self.req_ctx.security_context.root_x509,
+            &self.connection_auth_context,
             *target,
-            &self.req_ctx.security_context.access_token,
             handler,
         )
         .await

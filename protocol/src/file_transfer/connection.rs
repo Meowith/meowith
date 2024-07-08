@@ -1,17 +1,17 @@
-use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-
-use openssl::x509::X509;
+use chrono::{DateTime, Utc};
 use rand::{thread_rng, Rng};
 use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
 use rustls::{ClientConfig, RootCertStore};
+use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_rustls::{TlsConnector, TlsStream};
 use uuid::Uuid;
 
+use crate::file_transfer::authenticator::ConnectionAuthContext;
 use crate::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
 use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
 use crate::file_transfer::net::packet_reader::{GlobalHandler, PacketReader};
@@ -27,12 +27,11 @@ pub struct MDSFTPConnection {
 impl MDSFTPConnection {
     pub async fn new(
         node_address: SocketAddr,
-        certificate: &X509,
+        connection_auth_context: &ConnectionAuthContext,
         id: Uuid,
-        auth_token: &String,
         handler: GlobalHandler,
     ) -> MDSFTPResult<Self> {
-        let conn = Self::create_conn(certificate, auth_token, &id, &node_address).await?;
+        let conn = Self::create_conn(connection_auth_context, &id, &node_address).await?;
 
         Ok(MDSFTPConnection {
             _internal_connection: Arc::new(
@@ -54,15 +53,17 @@ impl MDSFTPConnection {
     }
 
     async fn create_conn(
-        certificate: &X509,
-        auth_token: &String,
+        connection_auth_context: &ConnectionAuthContext,
         id: &Uuid,
         addr: &SocketAddr,
     ) -> MDSFTPResult<TlsStream<TcpStream>> {
         let mut root_cert_store = RootCertStore::empty();
         root_cert_store
             .add(CertificateDer::from(
-                certificate.to_der().map_err(|_| MDSFTPError::SSLError)?,
+                connection_auth_context
+                    .root_certificate
+                    .to_der()
+                    .map_err(|_| MDSFTPError::SSLError)?,
             ))
             .map_err(|_| MDSFTPError::SSLError)?;
         let config = ClientConfig::builder()
@@ -74,21 +75,23 @@ impl MDSFTPConnection {
         let stream = TcpStream::connect(&addr)
             .await
             .map_err(|_| MDSFTPError::SSLError)?;
-        let mut stream = connector
-            .connect(server_name, stream)
-            .await
-            .map_err(|_| MDSFTPError::SSLError)?;
+        let mut stream = TlsStream::from(
+            connector
+                .connect(server_name, stream)
+                .await
+                .map_err(|_| MDSFTPError::SSLError)?,
+        );
 
-        stream
-            .write_all(auth_token.as_bytes())
-            .await
-            .map_err(|_| MDSFTPError::ConnectionError)?;
+        if let Some(auth) = &connection_auth_context.authenticator {
+            auth.authenticate_outgoing(&mut stream).await?;
+        }
+
         stream
             .write_all(id.as_bytes())
             .await
             .map_err(|_| MDSFTPError::ConnectionError)?;
 
-        Ok(TlsStream::from(stream))
+        Ok(stream)
     }
 
     pub async fn create_channel(&self) -> MDSFTPResult<MDSFTPChannel> {
@@ -97,6 +100,14 @@ impl MDSFTPConnection {
 
     pub fn channel_count(&self) -> usize {
         self._internal_connection.channel_count()
+    }
+
+    pub async fn last_read(&self) -> DateTime<Utc> {
+        self._internal_connection.last_read().await
+    }
+
+    pub async fn last_write(&self) -> DateTime<Utc> {
+        self._internal_connection.last_write().await
     }
 
     pub async fn close(&self) {
@@ -190,6 +201,14 @@ impl InternalMDSFTPConnection {
         let mut writer = self.writer.lock().await;
         writer.close();
         writer.stream.shutdown().await.expect("Shutdown failed");
+    }
+
+    pub(crate) async fn last_read(&self) -> DateTime<Utc> {
+        self.reader.last_read().await
+    }
+
+    pub(crate) async fn last_write(&self) -> DateTime<Utc> {
+        self.writer.lock().await.last_write().await
     }
 }
 

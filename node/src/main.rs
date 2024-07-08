@@ -6,6 +6,7 @@ use commons::autoconfigure::general_conf::fetch_general_config;
 use std::path::Path;
 
 mod config;
+mod file_transfer;
 mod init_procedure;
 mod locking;
 
