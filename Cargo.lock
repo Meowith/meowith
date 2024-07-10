@@ -1853,11 +1853,13 @@ name = "protocol"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "chrono",
  "commons",
  "data",
  "derive_more",
  "log",
+ "logging",
  "multimap",
  "openssl",
  "rand",

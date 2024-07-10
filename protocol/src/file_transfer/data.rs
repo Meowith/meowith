@@ -1,5 +1,6 @@
 use crate::file_transfer::error::MDSFTPError;
 
+#[derive(Debug, Eq, PartialEq)]
 pub enum LockKind {
     Read,
     Write,
@@ -24,6 +25,7 @@ impl From<LockKind> for u8 {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub enum ChunkErrorKind {
     Internal,
     NotFound,

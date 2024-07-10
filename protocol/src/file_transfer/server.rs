@@ -10,7 +10,9 @@ use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::broadcast::{Receiver, Sender};
+use tokio::sync::{broadcast, oneshot, Mutex};
 use tokio_rustls::{rustls, TlsAcceptor, TlsStream};
 use uuid::{Bytes, Uuid};
 
@@ -18,8 +20,7 @@ use commons::context::microservice_request_context::NodeAddrMap;
 
 use crate::file_transfer::authenticator::ConnectionAuthContext;
 use crate::file_transfer::error::MDSFTPError;
-use crate::file_transfer::handler::PacketHandler;
-use crate::file_transfer::pool::MDSFTPPool;
+use crate::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
 
 #[allow(unused)]
 const ZERO_UUID: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -30,26 +31,29 @@ pub struct MDSFTPServer {
     running: Arc<AtomicBool>,
     connection_auth_context: Arc<ConnectionAuthContext>,
     node_addr_map: NodeAddrMap,
+
+    shutdown_sender: Option<Arc<Mutex<Sender<()>>>>,
 }
 
 impl MDSFTPServer {
     pub async fn new(
         connection_auth_context: Arc<ConnectionAuthContext>,
         node_addr_map: NodeAddrMap,
-        incoming_handler: Box<dyn PacketHandler>,
+        incoming_handler: PacketHandlerRef,
     ) -> Self {
         let mut srv = MDSFTPServer {
             pool: None,
             connection_auth_context,
             node_addr_map,
             running: Arc::new(AtomicBool::new(false)),
+            shutdown_sender: None,
         };
         srv.create_pool(incoming_handler).await;
         srv
     }
 
     #[allow(unused)]
-    async fn start(&self, cert: &X509, key: &PKey<Private>) -> Result<(), Box<dyn Error>> {
+    pub async fn start(&mut self, cert: &X509, key: &PKey<Private>) -> Result<(), Box<dyn Error>> {
         let config = rustls::ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(
@@ -70,15 +74,43 @@ impl MDSFTPServer {
         self.running.store(true, Ordering::SeqCst);
         let running = self.running.clone();
 
+        let (tx, _rx) = broadcast::channel(1);
+        let shutdown_sender = Arc::new(Mutex::new(tx));
+        self.shutdown_sender = Some(shutdown_sender.clone());
+
+        let (startup_tx, startup_rx) = oneshot::channel();
+
         tokio::spawn(async move {
+            startup_tx.send(());
             while running.load(Ordering::Relaxed) {
-                let _: Result<(), MDSFTPError> = async {
-                    let (stream, _) = listener.accept().await.map_err(|_| MDSFTPError::SSLError)?;
+                let res: Result<(), MDSFTPError> = async {
+                    let stream: TcpStream;
+                    let mut rx: Receiver<()>;
+                    {
+                        let tx = shutdown_sender.lock().await;
+                        rx = tx.subscribe();
+                    }
+
+                    // Send calls should work now, check running again just in case.
+                    if !running.load(Ordering::Relaxed) {
+                        debug!("Fast shutdown");
+                        return Err(MDSFTPError::ShuttingDown);
+                    }
+
+                    tokio::select! {
+                        val = rx.recv() => {
+                            return Err(MDSFTPError::ShuttingDown);
+                        }
+                        val = listener.accept() => {
+                            stream = val.map_err(|_| MDSFTPError::ConnectionError)?.0
+                        }
+                    }
+
                     let acceptor = acceptor.clone();
                     let stream = acceptor
                         .accept(stream)
                         .await
-                        .map_err(|_| MDSFTPError::SSLError)?;
+                        .map_err(|_| MDSFTPError::ConnectionError)?;
 
                     let mut stream = TlsStream::from(stream);
 
@@ -125,18 +157,34 @@ impl MDSFTPServer {
                     Ok(())
                 }
                 .await;
+
+                match res {
+                    Ok(_) => {}
+                    Err(MDSFTPError::ShuttingDown) => {
+                        break;
+                    }
+                    Err(_) => {}
+                }
             }
         });
 
+        let _ = startup_rx.await;
         Ok(())
     }
 
-    async fn create_pool(&mut self, incoming_handler: Box<dyn PacketHandler>) {
+    async fn create_pool(&mut self, incoming_handler: PacketHandlerRef) {
         let mut pool = MDSFTPPool::new(
             self.connection_auth_context.clone(),
             self.node_addr_map.clone(),
         );
         pool.set_packet_handler(incoming_handler).await;
         self.pool = Some(pool)
+    }
+
+    pub async fn shutdown(self) {
+        if let Some(sender) = self.shutdown_sender {
+            self.running.store(false, Ordering::SeqCst);
+            let _ = sender.lock().await.send(());
+        }
     }
 }

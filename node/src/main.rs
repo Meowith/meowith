@@ -30,6 +30,6 @@ async fn main() -> std::io::Result<()> {
     let mut req_ctx = init_res.0;
     let global_conf = fetch_general_config(&req_ctx).await.unwrap();
     req_ctx.port_configuration = global_conf.port_configuration;
-
+    
     Ok(())
 }

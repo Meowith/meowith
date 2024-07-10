@@ -18,6 +18,8 @@ use crate::file_transfer::handler::PacketHandler;
 use crate::file_transfer::net::packet_reader::GlobalHandler;
 use commons::context::microservice_request_context::NodeAddrMap;
 
+pub type PacketHandlerRef = Arc<Mutex<Box<dyn PacketHandler>>>;
+
 #[derive(Clone)]
 pub struct MDSFTPPool {
     pub(crate) _internal_pool: Arc<Mutex<InternalMDSFTPPool>>,
@@ -38,7 +40,7 @@ impl MDSFTPPool {
         }
     }
 
-    pub async fn set_packet_handler(&mut self, handler: Box<dyn PacketHandler>) {
+    pub async fn set_packet_handler(&mut self, handler: PacketHandlerRef) {
         self._internal_pool.lock().await.set_packet_handler(handler);
     }
 
@@ -106,8 +108,8 @@ impl InternalMDSFTPPool {
         conn.create_channel().await
     }
 
-    pub(crate) fn set_packet_handler(&mut self, handler: Box<dyn PacketHandler>) {
-        self.packet_handler = Some(Arc::new(Mutex::new(handler)));
+    pub(crate) fn set_packet_handler(&mut self, handler: PacketHandlerRef) {
+        self.packet_handler = Some(handler);
     }
 
     async fn create_connection(

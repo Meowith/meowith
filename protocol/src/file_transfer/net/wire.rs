@@ -5,7 +5,7 @@ pub(crate) const PAYLOAD_SIZE: usize = 65535usize;
 #[allow(unused)]
 pub(crate) const MAX_PACKET_SIZE: usize = HEADER_SIZE + PAYLOAD_SIZE;
 
-#[derive(Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub(crate) struct MDSFTPHeader {
     pub(crate) packet_id: u8,
     pub(crate) stream_id: u32,
@@ -29,13 +29,8 @@ pub(crate) fn read_header(raw: &[u8; 7]) -> MDSFTPHeader {
 pub(crate) fn write_header(header: &MDSFTPHeader, buf: &mut [u8]) {
     buf[0] = header.packet_id;
 
-    buf[1] = header.stream_id as u8;
-    buf[2] = (header.stream_id >> 8) as u8;
-    buf[3] = (header.stream_id >> 16) as u8;
-    buf[4] = (header.stream_id >> 24) as u8;
-
-    buf[5] = header.payload_size as u8;
-    buf[6] = (header.payload_size >> 8) as u8;
+    buf[1..5].clone_from_slice(&header.stream_id.to_be_bytes());
+    buf[5..7].clone_from_slice(&header.payload_size.to_be_bytes());
 }
 
 #[cfg(test)]
@@ -53,5 +48,7 @@ mod tests {
 
         write_header(&header, &mut buf);
         let read = read_header(&buf);
+
+        assert_eq!(read, header);
     }
 }

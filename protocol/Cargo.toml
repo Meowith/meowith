@@ -12,6 +12,7 @@ time = "0.3.36"
 uuid = { version = "1.9.1", features = ["v4"] }
 
 data = { path = "../data", version = "0.1.0" }
+logging = { path = "../logging", version = "0.1.0" }
 regex = "1.10.5"
 derive_more = "0.99.18"
 log = "0.4.22"
@@ -23,3 +24,4 @@ webpki-roots = "0.26.3"
 multimap = "0.10.0"
 async-trait = "0.1.80"
 chrono = "0.4.38"
+bytes = "1.6.0"

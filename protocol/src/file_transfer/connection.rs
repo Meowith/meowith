@@ -63,9 +63,9 @@ impl MDSFTPConnection {
                 connection_auth_context
                     .root_certificate
                     .to_der()
-                    .map_err(|_| MDSFTPError::SSLError)?,
+                    .map_err(MDSFTPError::from)?,
             ))
-            .map_err(|_| MDSFTPError::SSLError)?;
+            .map_err(MDSFTPError::from)?;
         let config = ClientConfig::builder()
             .with_root_certificates(root_cert_store)
             .with_no_client_auth();
@@ -74,12 +74,12 @@ impl MDSFTPConnection {
 
         let stream = TcpStream::connect(&addr)
             .await
-            .map_err(|_| MDSFTPError::SSLError)?;
+            .map_err(|_| MDSFTPError::ConnectionError)?;
         let mut stream = TlsStream::from(
             connector
                 .connect(server_name, stream)
                 .await
-                .map_err(|_| MDSFTPError::SSLError)?,
+                .map_err(MDSFTPError::from)?,
         );
 
         if let Some(auth) = &connection_auth_context.authenticator {
@@ -224,11 +224,11 @@ impl ChannelFactory {
         id: u32,
         alert: bool,
     ) -> MDSFTPResult<MDSFTPChannel> {
-        let internal_ref = Arc::new(Mutex::new(InternalMDSFTPChannel::new(
+        let internal_ref = Arc::new(InternalMDSFTPChannel::new(
             id,
             Arc::downgrade(&self.writer),
             Arc::downgrade(&self.reader),
-        )));
+        ));
 
         self.reader.add_channel(id, internal_ref.clone()).await;
 
