@@ -27,14 +27,14 @@ impl From<LockKind> for u8 {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ChunkErrorKind {
-    Internal,
+    NotAvailable,
     NotFound,
 }
 
 impl From<ChunkErrorKind> for MDSFTPError {
     fn from(value: ChunkErrorKind) -> Self {
         match value {
-            ChunkErrorKind::Internal => MDSFTPError::RemoteError,
+            ChunkErrorKind::NotAvailable => MDSFTPError::RemoteError,
             ChunkErrorKind::NotFound => MDSFTPError::NoSuchChunkId,
         }
     }
@@ -43,9 +43,9 @@ impl From<ChunkErrorKind> for MDSFTPError {
 impl From<u8> for ChunkErrorKind {
     fn from(value: u8) -> Self {
         match value & 0x2 {
-            0u8 => ChunkErrorKind::Internal,
+            0u8 => ChunkErrorKind::NotAvailable,
             2u8 => ChunkErrorKind::NotFound,
-            _ => ChunkErrorKind::Internal,
+            _ => ChunkErrorKind::NotAvailable,
         }
     }
 }
@@ -53,7 +53,7 @@ impl From<u8> for ChunkErrorKind {
 impl From<ChunkErrorKind> for u8 {
     fn from(value: ChunkErrorKind) -> Self {
         match value {
-            ChunkErrorKind::Internal => 0u8,
+            ChunkErrorKind::NotAvailable => 0u8,
             ChunkErrorKind::NotFound => 2u8,
         }
     }

@@ -8,7 +8,7 @@ use tokio::net::TcpStream;
 use uuid::Uuid;
 
 pub struct MeowithMDSFTPConnectionAuthenticator {
-    req_ctx: Arc<MicroserviceRequestContext>,
+    pub req_ctx: Arc<MicroserviceRequestContext>,
 }
 
 #[async_trait]

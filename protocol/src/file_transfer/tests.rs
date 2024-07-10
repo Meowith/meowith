@@ -3,6 +3,7 @@ mod tests {
     use crate::file_transfer::authenticator::ConnectionAuthContext;
     use crate::file_transfer::channel::MDSFTPChannel;
     use crate::file_transfer::data::LockKind;
+    use crate::file_transfer::error::MDSFTPResult;
     use crate::file_transfer::handler::{Channel, ChannelPacketHandler, PacketHandler};
     use crate::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
     use crate::file_transfer::server::MDSFTPServer;
@@ -19,7 +20,6 @@ mod tests {
     use tokio::sync::{Mutex, RwLock};
     use tokio::time::sleep;
     use uuid::Uuid;
-    use crate::file_transfer::error::MDSFTPResult;
 
     struct HandlerStats {
         pub channels_opened: u32,
@@ -42,8 +42,16 @@ mod tests {
     }
 
     impl TestIncomingHandler {
-        fn default(stats: Arc<Mutex<HandlerStats>>, received: Option<Arc<Mutex<Vec<u8>>>>, name: String) -> Self {
-            TestIncomingHandler { stats, received, name }
+        fn default(
+            stats: Arc<Mutex<HandlerStats>>,
+            received: Option<Arc<Mutex<Vec<u8>>>>,
+            name: String,
+        ) -> Self {
+            TestIncomingHandler {
+                stats,
+                received,
+                name,
+            }
         }
     }
 
@@ -52,7 +60,11 @@ mod tests {
         async fn channel_incoming(&mut self, channel: MDSFTPChannel, conn_id: Uuid) {
             info!("{} Channel open {conn_id}", &self.name);
             self.stats.lock().await.channels_opened += 1;
-            let await_handler = channel.set_incoming_handler(Box::new(EchoChannel { store_buf: self.received.clone() })).await;
+            let await_handler = channel
+                .set_incoming_handler(Box::new(EchoChannel {
+                    store_buf: self.received.clone(),
+                }))
+                .await;
             debug!("Handler registered");
             tokio::spawn(async move {
                 let _no_drop = channel;
@@ -71,7 +83,7 @@ mod tests {
     }
 
     struct EchoChannel {
-        store_buf: Option<Arc<Mutex<Vec<u8>>>>
+        store_buf: Option<Arc<Mutex<Vec<u8>>>>,
     }
 
     #[async_trait]
@@ -86,7 +98,10 @@ mod tests {
             match self.store_buf.as_ref() {
                 None => {
                     debug!("czarni");
-                    channel.respond_chunk(is_last, id, chunk).await.expect("Chunk echo failed");
+                    channel
+                        .respond_chunk(is_last, id, chunk)
+                        .await
+                        .expect("Chunk echo failed");
                     if is_last {
                         channel.close().await;
                     }
@@ -109,19 +124,39 @@ mod tests {
             Ok(())
         }
 
-        async fn handle_put(&mut self, channel: Channel, _chunk_id: Uuid, _content_size: u64) -> MDSFTPResult<()> {
+        async fn handle_put(
+            &mut self,
+            channel: Channel,
+            _chunk_id: Uuid,
+            _content_size: u64,
+        ) -> MDSFTPResult<()> {
             channel.close().await;
             Ok(())
         }
 
-        async fn handle_reserve(&mut self, channel: Channel, _desired_size: u64) -> MDSFTPResult<()> {
-            channel.respond_reserve_ok(Uuid::new_v4()).await.expect("ReserveOk respond failed");
+        async fn handle_reserve(
+            &mut self,
+            channel: Channel,
+            _desired_size: u64,
+        ) -> MDSFTPResult<()> {
+            channel
+                .respond_reserve_ok(Uuid::new_v4())
+                .await
+                .expect("ReserveOk respond failed");
             channel.close().await;
             Ok(())
         }
 
-        async fn handle_lock_req(&mut self, channel: Channel, chunk_id: Uuid, kind: LockKind) -> MDSFTPResult<()> {
-            channel.respond_lock_ok(chunk_id, kind).await.expect("LockOk respond failed");
+        async fn handle_lock_req(
+            &mut self,
+            channel: Channel,
+            chunk_id: Uuid,
+            kind: LockKind,
+        ) -> MDSFTPResult<()> {
+            channel
+                .respond_lock_ok(chunk_id, kind)
+                .await
+                .expect("LockOk respond failed");
             channel.close().await;
             Ok(())
         }
@@ -158,7 +193,7 @@ mod tests {
             conn_map.clone(),
             server_handler,
         )
-            .await;
+        .await;
         assert!(server.start(&cert, &key).await.is_ok());
 
         let client_stats = Arc::new(Mutex::new(HandlerStats::default()));
@@ -172,14 +207,14 @@ mod tests {
         {
             debug!("Test chunk echo");
             let channel = client_pool.channel(&id1).await.unwrap();
-            let await_handler = channel.set_incoming_handler(Box::new(EchoChannel { store_buf: Some(client_received.clone()) })).await;
-            let send = channel
-                .send_chunk(false, 0, &[0u8, 1u8, 2u8])
+            let await_handler = channel
+                .set_incoming_handler(Box::new(EchoChannel {
+                    store_buf: Some(client_received.clone()),
+                }))
                 .await;
+            let send = channel.send_chunk(false, 0, &[0u8, 1u8, 2u8]).await;
             assert!(send.is_ok());
-            let send = channel
-                .send_chunk(true, 0, &[3u8, 4u8, 5u8])
-                .await;
+            let send = channel.send_chunk(true, 0, &[3u8, 4u8, 5u8]).await;
             assert!(send.is_ok());
 
             await_handler.await;
@@ -188,7 +223,10 @@ mod tests {
         sleep(Duration::from_millis(100)).await;
         assert_eq!(client_stats.lock().await.channels_opened, 0);
         assert_eq!(server_stats.lock().await.channels_opened, 1);
-        assert_eq!(client_received.lock().await.clone(), vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8]);
+        assert_eq!(
+            client_received.lock().await.clone(),
+            vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8]
+        );
 
         {
             debug!("Test lock acquire");
@@ -197,7 +235,6 @@ mod tests {
             assert!(lock_req.is_ok());
             assert_eq!(lock_req.unwrap(), LockKind::Read);
         }
-
 
         {
             debug!("Test reserve acquire");

@@ -1586,10 +1586,13 @@ dependencies = [
 name = "node"
 version = "0.1.0"
 dependencies = [
+ "actix-cors",
  "actix-web",
  "async-trait",
  "commons",
  "data",
+ "derive_more",
+ "log",
  "logging",
  "openssl",
  "protocol",

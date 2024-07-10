@@ -35,7 +35,7 @@ pub fn generate_access_token() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use network::autoconfigure::auth_conf::{is_access_token_valid, is_renewal_token_valid};
+    use commons::autoconfigure::auth_conf::{is_access_token_valid, is_renewal_token_valid};
 
     #[test]
     fn test_generate_token_length() {

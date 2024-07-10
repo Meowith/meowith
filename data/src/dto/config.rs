@@ -1,6 +1,7 @@
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct GeneralConfiguration {
     pub port_configuration: PortConfiguration,
+    pub max_readers: u32,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -28,6 +29,7 @@ impl GeneralConfiguration {
     pub fn new() -> Self {
         GeneralConfiguration {
             port_configuration: Default::default(),
+            max_readers: 2048u32,
         }
     }
 }

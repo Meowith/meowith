@@ -1,8 +1,14 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::sync::{Arc, Weak};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Weak};
 
+use crate::file_transfer::channel::InternalMDSFTPChannel;
+use crate::file_transfer::connection::ChannelFactory;
+use crate::file_transfer::handler::PacketHandler;
+use crate::file_transfer::net::packet_type::MDSFTPPacketType;
+use crate::file_transfer::net::validate::PreValidate;
+use crate::file_transfer::net::wire::{read_header, MDSFTPRawPacket, HEADER_SIZE};
 use chrono::{DateTime, Utc};
 use log::{debug, warn};
 use tokio::io::{AsyncReadExt, ReadHalf};
@@ -11,12 +17,6 @@ use tokio::sync::{Mutex, MutexGuard, RwLock};
 use tokio::task::JoinHandle;
 use tokio_rustls::TlsStream;
 use uuid::Uuid;
-use crate::file_transfer::channel::InternalMDSFTPChannel;
-use crate::file_transfer::connection::ChannelFactory;
-use crate::file_transfer::handler::PacketHandler;
-use crate::file_transfer::net::packet_type::MDSFTPPacketType;
-use crate::file_transfer::net::validate::PreValidate;
-use crate::file_transfer::net::wire::{HEADER_SIZE, MDSFTPRawPacket, read_header};
 
 pub type ConnectionMap = Arc<RwLock<HashMap<u32, Arc<InternalMDSFTPChannel>>>>;
 pub type GlobalHandler = Arc<Mutex<Box<dyn PacketHandler>>>;

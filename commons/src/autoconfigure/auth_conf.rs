@@ -24,8 +24,8 @@ impl Error for TokenReadError {}
 
 #[allow(unused)]
 pub struct RegistrationResult {
-    internal_cert: X509,
-    internal_key: PKey<Private>,
+    pub internal_cert: X509,
+    pub internal_key: PKey<Private>,
 }
 
 /// If not already registered, registers the node.

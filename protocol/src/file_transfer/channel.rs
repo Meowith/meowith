@@ -30,7 +30,9 @@ impl MDSFTPChannel {
     }
 
     pub async fn send_chunk(&self, is_last: bool, id: u32, content: &[u8]) -> MDSFTPResult<()> {
-        self._internal_channel.send_chunk(is_last, id, content).await
+        self._internal_channel
+            .send_chunk(is_last, id, content)
+            .await
     }
 
     pub async fn set_incoming_handler(
@@ -42,9 +44,7 @@ impl MDSFTPChannel {
         *channel.handler_sender.lock().await = Some(tx);
         *channel.mdsftp_handler_channel.lock().await = Some(MDSFTPHandlerChannel::new(self));
         *channel.incoming_handler.lock().await = Some(handler);
-        ChannelAwaitHandle {
-            _receiver: rx
-        }
+        ChannelAwaitHandle { _receiver: rx }
     }
 }
 
@@ -272,7 +272,13 @@ impl InternalMDSFTPChannel {
         if self.incoming_handler.lock().await.is_some() {
             let handler = &mut self.incoming_handler.lock().await;
             let handler = handler.as_mut().unwrap();
-            let handler_channel = self.mdsftp_handler_channel.lock().await.as_ref().unwrap().clone();
+            let handler_channel = self
+                .mdsftp_handler_channel
+                .lock()
+                .await
+                .as_ref()
+                .unwrap()
+                .clone();
             match packet.packet_type {
                 MDSFTPPacketType::FileChunk => {
                     let is_last = packet.payload[0] == 1;

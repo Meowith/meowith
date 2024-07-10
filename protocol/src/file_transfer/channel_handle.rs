@@ -1,12 +1,12 @@
+use crate::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
+use crate::file_transfer::data::{ChunkErrorKind, LockKind};
+use crate::file_transfer::error::MDSFTPResult;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use tokio::sync::mpsc::Receiver;
 use uuid::Uuid;
-use crate::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
-use crate::file_transfer::data::{ChunkErrorKind, LockKind};
-use crate::file_transfer::error::MDSFTPResult;
 
 pub struct ChannelAwaitHandle {
     pub(crate) _receiver: Receiver<MDSFTPResult<()>>,

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::net::IpAddr;
+use std::path::Path;
 use sysinfo::Disks;
 
 const MIN_STORAGE_VALUE: u64 = 2 * 1024 * 1024 * 1024;
@@ -17,6 +18,11 @@ pub(crate) struct NodeConfig {
     //internal commons config
     pub addr: String,
     pub port: u16,
+
+    //external certificates config
+    pub ssl_certificate: Option<String>,
+    pub ssl_private_key: Option<String>,
+    pub path: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -27,6 +33,9 @@ pub(crate) struct NodeConfigInstance {
     pub ca_certificate: String,
     pub addr: String,
     pub port: u16,
+    pub ssl_certificate: Option<String>,
+    pub ssl_private_key: Option<String>,
+    pub path: String,
 }
 
 impl NodeConfig {
@@ -53,6 +62,9 @@ impl NodeConfig {
             max_space: "100mb".to_string(),
             addr: "127.0.0.1".to_string(),
             port: 8080,
+            ssl_certificate: None,
+            ssl_private_key: None,
+            path: "/var/meowith/data/".to_string(),
         };
         let mut new_file = OpenOptions::new()
             .write(true)
@@ -95,6 +107,12 @@ impl NodeConfig {
             return Err(ConfigError::InsufficientDiskSpace);
         }
 
+        let path = Path::new(&self.path);
+
+        if !path.exists() || !path.is_dir() {
+            return Err(ConfigError::InvalidDataDir);
+        }
+
         Ok(NodeConfigInstance {
             cnc_addr: self.cnc_addr,
             cnc_port: self.cnc_port,
@@ -102,6 +120,13 @@ impl NodeConfig {
             max_space: max_space_bytes,
             addr: self.addr,
             port: self.port,
+            ssl_certificate: self.ssl_certificate,
+            ssl_private_key: self.ssl_private_key,
+            path: if self.path.ends_with('/') {
+                self.path
+            } else {
+                self.path + "/"
+            },
         })
     }
 }

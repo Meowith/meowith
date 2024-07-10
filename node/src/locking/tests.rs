@@ -7,7 +7,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read() {
-        let table: FileLockTable<Uuid, ()> = FileLockTable::new(2);
+        let table: FileLockTable<Uuid> = FileLockTable::new(2);
 
         {
             let id = Uuid::new_v4();
@@ -23,7 +23,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_write() {
-        let table: FileLockTable<Uuid, ()> = FileLockTable::new(2);
+        let table: FileLockTable<Uuid> = FileLockTable::new(2);
 
         {
             let id = Uuid::new_v4();

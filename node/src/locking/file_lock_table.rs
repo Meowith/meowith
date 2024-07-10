@@ -1,4 +1,3 @@
-use std::cell::UnsafeCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -10,45 +9,32 @@ use tokio::sync::{Mutex, Semaphore};
 use crate::locking::error::FileLockError;
 use crate::locking::file_read_guard::FileReadGuard;
 use crate::locking::file_write_guard::FileWriteGuard;
-use crate::locking::KyeAbleValue;
 
 pub type TryLockResult<T> = Result<T, FileLockError>;
 
-pub(crate) type LockTable<K, T> = Mutex<HashMap<K, FileLock<K, T>>>;
+pub(crate) type LockTable<K> = Mutex<HashMap<K, FileLock<K>>>;
 pub trait KeyBounds: Sized + Eq + Hash + Clone + Send + Sync + Debug + 'static {}
 impl<T> KeyBounds for T where T: Sized + Eq + Hash + Clone + Send + Sync + Debug + 'static {}
 
-pub trait ValueBounds<K>: Sized + KyeAbleValue<K> + Send + 'static
-where
-    K: KeyBounds,
-{
-}
-impl<T, K> ValueBounds<K> for T
-where
-    K: KeyBounds,
-    T: Sized + KyeAbleValue<K> + Send + 'static,
-{
-}
-
 pub const MAX_READERS: u32 = 256;
 
-pub struct FileLockTable<K, T: Sized>
+#[derive(Clone)]
+pub struct FileLockTable<K>
 where
     K: KeyBounds,
-    T: ValueBounds<K>,
 {
-    lock_table: Arc<LockTable<K, T>>,
+    lock_table: Arc<LockTable<K>>,
     max_readers: u32,
 }
 
-impl<K: KeyBounds, T: ValueBounds<K>> Default for FileLockTable<K, T> {
+impl<K: KeyBounds> Default for FileLockTable<K> {
     fn default() -> Self {
         FileLockTable::default()
     }
 }
 
 #[allow(unused)]
-impl<K: KeyBounds, T: ValueBounds<K>> FileLockTable<K, T> {
+impl<K: KeyBounds> FileLockTable<K> {
     fn default() -> Self {
         FileLockTable {
             lock_table: Arc::new(Mutex::new(HashMap::new())),
@@ -63,16 +49,14 @@ impl<K: KeyBounds, T: ValueBounds<K>> FileLockTable<K, T> {
         }
     }
 
-    pub async fn try_read(&self, key: K) -> TryLockResult<FileReadGuard<'_, K, T>> {
+    pub async fn try_read(&self, key: K) -> TryLockResult<FileReadGuard<K>> {
         match self.lock_table.lock().await.entry(key.clone()) {
             Entry::Occupied(lock_entry) => lock_entry.get().try_read(),
             Entry::Vacant(entry) => {
-                let data = T::new(&key);
                 let lock = FileLock::new(
                     Arc::downgrade(&self.lock_table),
                     self.max_readers,
-                    key,
-                    data,
+                    key
                 );
                 let guard = lock.try_read();
                 entry.insert(lock);
@@ -81,16 +65,14 @@ impl<K: KeyBounds, T: ValueBounds<K>> FileLockTable<K, T> {
         }
     }
 
-    pub async fn try_write(&self, key: K) -> TryLockResult<FileWriteGuard<'_, K, T>> {
+    pub async fn try_write(&self, key: K) -> TryLockResult<FileWriteGuard<K>> {
         match self.lock_table.lock().await.entry(key.clone()) {
             Entry::Occupied(lock_entry) => lock_entry.get().try_write(),
             Entry::Vacant(entry) => {
-                let data = T::new(&key);
                 let lock = FileLock::new(
                     Arc::downgrade(&self.lock_table),
                     self.max_readers,
                     key,
-                    data,
                 );
                 let guard = lock.try_write();
                 entry.insert(lock);
@@ -100,13 +82,12 @@ impl<K: KeyBounds, T: ValueBounds<K>> FileLockTable<K, T> {
     }
 }
 
-pub struct FileLock<K: KeyBounds, T: ValueBounds<K>> {
-    locker: Arc<Locker<K, T>>,
-    data: UnsafeCell<T>,
+pub struct FileLock<K: KeyBounds> {
+    locker: Arc<Locker<K>>,
 }
 
-impl<K: KeyBounds, T: ValueBounds<K>> FileLock<K, T> {
-    pub fn new(lock_table: Weak<LockTable<K, T>>, max_readers: u32, key: K, data: T) -> Self {
+impl<K: KeyBounds> FileLock<K> {
+    pub fn new(lock_table: Weak<LockTable<K>>, max_readers: u32, key: K) -> Self {
         FileLock {
             locker: Arc::new(Locker {
                 max_readers,
@@ -114,28 +95,27 @@ impl<K: KeyBounds, T: ValueBounds<K>> FileLock<K, T> {
                 semaphore: Arc::new(Semaphore::new(max_readers as usize)),
                 lock_table,
             }),
-            data: UnsafeCell::new(data),
         }
     }
 
-    pub fn try_read<'a>(&self) -> TryLockResult<FileReadGuard<'a, K, T>> {
-        FileReadGuard::new(self.locker.clone(), self.data.get())
+    pub fn try_read(&self) -> TryLockResult<FileReadGuard<K>> {
+        FileReadGuard::new(self.locker.clone())
     }
 
-    pub fn try_write<'a>(&self) -> TryLockResult<FileWriteGuard<'a, K, T>> {
-        FileWriteGuard::new(self.locker.clone(), self.data.get())
+    pub fn try_write(&self) -> TryLockResult<FileWriteGuard<K>> {
+        FileWriteGuard::new(self.locker.clone())
     }
 }
 
-pub(crate) struct Locker<K: KeyBounds, T: ValueBounds<K>> {
+pub(crate) struct Locker<K: KeyBounds> {
     pub(crate) semaphore: Arc<Semaphore>,
     pub(crate) max_readers: u32,
     key: K,
-    lock_table: Weak<LockTable<K, T>>,
+    lock_table: Weak<LockTable<K>>,
 }
 
 #[allow(unused)]
-impl<K: KeyBounds, T: ValueBounds<K>> Locker<K, T> {
+impl<K: KeyBounds> Locker<K> {
     pub(crate) fn release_read(&self) {
         if let Some(lock_table) = self.lock_table.upgrade() {
             // +1 as this method is called during the drop method, before the drop of the permit.
