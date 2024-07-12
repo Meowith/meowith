@@ -1,4 +1,5 @@
 use openssl::error::ErrorStack;
+use std::array::TryFromSliceError;
 use std::error::Error;
 
 pub type MDSFTPResult<T> = Result<T, MDSFTPError>;
@@ -36,5 +37,11 @@ macro_rules! impl_ssl_from_error {
 impl_ssl_from_error!(ErrorStack);
 impl_ssl_from_error!(rustls::Error);
 impl_ssl_from_error!(std::io::Error);
+
+impl From<TryFromSliceError> for MDSFTPError {
+    fn from(_: TryFromSliceError) -> Self {
+        MDSFTPError::ConnectionError
+    }
+}
 
 impl Error for MDSFTPError {}

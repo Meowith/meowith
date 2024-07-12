@@ -1,6 +1,6 @@
-use chrono::{DateTime, Utc};
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
+use tokio::time::Instant;
 use tokio_rustls::TlsStream;
 
 use crate::file_transfer::net::wire::{write_header, MDSFTPHeader, MDSFTPRawPacket, PAYLOAD_SIZE};
@@ -8,7 +8,7 @@ use crate::file_transfer::net::wire::{write_header, MDSFTPHeader, MDSFTPRawPacke
 pub(crate) struct PacketWriter {
     pub(crate) stream: WriteHalf<TlsStream<TcpStream>>,
     header_buf: [u8; 7],
-    last_write: DateTime<Utc>,
+    last_write: Instant,
 }
 
 impl PacketWriter {
@@ -16,7 +16,7 @@ impl PacketWriter {
         PacketWriter {
             stream,
             header_buf: [0u8; 7],
-            last_write: DateTime::<Utc>::MIN_UTC,
+            last_write: Instant::now(),
         }
     }
 
@@ -34,12 +34,12 @@ impl PacketWriter {
             &mut self.header_buf,
         );
 
-        self.last_write = Utc::now();
+        self.last_write = Instant::now();
         self.stream.write_all(&self.header_buf).await?;
         self.stream.write_all(&data.payload).await
     }
 
-    pub(crate) async fn last_write(&self) -> DateTime<Utc> {
+    pub(crate) async fn last_write(&self) -> Instant {
         self.last_write
     }
 

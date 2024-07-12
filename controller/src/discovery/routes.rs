@@ -9,8 +9,7 @@ use data::model::microservice_node_model::MicroserviceNode;
 use openssl::x509::X509Req;
 
 use crate::discovery::discovery_service::{
-    get_address, perform_register_node, perform_storage_node_properties_update,
-    perform_token_creation, sign_node_csr,
+    get_address, perform_register_node, perform_token_creation, sign_node_csr,
 };
 use crate::error::node::NodeError;
 use crate::AppState;
@@ -86,15 +85,4 @@ pub async fn authenticate_node(
     req: web::Json<AuthenticationRequest>,
 ) -> Result<web::Json<AuthenticationResponse>, NodeError> {
     Ok(web::Json(perform_token_creation(state, req.0).await?))
-}
-
-#[post("/storage")]
-pub async fn update_storage_node_properties(
-    state: web::Data<AppState>,
-    node: MicroserviceNode,
-    req: web::Json<UpdateStorageNodeProperties>,
-) -> Result<web::Json<UpdateStorageNodeResponse>, NodeError> {
-    perform_storage_node_properties_update(req.0, &state.session, node).await?;
-
-    Ok(web::Json(UpdateStorageNodeResponse {}))
 }

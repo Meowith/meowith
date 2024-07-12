@@ -53,11 +53,7 @@ impl<K: KeyBounds> FileLockTable<K> {
         match self.lock_table.lock().await.entry(key.clone()) {
             Entry::Occupied(lock_entry) => lock_entry.get().try_read(),
             Entry::Vacant(entry) => {
-                let lock = FileLock::new(
-                    Arc::downgrade(&self.lock_table),
-                    self.max_readers,
-                    key
-                );
+                let lock = FileLock::new(Arc::downgrade(&self.lock_table), self.max_readers, key);
                 let guard = lock.try_read();
                 entry.insert(lock);
                 guard
@@ -69,11 +65,7 @@ impl<K: KeyBounds> FileLockTable<K> {
         match self.lock_table.lock().await.entry(key.clone()) {
             Entry::Occupied(lock_entry) => lock_entry.get().try_write(),
             Entry::Vacant(entry) => {
-                let lock = FileLock::new(
-                    Arc::downgrade(&self.lock_table),
-                    self.max_readers,
-                    key,
-                );
+                let lock = FileLock::new(Arc::downgrade(&self.lock_table), self.max_readers, key);
                 let guard = lock.try_write();
                 entry.insert(lock);
                 guard

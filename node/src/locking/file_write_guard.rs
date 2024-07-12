@@ -13,9 +13,7 @@ pub struct FileWriteGuard<K: KeyBounds> {
 }
 
 impl<K: KeyBounds> FileWriteGuard<K> {
-    pub(crate) fn new(
-        locker: Arc<Locker<K>>
-    ) -> TryLockResult<FileWriteGuard<K>> {
+    pub(crate) fn new(locker: Arc<Locker<K>>) -> TryLockResult<FileWriteGuard<K>> {
         let permit = match Arc::clone(&locker.semaphore).try_acquire_many_owned(locker.max_readers)
         {
             Ok(permit) => Ok(permit),
@@ -25,7 +23,7 @@ impl<K: KeyBounds> FileWriteGuard<K> {
 
         Ok(FileWriteGuard {
             locker: Arc::downgrade(&locker),
-            permit
+            permit,
         })
     }
 }

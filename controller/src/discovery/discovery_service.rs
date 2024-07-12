@@ -1,27 +1,29 @@
-use crate::discovery::routes::UpdateStorageNodeProperties;
-use crate::error::node::NodeError;
-use crate::token_service::{generate_access_token, generate_renewal_token};
-use crate::AppState;
+use std::net::IpAddr;
+
 use actix_web::http::header::HeaderValue;
 use actix_web::web::Bytes;
 use actix_web::{web, HttpRequest};
 use chrono::prelude::*;
+use futures_util::TryFutureExt;
+use openssl::x509::X509Req;
+use scylla::CachingSession;
+use uuid::Uuid;
+
 use commons::autoconfigure::ssl_conf::SigningData;
 use commons::context::controller_request_context::ControllerRequestContext;
 use data::access::microservice_node_access::{
-    get_service_register_code, insert_microservice_node, update_microservice_node,
-    update_service_access_token, update_service_register_code,
+    get_service_register_code, insert_microservice_node, update_service_access_token,
+    update_service_register_code,
 };
 use data::dto::controller::{
     AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
 };
 use data::error::MeowithDataError;
 use data::model::microservice_node_model::MicroserviceNode;
-use futures_util::TryFutureExt;
-use openssl::x509::X509Req;
-use scylla::CachingSession;
-use std::net::IpAddr;
-use uuid::Uuid;
+
+use crate::error::node::NodeError;
+use crate::token_service::{generate_access_token, generate_renewal_token};
+use crate::AppState;
 
 pub async fn perform_register_node(
     req: NodeRegisterRequest,
@@ -136,17 +138,6 @@ pub async fn sign_node_csr(
     Ok(Bytes::from(
         cert.to_der().map_err(|_| NodeError::InternalError)?,
     ))
-}
-
-pub async fn perform_storage_node_properties_update(
-    req: UpdateStorageNodeProperties,
-    session: &CachingSession,
-    node: MicroserviceNode,
-) -> Result<(), NodeError> {
-    update_microservice_node(node, session, req.used_space as i64, req.max_space as i64)
-        .await
-        .map_err(|_| NodeError::InternalError)?;
-    Ok(())
 }
 
 // Note: Its worth considering a self-reported address as it allows for potential proxy usage

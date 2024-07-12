@@ -13,9 +13,7 @@ pub struct FileReadGuard<K: KeyBounds> {
 }
 
 impl<K: KeyBounds> FileReadGuard<K> {
-    pub(crate) fn new(
-        locker: Arc<Locker<K>>,
-    ) -> TryLockResult<FileReadGuard<K>> {
+    pub(crate) fn new(locker: Arc<Locker<K>>) -> TryLockResult<FileReadGuard<K>> {
         let permit = match Arc::clone(&locker.semaphore).try_acquire_owned() {
             Ok(permit) => Ok(permit),
             Err(TryAcquireError::NoPermits) => Err(FileLockError::LockTaken),

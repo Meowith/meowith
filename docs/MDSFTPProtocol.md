@@ -19,37 +19,44 @@ All the packet data is stored in the content field
 
 | Flags  | Chunk ID | content   |
 |--------|----------|-----------|
-| 1 Byte | 4 Bytes  | 1..2^16-2 |
+| 1 Byte | 4 Bytes  | 1..2^16-5 |
 
 Flags: `is_last` (true/false)
 
 - **Retrieve** (`retreive` Packet ID: 0x02)
 
-| Chunk ID |
-|----------|
-| 16 Bytes |
+| Chunk ID | Chunk Buffer |
+|----------|--------------|
+| 16 Bytes | 2 Bytes      |
 
 - **Put** (`put` Packet ID: 0x03)
 
 | Chunk ID | Chunk Size |
 |----------|------------|
-| 16 Bytes | 8 Bytes    |
+| 16 Bytes | 8 Bytes    |`
+
+- **RecvAck** (`receive_ack`, Packet ID: 0x04)
+
+| Chunk ID |
+|----------|
+| 4 Bytes  |
+
 
 ## Reserve
 
-- **Reserve** (`reserve` Packet ID: 0x04)
+- **Reserve** (`reserve` Packet ID: 0x05)
 
-| Desired Size |
-|--------------|
-| 8 Bytes      |
+| Desired Size | Chunk Buffer |
+|--------------|--------------|
+| 8 Bytes      | 2 Bytes      |
 
-- **Reserve success** (`reserve_ok` Packet ID: 0x05)
+- **Reserve success** (`reserve_ok` Packet ID: 0x06)
 
 | Chunk ID |
 |----------|
 | 16 Bytes |
 
-- **Reserve error** (`reserve_err` Packet ID: 0x06)
+- **Reserve error** (`reserve_err` Packet ID: 0x07)
 
 | Max space |
 |-----------|
@@ -57,7 +64,7 @@ Flags: `is_last` (true/false)
 
 ## Locks
 
-- **Lock request** (`lock_req` Packet ID: 0x07)
+- **Lock request** (`lock_req` Packet ID: 0x08)
 
 | Flags   | Chunk ID |
 |---------|----------|
@@ -65,7 +72,7 @@ Flags: `is_last` (true/false)
 
 Flags: `kind` (read/write)
 
-- **Lock acquire** (`lock_acquire` Packet ID: 0x08)
+- **Lock acquire** (`lock_acquire` Packet ID: 0x09)
 
 | Flags   | Chunk ID |
 |---------|----------|
@@ -73,7 +80,7 @@ Flags: `kind` (read/write)
 
 Flags: `kind` (read/write)
 
-- **Lock Error** (`lock_err` Packet ID: 0x09)
+- **Lock Error** (`lock_err` Packet ID: 0x0A)
 
 | Flags   | Chunk ID |
 |---------|----------|

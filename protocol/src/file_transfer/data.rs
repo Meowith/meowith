@@ -1,4 +1,5 @@
 use crate::file_transfer::error::MDSFTPError;
+use uuid::Uuid;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum LockKind {
@@ -57,4 +58,15 @@ impl From<ChunkErrorKind> for u8 {
             ChunkErrorKind::NotFound => 2u8,
         }
     }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct ReserveResult {
+    pub chunk_id: Uuid,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct LockAcquireResult {
+    pub kind: LockKind,
+    pub chunk_id: Uuid,
 }

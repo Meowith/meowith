@@ -58,7 +58,7 @@ pub async fn start_mdsftp(
     req_ctx: Arc<MicroserviceRequestContext>,
     global_config: GeneralConfiguration,
     root_path: String,
-) -> MDSFTPServer {
+) -> (MDSFTPServer, FragmentLedger) {
     let authenticator = MeowithMDSFTPConnectionAuthenticator {
         req_ctx: req_ctx.clone(),
     };
@@ -72,7 +72,7 @@ pub async fn start_mdsftp(
     let lock_table: LockTable = FileLockTable::new(global_config.max_readers);
     let ledger = FragmentLedger::new(root_path, lock_table);
     let handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
-        MeowithMDSFTPPacketHandler::new(ledger),
+        MeowithMDSFTPPacketHandler::new(ledger.clone()),
     )));
 
     let mut server = MDSFTPServer::new(
@@ -86,5 +86,5 @@ pub async fn start_mdsftp(
         .await
         .expect("Failed to stat the MDSFTP server");
 
-    server
+    (server, ledger)
 }

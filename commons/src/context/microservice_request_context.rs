@@ -92,7 +92,7 @@ impl MicroserviceRequestContext {
         let resp = self
             .client()
             .await
-            .post(self.controller("/api/internal/"))
+            .post(self.controller("/api/internal/validate/peer"))
             .json(&ValidatePeerRequest {
                 node_token: peer_token,
                 node_id: id,
@@ -102,6 +102,16 @@ impl MicroserviceRequestContext {
             .json::<ValidatePeerResponse>()
             .await?;
         Ok(resp)
+    }
+
+    pub async fn heartbeat(&self) -> Result<(), Box<dyn Error>> {
+        let _ = self
+            .client()
+            .await
+            .post(self.controller("/api/internal/health/heartbeat"))
+            .send()
+            .await?;
+        Ok(())
     }
 
     pub fn controller(&self, path: &str) -> String {

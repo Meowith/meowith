@@ -1,4 +1,5 @@
 use crate::context::request_context::RequestContext;
+use chrono::{DateTime, Utc};
 use data::model::microservice_node_model::MicroserviceNode;
 use reqwest::header::AUTHORIZATION;
 use reqwest::{Certificate, Client, ClientBuilder, Method, RequestBuilder};
@@ -12,9 +13,15 @@ pub struct ControllerRequestContext {
     pub node_addr: Arc<RwLock<HashMap<Uuid, String>>>,
     pub node_token: Arc<RwLock<HashMap<Uuid, String>>>,
     pub token_node: Arc<RwLock<HashMap<String, MicroserviceNode>>>,
+    pub node_health: Arc<RwLock<HashMap<Uuid, NodeHealth>>>,
     pub nodes: Arc<RwLock<Vec<MicroserviceNode>>>,
     pub root_certificate: Certificate,
     client: Arc<RwLock<Client>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NodeHealth {
+    pub last_beat: DateTime<Utc>,
 }
 
 impl RequestContext for ControllerRequestContext {
@@ -45,6 +52,7 @@ impl ControllerRequestContext {
             node_addr: Arc::new(RwLock::new(node_addr)),
             node_token: Arc::new(RwLock::new(node_token)),
             token_node: Arc::new(RwLock::new(token_node)),
+            node_health: Arc::new(RwLock::new(HashMap::new())),
             nodes: Arc::new(RwLock::new(nodes)),
             root_certificate,
             client: Arc::new(RwLock::new(client)),

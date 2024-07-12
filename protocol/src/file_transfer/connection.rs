@@ -1,13 +1,15 @@
-use chrono::{DateTime, Utc};
-use rand::{thread_rng, Rng};
-use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
-use rustls::{ClientConfig, RootCertStore};
+use std::cmp::max;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+
+use rand::{thread_rng, Rng};
+use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
+use rustls::{ClientConfig, RootCertStore};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
+use tokio::time::Instant;
 use tokio_rustls::{TlsConnector, TlsStream};
 use uuid::Uuid;
 
@@ -94,6 +96,10 @@ impl MDSFTPConnection {
         Ok(stream)
     }
 
+    pub fn local_id(&self) -> Uuid {
+        self._internal_connection.local_id
+    }
+
     pub async fn create_channel(&self) -> MDSFTPResult<MDSFTPChannel> {
         self._internal_connection.create_channel().await
     }
@@ -102,12 +108,23 @@ impl MDSFTPConnection {
         self._internal_connection.channel_count()
     }
 
-    pub async fn last_read(&self) -> DateTime<Utc> {
+    pub fn safe_to_close(&self) -> bool {
+        self.channel_count() == 0
+    }
+
+    pub async fn last_read(&self) -> Instant {
         self._internal_connection.last_read().await
     }
 
-    pub async fn last_write(&self) -> DateTime<Utc> {
+    pub async fn last_write(&self) -> Instant {
         self._internal_connection.last_write().await
+    }
+
+    pub async fn last_access(&self) -> Instant {
+        let last_read = self.last_read().await;
+        let last_write = self.last_read().await;
+
+        max(last_read, last_write)
     }
 
     pub async fn close(&self) {
@@ -120,9 +137,10 @@ struct InternalMDSFTPConnection {
     writer: Arc<Mutex<PacketWriter>>,
     reader: Arc<PacketReader>,
     channel_factory: Arc<ChannelFactory>,
-    id: Uuid,
+    node_id: Uuid,
     local: bool,
     is_closing: AtomicBool,
+    pub(crate) local_id: Uuid,
 }
 
 impl InternalMDSFTPConnection {
@@ -156,7 +174,8 @@ impl InternalMDSFTPConnection {
             writer,
             reader,
             channel_factory,
-            id,
+            node_id: id,
+            local_id: Uuid::new_v4(),
             local,
             is_closing: AtomicBool::new(false),
         })
@@ -188,6 +207,9 @@ impl InternalMDSFTPConnection {
     }
 
     pub(crate) async fn create_channel(&self) -> MDSFTPResult<MDSFTPChannel> {
+        if !self.reader.running.load(Ordering::Relaxed) {
+            return Err(MDSFTPError::ConnectionError);
+        }
         if self.is_closing.load(Ordering::Relaxed) {
             return Err(MDSFTPError::Interrupted);
         }
@@ -203,11 +225,11 @@ impl InternalMDSFTPConnection {
         writer.stream.shutdown().await.expect("Shutdown failed");
     }
 
-    pub(crate) async fn last_read(&self) -> DateTime<Utc> {
+    pub(crate) async fn last_read(&self) -> Instant {
         self.reader.last_read().await
     }
 
-    pub(crate) async fn last_write(&self) -> DateTime<Utc> {
+    pub(crate) async fn last_write(&self) -> Instant {
         self.writer.lock().await.last_write().await
     }
 }

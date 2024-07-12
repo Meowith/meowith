@@ -26,15 +26,16 @@ use logging::initialize_logging;
 
 use crate::config::controller_config::ControllerConfig;
 use crate::discovery::routes::{
-    authenticate_node, config_fetch, register_node, security_csr, update_storage_node_properties,
-    validate_peer,
+    authenticate_node, config_fetch, register_node, security_csr, validate_peer,
 };
+use crate::health::routes::{microservice_heart_beat, update_storage_node_properties};
 use crate::ioutils::read_file;
 use crate::middleware::node_internal::NodeVerify;
 
 mod config;
 mod discovery;
 mod error;
+mod health;
 mod ioutils;
 mod middleware;
 mod token_service;
@@ -149,7 +150,7 @@ async fn main() -> std::io::Result<()> {
             .expect("Invalid certificate file"),
     );
 
-    let app_data = web::Data::new(AppState {
+    let app_data = Data::new(AppState {
         session,
         config: config.clone(),
         ca_cert: ca_cert.clone(),
@@ -165,8 +166,12 @@ async fn main() -> std::io::Result<()> {
             .wrap(NodeVerify {})
             .service(validate_peer)
             .service(config_fetch)
-            .service(update_storage_node_properties)
             .service(security_csr);
+
+        let health_scope = web::scope("/api/internal/health")
+            .wrap(NodeVerify {})
+            .service(update_storage_node_properties)
+            .service(microservice_heart_beat);
 
         let init_scope = web::scope("/api/internal/initialize")
             .service(authenticate_node)
@@ -176,6 +181,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(internode_app_data)
             .service(internal_scope)
             .service(init_scope)
+            .service(health_scope)
             .wrap(cors)
     });
 

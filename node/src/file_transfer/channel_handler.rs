@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use crate::io::fragment_ledger::FragmentLedger;
 use crate::locking::file_read_guard::FileReadGuard;
 use crate::locking::file_write_guard::FileWriteGuard;
@@ -6,6 +5,7 @@ use async_trait::async_trait;
 use protocol::file_transfer::data::{ChunkErrorKind, LockKind};
 use protocol::file_transfer::error::MDSFTPResult;
 use protocol::file_transfer::handler::{Channel, ChannelPacketHandler};
+use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct MeowithMDSFTPChannelPacketHandler {
@@ -50,7 +50,12 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         todo!()
     }
 
-    async fn handle_reserve(&mut self, channel: Channel, desired_size: u64) -> MDSFTPResult<()> {
+    async fn handle_reserve(
+        &mut self,
+        channel: Channel,
+        desired_size: u64,
+        chunk_buffer: u16,
+    ) -> MDSFTPResult<()> {
         todo!()
     }
 
@@ -60,7 +65,7 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         chunk_id: Uuid,
         kind: LockKind,
     ) -> MDSFTPResult<()> {
-        if !self.fragment_ledger.fragment_exists(&chunk_id) {
+        if !self.fragment_ledger.fragment_exists(&chunk_id).await {
             channel.respond_lock_err(chunk_id, kind, ChunkErrorKind::NotFound);
             channel.close();
             return Ok(());

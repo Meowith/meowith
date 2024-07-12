@@ -57,7 +57,7 @@ pub async fn register_procedure(ctx: &mut MicroserviceRequestContext) -> Registr
         .expect("Certificate request failed!");
 
     info!("Updating health");
-    // TODO: health ping
+    ctx.heartbeat().await.expect("Heartbeat failed");
 
     info!("Register init done.");
     RegistrationResult {

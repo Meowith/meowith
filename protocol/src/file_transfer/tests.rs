@@ -2,7 +2,7 @@
 mod tests {
     use crate::file_transfer::authenticator::ConnectionAuthContext;
     use crate::file_transfer::channel::MDSFTPChannel;
-    use crate::file_transfer::data::LockKind;
+    use crate::file_transfer::data::{LockAcquireResult, LockKind};
     use crate::file_transfer::error::MDSFTPResult;
     use crate::file_transfer::handler::{Channel, ChannelPacketHandler, PacketHandler};
     use crate::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
@@ -97,7 +97,6 @@ mod tests {
         ) -> MDSFTPResult<()> {
             match self.store_buf.as_ref() {
                 None => {
-                    debug!("czarni");
                     channel
                         .respond_chunk(is_last, id, chunk)
                         .await
@@ -108,7 +107,6 @@ mod tests {
                     Ok(())
                 }
                 Some(buf) => {
-                    debug!("abc");
                     let mut buf = buf.lock().await;
                     buf.write(chunk).expect("write fail");
                     if is_last {
@@ -138,6 +136,7 @@ mod tests {
             &mut self,
             channel: Channel,
             _desired_size: u64,
+            _chunk_buffer: u16,
         ) -> MDSFTPResult<()> {
             channel
                 .respond_reserve_ok(Uuid::new_v4())
@@ -231,15 +230,22 @@ mod tests {
         {
             debug!("Test lock acquire");
             let channel = client_pool.channel(&id1).await.unwrap();
-            let lock_req = channel.request_lock(LockKind::Read, Uuid::new_v4()).await;
+            let id = Uuid::new_v4();
+            let lock_req = channel.request_lock(LockKind::Read, id).await;
             assert!(lock_req.is_ok());
-            assert_eq!(lock_req.unwrap(), LockKind::Read);
+            assert_eq!(
+                lock_req.unwrap(),
+                LockAcquireResult {
+                    kind: LockKind::Read,
+                    chunk_id: id,
+                }
+            );
         }
 
         {
-            debug!("Test reserve acquire");
+            debug!("Test reserve");
             let channel = client_pool.channel(&id1).await.unwrap();
-            let lock_req = channel.try_reserve(15).await;
+            let lock_req = channel.try_reserve(15, 16).await;
             assert!(lock_req.is_ok());
         }
 

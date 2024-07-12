@@ -2,11 +2,15 @@ use crate::config::node_config::NodeConfig;
 use crate::init_procedure::{register_node, start_mdsftp};
 use logging::initialize_logging;
 
+use crate::io::fragment_ledger::FragmentLedger;
 use actix_cors::Cors;
+use actix_web::web::Data;
 use actix_web::{App, HttpServer};
 use commons::autoconfigure::general_conf::fetch_general_config;
+use commons::context::microservice_request_context::MicroserviceRequestContext;
 use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
 use openssl::ssl::SslAcceptorBuilder;
+use protocol::file_transfer::server::MDSFTPServer;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -15,6 +19,13 @@ mod file_transfer;
 mod init_procedure;
 mod io;
 mod locking;
+
+#[allow(unused)]
+pub struct AppState {
+    mdsftp_server: MDSFTPServer,
+    fragment_ledger: FragmentLedger,
+    req_ctx: Arc<MicroserviceRequestContext>,
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -39,7 +50,19 @@ async fn main() -> std::io::Result<()> {
     let (internal_cert, internal_key) = (init_res.1.internal_cert, init_res.1.internal_key);
     let req_ctx = Arc::new(req_ctx);
 
-    start_mdsftp(&internal_cert, &internal_key, req_ctx.clone(), global_conf, config.clone().path).await;
+    let (mdsftp_server, fragment_ledger) = start_mdsftp(
+        &internal_cert,
+        &internal_key,
+        req_ctx.clone(),
+        global_conf,
+        config.clone().path,
+    )
+    .await;
+
+    fragment_ledger
+        .initialize()
+        .await
+        .expect("Ledger init failed");
 
     let mut external_ssl: Option<SslAcceptorBuilder> = None;
 
@@ -50,10 +73,17 @@ async fn main() -> std::io::Result<()> {
         ));
     }
 
-    let external_server = HttpServer::new(|| {
-        let cors = Cors::permissive();
+    let app_data = Data::new(AppState {
+        mdsftp_server,
+        fragment_ledger,
+        req_ctx,
+    });
 
-        App::new().wrap(cors)
+    let external_server = HttpServer::new(move || {
+        let cors = Cors::permissive();
+        let external_app_data = app_data.clone();
+
+        App::new().app_data(external_app_data).wrap(cors)
     });
 
     if external_ssl.is_some() {

@@ -10,18 +10,8 @@ pub(crate) trait PreValidate {
 impl PreValidate for MDSFTPPacketType {
     fn pre_validate(&self, header: &MDSFTPHeader) -> bool {
         match self {
-            MDSFTPPacketType::FileChunk => header.payload_size >= 6,
-            MDSFTPPacketType::Retrieve => header.payload_size == 16,
-            MDSFTPPacketType::Put => header.payload_size == 24,
-            MDSFTPPacketType::Reserve => header.payload_size == 8,
-            MDSFTPPacketType::ReserveOk => header.payload_size == 16,
-            MDSFTPPacketType::ReserveErr => header.payload_size == 8,
-            MDSFTPPacketType::LockReq => header.payload_size == 17,
-            MDSFTPPacketType::LockAcquire => header.payload_size == 17,
-            MDSFTPPacketType::LockErr => header.payload_size == 17,
-            MDSFTPPacketType::ChannelOpen => header.payload_size == 0,
-            MDSFTPPacketType::ChannelClose => header.payload_size == 0,
-            MDSFTPPacketType::ChannelErr => header.payload_size == 0,
+            MDSFTPPacketType::FileChunk => header.payload_size >= self.payload_size(),
+            _ => self.payload_size() == header.payload_size,
         }
     }
 }

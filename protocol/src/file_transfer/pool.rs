@@ -2,13 +2,18 @@ use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use multimap::MultiMap;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
+use tokio::time;
 use tokio_rustls::TlsStream;
 use uuid::Uuid;
+
+use commons::context::microservice_request_context::NodeAddrMap;
 
 use crate::file_transfer::authenticator::ConnectionAuthContext;
 use crate::file_transfer::channel::MDSFTPChannel;
@@ -16,16 +21,14 @@ use crate::file_transfer::connection::MDSFTPConnection;
 use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
 use crate::file_transfer::handler::PacketHandler;
 use crate::file_transfer::net::packet_reader::GlobalHandler;
-use commons::context::microservice_request_context::NodeAddrMap;
 
 pub type PacketHandlerRef = Arc<Mutex<Box<dyn PacketHandler>>>;
+static STALE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Clone)]
 pub struct MDSFTPPool {
     pub(crate) _internal_pool: Arc<Mutex<InternalMDSFTPPool>>,
 }
-
-// TODO: auto close stale conn's
 
 impl MDSFTPPool {
     pub fn new(
@@ -51,14 +54,19 @@ impl MDSFTPPool {
     pub async fn shutdown(&self) {
         self._internal_pool.lock().await.close().await
     }
+
+    pub async fn watch_stale(&self) {
+        self._internal_pool.lock().await.watch_stale().await
+    }
 }
 
 pub(crate) struct InternalMDSFTPPool {
-    connection_map: RwLock<MultiMap<Uuid, MDSFTPConnection>>,
+    connection_map: Arc<RwLock<MultiMap<Uuid, MDSFTPConnection>>>,
     packet_handler: Option<GlobalHandler>,
     shutting_down: AtomicBool,
     connection_auth_context: Arc<ConnectionAuthContext>,
     node_addr_map: NodeAddrMap,
+    stale_conn_watcher: Option<JoinHandle<()>>,
 }
 
 #[allow(unused)]
@@ -69,10 +77,45 @@ impl InternalMDSFTPPool {
     ) -> Self {
         InternalMDSFTPPool {
             connection_auth_context,
-            connection_map: RwLock::new(MultiMap::new()),
+            connection_map: Arc::new(RwLock::new(MultiMap::new())),
             packet_handler: None,
             shutting_down: AtomicBool::new(false),
+            stale_conn_watcher: None,
             node_addr_map,
+        }
+    }
+
+    pub(crate) async fn watch_stale(&mut self) {
+        let conn_map = self.connection_map.clone();
+
+        if self.stale_conn_watcher.is_none() {
+            self.stale_conn_watcher = Some(tokio::spawn(async move {
+                let mut interval = time::interval(STALE_TIMEOUT);
+
+                loop {
+                    interval.tick().await;
+                    let mut map = conn_map.write().await;
+                    let mut mark = MultiMap::new();
+                    for (id, conn) in map.iter() {
+                        if conn.last_access().await.elapsed() > STALE_TIMEOUT
+                            && conn.safe_to_close()
+                        {
+                            conn.close();
+                            mark.insert(*id, conn.local_id())
+                        }
+                    }
+
+                    for (id, sweep) in mark {
+                        let mut vec = map.remove(&id);
+                        if let Some(mut vec) = vec {
+                            vec.retain(|c| !sweep.contains(&c.local_id()));
+                            if !vec.is_empty() {
+                                map.insert_many(id, vec);
+                            }
+                        }
+                    }
+                }
+            }))
         }
     }
 
@@ -118,7 +161,7 @@ impl InternalMDSFTPPool {
         handler: GlobalHandler,
     ) -> MDSFTPResult<MDSFTPConnection> {
         if self.shutting_down.load(Ordering::SeqCst) {
-            return Err(MDSFTPError::Interrupted);
+            return Err(MDSFTPError::ShuttingDown);
         }
 
         let port = &self.connection_auth_context.port;
@@ -144,7 +187,7 @@ impl InternalMDSFTPPool {
         conn: TlsStream<TcpStream>,
     ) -> MDSFTPResult<()> {
         if self.shutting_down.load(Ordering::SeqCst) {
-            return Err(MDSFTPError::Interrupted);
+            return Err(MDSFTPError::ShuttingDown);
         }
         let mut map = self.connection_map.write().await;
 
@@ -160,6 +203,9 @@ impl InternalMDSFTPPool {
 
     pub(crate) async fn close(&self) {
         self.shutting_down.store(true, Ordering::SeqCst);
+        if let Some(handle) = &self.stale_conn_watcher {
+            handle.abort();
+        }
         let mut con_map = self.connection_map.write().await;
 
         for entry in con_map.iter_mut() {

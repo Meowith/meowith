@@ -24,7 +24,12 @@ pub trait ChannelPacketHandler: Send {
         chunk_id: Uuid,
         content_size: u64,
     ) -> MDSFTPResult<()>;
-    async fn handle_reserve(&mut self, channel: Channel, desired_size: u64) -> MDSFTPResult<()>;
+    async fn handle_reserve(
+        &mut self,
+        channel: Channel,
+        desired_size: u64,
+        chunk_buffer: u16,
+    ) -> MDSFTPResult<()>;
     async fn handle_lock_req(
         &mut self,
         channel: Channel,
