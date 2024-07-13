@@ -1,5 +1,5 @@
-use crate::config::node_config::NodeConfig;
-use crate::init_procedure::{register_node, start_mdsftp};
+use crate::config::node_config::{NodeConfig, NodeConfigInstance};
+use crate::init_procedure::{initialize_io, register_node};
 use logging::initialize_logging;
 
 use crate::io::fragment_ledger::FragmentLedger;
@@ -39,8 +39,9 @@ async fn main() -> std::io::Result<()> {
     )
     .expect("Failed to init config");
 
-    let config = node_config
+    let config: NodeConfigInstance = node_config
         .validate_config()
+        .await
         .expect("Failed to validate config");
 
     let init_res = register_node(&config).await;
@@ -50,12 +51,12 @@ async fn main() -> std::io::Result<()> {
     let (internal_cert, internal_key) = (init_res.1.internal_cert, init_res.1.internal_key);
     let req_ctx = Arc::new(req_ctx);
 
-    let (mdsftp_server, fragment_ledger) = start_mdsftp(
+    let (mdsftp_server, fragment_ledger) = initialize_io(
         &internal_cert,
         &internal_key,
         req_ctx.clone(),
-        global_conf,
-        config.clone().path,
+        &global_conf,
+        &config,
     )
     .await;
 

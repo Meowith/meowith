@@ -81,6 +81,7 @@ impl PacketReader {
             while running.load(Ordering::Relaxed) {
                 if stream.read_exact(&mut header_buf).await.is_err() {
                     Self::close_map(&conn_map, &channels, &running).await;
+                    debug!("Header read failed");
                     break;
                 };
 
@@ -88,22 +89,26 @@ impl PacketReader {
                 let packet_type = MDSFTPPacketType::try_from(header.packet_id);
                 if packet_type.is_err() {
                     Self::close_map(&conn_map, &channels, &running).await;
+                    debug!("Packet type read failed");
                     break;
                 }
                 let packet_type = packet_type.unwrap();
                 if !packet_type.pre_validate(&header) {
                     Self::close_map(&conn_map, &channels, &running).await;
+                    debug!("Packet pre-validate failed");
                     break;
                 }
 
                 let mut payload = vec![0u8; header.payload_size as usize];
                 if stream.read_exact(&mut payload).await.is_err() {
                     Self::close_map(&conn_map, &channels, &running).await;
+                    debug!("Packet payload read failed");
                     break;
                 };
 
                 if payload.len() != header.payload_size as usize {
                     Self::close_map(&conn_map, &channels, &running).await;
+                    debug!("Packet payload read failed");
                     break;
                 }
 

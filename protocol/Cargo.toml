@@ -25,3 +25,6 @@ multimap = "0.10.0"
 async-trait = "0.1.80"
 chrono = "0.4.38"
 bytes = "1.6.0"
+
+[dev-dependencies]
+ntest = "*"

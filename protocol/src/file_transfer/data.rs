@@ -63,6 +63,7 @@ impl From<ChunkErrorKind> for u8 {
 #[derive(Debug, Eq, PartialEq)]
 pub struct ReserveResult {
     pub chunk_id: Uuid,
+    pub chunk_buffer: u16,
 }
 
 #[derive(Debug, Eq, PartialEq)]

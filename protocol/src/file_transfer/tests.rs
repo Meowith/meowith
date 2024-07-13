@@ -136,10 +136,10 @@ mod tests {
             &mut self,
             channel: Channel,
             _desired_size: u64,
-            _chunk_buffer: u16,
+            _auto_start: bool,
         ) -> MDSFTPResult<()> {
             channel
-                .respond_reserve_ok(Uuid::new_v4())
+                .respond_reserve_ok(Uuid::new_v4(), 16)
                 .await
                 .expect("ReserveOk respond failed");
             channel.close().await;
@@ -159,9 +159,22 @@ mod tests {
             channel.close().await;
             Ok(())
         }
+
+        async fn handle_receive_ack(
+            &mut self,
+            _channel: Channel,
+            _chunk_id: u32,
+        ) -> MDSFTPResult<()> {
+            Ok(())
+        }
+
+        async fn handle_interrupt(&self) -> MDSFTPResult<()> {
+            Ok(())
+        }
     }
 
     #[tokio::test]
+    #[ntest::timeout(3000)]
     async fn test() {
         initialize_test_logging();
 
@@ -204,7 +217,6 @@ mod tests {
         client_pool.set_packet_handler(client_handler).await;
 
         {
-            debug!("Test chunk echo");
             let channel = client_pool.channel(&id1).await.unwrap();
             let await_handler = channel
                 .set_incoming_handler(Box::new(EchoChannel {
@@ -221,7 +233,9 @@ mod tests {
 
         sleep(Duration::from_millis(100)).await;
         assert_eq!(client_stats.lock().await.channels_opened, 0);
+
         assert_eq!(server_stats.lock().await.channels_opened, 1);
+
         assert_eq!(
             client_received.lock().await.clone(),
             vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8]
@@ -245,7 +259,7 @@ mod tests {
         {
             debug!("Test reserve");
             let channel = client_pool.channel(&id1).await.unwrap();
-            let lock_req = channel.try_reserve(15, 16).await;
+            let lock_req = channel.try_reserve(15, true).await;
             assert!(lock_req.is_ok());
         }
 

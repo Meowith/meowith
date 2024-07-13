@@ -9,3 +9,5 @@ mod net;
 pub mod pool;
 pub mod server;
 mod tests;
+
+pub const MAX_CHUNK_SIZE: u64 = u16::MAX as u64 - 5u64;

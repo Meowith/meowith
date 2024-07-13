@@ -9,7 +9,7 @@ pub enum MeowithIoError {
     #[display(fmt = "NotFound err = {_0:?}")]
     Internal(Option<Box<dyn Error + Send + Sync>>),
     InvalidDataDir,
-    NotEnoughStorage,
+    InsufficientDiskSpace,
 }
 
 impl Error for MeowithIoError {}

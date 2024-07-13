@@ -46,15 +46,17 @@ Flags: `is_last` (true/false)
 
 - **Reserve** (`reserve` Packet ID: 0x05)
 
-| Desired Size | Chunk Buffer |
-|--------------|--------------|
-| 8 Bytes      | 2 Bytes      |
+| Flags  | Desired Size |
+|--------|--------------|
+| 1 Byte | 8 Bytes      |
+
+Flags: `Auto-start` (yes/no)
 
 - **Reserve success** (`reserve_ok` Packet ID: 0x06)
 
-| Chunk ID |
-|----------|
-| 16 Bytes |
+| Chunk ID | Chunk Buffer |
+|----------|--------------|
+| 16 Bytes | 2 Bytes      |
 
 - **Reserve error** (`reserve_err` Packet ID: 0x07)
 

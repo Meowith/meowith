@@ -1,7 +1,7 @@
 use crate::file_transfer::net::packet_type::MDSFTPPacketType;
 
 pub(crate) const HEADER_SIZE: usize = 7usize;
-pub(crate) const PAYLOAD_SIZE: usize = 65535usize;
+pub(crate) const PAYLOAD_SIZE: usize = u16::MAX as usize;
 #[allow(unused)]
 pub(crate) const MAX_PACKET_SIZE: usize = HEADER_SIZE + PAYLOAD_SIZE;
 

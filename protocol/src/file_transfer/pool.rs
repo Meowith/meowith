@@ -215,3 +215,12 @@ impl InternalMDSFTPPool {
         con_map.clear()
     }
 }
+
+impl Drop for MDSFTPPool {
+    fn drop(&mut self) {
+        let internal = self._internal_pool.clone();
+        tokio::spawn(async move {
+            internal.lock().await.close().await;
+        });
+    }
+}

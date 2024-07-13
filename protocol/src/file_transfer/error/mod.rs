@@ -16,6 +16,7 @@ pub enum MDSFTPError {
     NoSuchChunkId,
     #[display(fmt = "ReserveError max_space = {_0}")]
     ReserveError(u64),
+    ReservationError,
     MaxChannels,
     Interrupted,
     ShuttingDown,

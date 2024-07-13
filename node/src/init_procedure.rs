@@ -52,12 +52,12 @@ pub async fn register_node(
     (ctx, reg_res)
 }
 
-pub async fn start_mdsftp(
+pub async fn initialize_io(
     cert: &X509,
     key: &PKey<Private>,
     req_ctx: Arc<MicroserviceRequestContext>,
-    global_config: GeneralConfiguration,
-    root_path: String,
+    global_config: &GeneralConfiguration,
+    config: &NodeConfigInstance,
 ) -> (MDSFTPServer, FragmentLedger) {
     let authenticator = MeowithMDSFTPConnectionAuthenticator {
         req_ctx: req_ctx.clone(),
@@ -70,7 +70,7 @@ pub async fn start_mdsftp(
     });
 
     let lock_table: LockTable = FileLockTable::new(global_config.max_readers);
-    let ledger = FragmentLedger::new(root_path, lock_table);
+    let ledger = FragmentLedger::new(config.path.clone(), config.max_space, lock_table);
     let handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
         MeowithMDSFTPPacketHandler::new(ledger.clone()),
     )));

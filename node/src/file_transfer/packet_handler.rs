@@ -6,6 +6,8 @@ use protocol::file_transfer::channel::MDSFTPChannel;
 use protocol::file_transfer::handler::PacketHandler;
 use uuid::Uuid;
 
+pub const BUFFER_SIZE: u16 = 10;
+
 pub struct MeowithMDSFTPPacketHandler {
     fragment_ledger: FragmentLedger,
 }
@@ -23,6 +25,7 @@ impl PacketHandler for MeowithMDSFTPPacketHandler {
         let await_handler = channel
             .set_incoming_handler(Box::new(MeowithMDSFTPChannelPacketHandler::new(
                 self.fragment_ledger.clone(),
+                BUFFER_SIZE,
             )))
             .await;
         tokio::spawn(async move {

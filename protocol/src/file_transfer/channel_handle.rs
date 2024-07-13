@@ -56,12 +56,16 @@ impl MDSFTPHandlerChannel {
         respond_lock_err(chunk_id, kind, error_kind)
     });
 
-    define_respond_method!(respond_reserve_ok(chunk_id: Uuid) -> MDSFTPResult<()> {
-        respond_reserve_ok(chunk_id)
+    define_respond_method!(respond_reserve_ok(chunk_id: Uuid, chunk_buffer: u16) -> MDSFTPResult<()> {
+        respond_reserve_ok(chunk_id, chunk_buffer)
     });
 
     define_respond_method!(respond_reserve_err(available_space: u64) -> MDSFTPResult<()> {
         respond_reserve_err(available_space)
+    });
+
+    define_respond_method!(respond_receive_ack(chunk_id: u32) -> MDSFTPResult<()> {
+        respond_receive_ack(chunk_id)
     });
 
     define_respond_method!(close() -> () {

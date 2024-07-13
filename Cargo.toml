@@ -13,5 +13,3 @@ members = [
     "logging",
     "protocol"
 ]
-
-[dependencies]

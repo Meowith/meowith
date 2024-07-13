@@ -1,11 +1,12 @@
 use crate::config::error::ConfigError;
 use crate::config::size_parser::parse_size;
+use crate::io::get_space;
 use serde::{Deserialize, Serialize};
+use std::cmp::max;
 use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::net::IpAddr;
 use std::path::Path;
-use sysinfo::Disks;
 
 const MIN_STORAGE_VALUE: u64 = 2 * 1024 * 1024 * 1024;
 
@@ -80,7 +81,7 @@ impl NodeConfig {
         Ok(default_config)
     }
 
-    pub fn validate_config(self) -> Result<NodeConfigInstance, ConfigError> {
+    pub async fn validate_config(self) -> Result<NodeConfigInstance, ConfigError> {
         if self.cnc_addr.parse::<IpAddr>().is_err() {
             return Err(ConfigError::InvalidIpAddress);
         }
@@ -97,20 +98,15 @@ impl NodeConfig {
             return Err(ConfigError::InvalidPort);
         }
 
-        let max_space_bytes = parse_size(&self.max_space)?;
-
-        let disks = Disks::new_with_refreshed_list();
-
-        let available_space = disks.iter().map(|disk| disk.available_space()).sum::<u64>();
-
-        if available_space < max_space_bytes + MIN_STORAGE_VALUE {
-            return Err(ConfigError::InsufficientDiskSpace);
-        }
-
+        // The ledger will create the directory if not found.
         let path = Path::new(&self.path);
 
-        if !path.exists() || !path.is_dir() {
-            return Err(ConfigError::InvalidDataDir);
+        let max_space_bytes = parse_size(&self.max_space)?;
+
+        let available_space = get_space(path).await.expect("Disk usage fetch failed");
+
+        if available_space.total < max(MIN_STORAGE_VALUE, max_space_bytes) {
+            return Err(ConfigError::InsufficientDiskSpace);
         }
 
         Ok(NodeConfigInstance {

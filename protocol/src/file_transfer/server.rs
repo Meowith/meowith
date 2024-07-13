@@ -182,9 +182,23 @@ impl MDSFTPServer {
     }
 
     pub async fn shutdown(self) {
-        if let Some(sender) = self.shutdown_sender {
+        let sender = self.shutdown_sender.clone();
+        if let Some(sender) = sender {
             self.running.store(false, Ordering::SeqCst);
             let _ = sender.lock().await.send(());
         }
+    }
+}
+
+impl Drop for MDSFTPServer {
+    fn drop(&mut self) {
+        let sender = self.shutdown_sender.clone();
+        let running = self.running.clone();
+        tokio::spawn(async move {
+            if let Some(sender) = sender {
+                running.store(false, Ordering::SeqCst);
+                let _ = sender.lock().await.send(());
+            }
+        });
     }
 }
