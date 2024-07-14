@@ -8,7 +8,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::fs::{File, OpenOptions};
-use tokio::io::{BufReader, BufWriter};
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tokio::time;
@@ -20,8 +19,8 @@ use crate::locking::file_lock_table::FileLockTable;
 
 pub type LockTable = FileLockTable<Uuid>;
 
-pub type FragmentReadStream = BufReader<File>;
-pub type FragmentWriteStream = BufWriter<File>;
+pub type FragmentReadStream = File;
+pub type FragmentWriteStream = File;
 
 #[derive(Clone)]
 pub struct FragmentLedger {
@@ -153,7 +152,7 @@ impl FragmentLedger {
         let file = File::open(self.get_path(id))
             .await
             .map_err(MeowithIoError::from)?;
-        Ok(BufReader::new(file))
+        Ok(file)
     }
 
     pub async fn fragment_write_stream(&self, id: &Uuid) -> MeowithIoResult<FragmentWriteStream> {
@@ -164,7 +163,7 @@ impl FragmentLedger {
             .open(self.get_path(id))
             .await
             .map_err(MeowithIoError::from)?;
-        Ok(BufWriter::new(file))
+        Ok(file)
     }
 
     pub async fn try_reserve(&self, size: u64) -> MeowithIoResult<Uuid> {

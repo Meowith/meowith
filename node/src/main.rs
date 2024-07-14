@@ -19,6 +19,7 @@ mod file_transfer;
 mod init_procedure;
 mod io;
 mod locking;
+mod public;
 
 #[allow(unused)]
 pub struct AppState {

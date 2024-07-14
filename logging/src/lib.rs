@@ -6,6 +6,7 @@ use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
 
 pub fn initialize_test_logging() {
+    #[cfg(feature = "test_logging")]
     initialize_default(LevelFilter::Debug)
 }
 

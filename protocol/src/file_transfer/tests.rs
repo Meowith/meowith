@@ -117,7 +117,12 @@ mod tests {
             }
         }
 
-        async fn handle_retrieve(&mut self, channel: Channel, _chunk_id: Uuid) -> MDSFTPResult<()> {
+        async fn handle_retrieve(
+            &mut self,
+            channel: Channel,
+            _chunk_id: Uuid,
+            _chunk_buffer: u16,
+        ) -> MDSFTPResult<()> {
             channel.close().await;
             Ok(())
         }

@@ -24,6 +24,7 @@ derive_more = "0.99.18"
 filesize = "0.2.0"
 heim = { version = "0.0.11", features = ["disk"], default-features = false }
 rand = "0.8.5"
+actix-multipart = "0.7.2"
 
 [dev-dependencies]
 ntest = "*"

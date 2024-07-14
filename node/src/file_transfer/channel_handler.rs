@@ -1,21 +1,26 @@
+use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use log::{debug, warn};
-use tokio::fs::File;
-use tokio::io::{AsyncWriteExt, BufReader};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
 use protocol::file_transfer::data::{ChunkErrorKind, LockKind};
 use protocol::file_transfer::error::{MDSFTPError, MDSFTPResult};
-use protocol::file_transfer::handler::{Channel, ChannelPacketHandler, UploadDelegator};
+use protocol::file_transfer::handler::{
+    Channel, ChannelPacketHandler, DownloadDelegator, UploadDelegator,
+};
 
 use crate::file_transfer::transfer_manager::mdsftp_upload;
-use crate::io::fragment_ledger::{FragmentLedger, FragmentReadStream, FragmentWriteStream};
+use crate::io::fragment_ledger::FragmentLedger;
 use crate::locking::file_read_guard::FileReadGuard;
 use crate::locking::file_write_guard::FileWriteGuard;
+
+pub type AbstractReadStream = Arc<Mutex<BufReader<Pin<Box<dyn AsyncRead + Unpin + Send>>>>>;
+pub type AbstractWriteStream = Arc<Mutex<BufWriter<Pin<Box<dyn AsyncWrite + Unpin + Send>>>>>;
 
 pub struct MeowithMDSFTPChannelPacketHandler {
     fragment_ledger: FragmentLedger,
@@ -24,8 +29,8 @@ pub struct MeowithMDSFTPChannelPacketHandler {
     recv_ack_sender: Option<Arc<Sender<u32>>>,
     chunk_buffer: u16,
     reservation_details: Option<ReservationDetails>,
-    receive_file_stream: Option<Arc<Mutex<FragmentWriteStream>>>,
-    upload_file_stream: Option<Arc<Mutex<FragmentReadStream>>>,
+    receive_file_stream: Option<AbstractWriteStream>,
+    upload_file_stream: Option<AbstractReadStream>,
 }
 
 impl MeowithMDSFTPChannelPacketHandler {
@@ -52,12 +57,12 @@ impl MeowithMDSFTPChannelPacketHandler {
                 .await
                 .map_err(|_| MDSFTPError::ReservationError)?,
         ));
-        self.receive_file_stream = Some(Arc::new(Mutex::new(
+        self.receive_file_stream = Some(Arc::new(Mutex::new(BufWriter::new(Box::pin(
             self.fragment_ledger
                 .fragment_write_stream(&id)
                 .await
                 .map_err(|_| MDSFTPError::RemoteError)?,
-        )));
+        )))));
 
         Ok(())
     }
@@ -133,7 +138,12 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         Ok(())
     }
 
-    async fn handle_retrieve(&mut self, channel: Channel, id: Uuid) -> MDSFTPResult<()> {
+    async fn handle_retrieve(
+        &mut self,
+        channel: Channel,
+        id: Uuid,
+        chunk_buffer: u16,
+    ) -> MDSFTPResult<()> {
         let meta = self.fragment_ledger.fragment_meta(&id).await;
         if meta.is_none() {
             return Err(MDSFTPError::NoSuchChunkId);
@@ -148,14 +158,14 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
                 .await
                 .map_err(|_| MDSFTPError::ReservationError)?,
         ));
-        self.upload_file_stream = Some(Arc::new(Mutex::new(
+        self.upload_file_stream = Some(Arc::new(Mutex::new(BufReader::new(Box::pin(
             self.fragment_ledger
                 .fragment_read_stream(&id)
                 .await
                 .map_err(|_| MDSFTPError::RemoteError)?,
-        )));
+        )))));
 
-        self.start_uploading(channel, size, self.chunk_buffer).await; // TODO chunk_buff in packet
+        self.start_uploading(channel, size, chunk_buffer).await;
         Ok(())
     }
 
@@ -253,16 +263,30 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
 }
 
 #[async_trait]
-impl UploadDelegator<File> for MeowithMDSFTPChannelPacketHandler {
+impl<T> UploadDelegator<T> for MeowithMDSFTPChannelPacketHandler
+where
+    T: AsyncRead + Unpin + Send + 'static,
+{
     async fn delegate_upload(
         &mut self,
         channel: Channel,
-        source: BufReader<File>,
+        source: T,
         size: u64,
         chunk_buffer: u16,
     ) -> MDSFTPResult<()> {
-        self.upload_file_stream = Some(Arc::new(Mutex::new(source)));
+        self.upload_file_stream = Some(Arc::new(Mutex::new(BufReader::new(Box::pin(source)))));
         self.start_uploading(channel, size, chunk_buffer).await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl<T> DownloadDelegator<T> for MeowithMDSFTPChannelPacketHandler
+where
+    T: AsyncWrite + Unpin + Send + 'static,
+{
+    async fn delegate_download(&mut self, _channel: Channel, output: T) -> MDSFTPResult<()> {
+        self.receive_file_stream = Some(Arc::new(Mutex::new(BufWriter::new(Box::pin(output)))));
         Ok(())
     }
 }

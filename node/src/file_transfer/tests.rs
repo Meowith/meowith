@@ -84,9 +84,16 @@ mod tests {
         let _cleanup = Cleanup { temp_dir };
 
         let file_a_id = Uuid::new_v4();
+        let file_b_id = Uuid::new_v4();
+
         let mut path_file_a = node_dir_two.clone();
         path_file_a.push(file_a_id.to_string());
         let file_a = path_file_a;
+
+        let mut path_file_b = node_dir_two.clone();
+        path_file_b.push(file_b_id.to_string());
+        let file_b = path_file_b;
+
         let file_size = MAX_CHUNK_SIZE * 30 + 1024;
         let mut random_bytes = vec![0u8; file_size as usize];
 
@@ -154,9 +161,10 @@ mod tests {
         let mut client_pool = MDSFTPPool::new(connection_auth_context, conn_map);
         client_pool.set_packet_handler(client_handler).await;
 
-        let _uploaded_id: Uuid;
+        let uploaded_id: Uuid;
 
         {
+            debug!("Testing upload");
             let channel = client_pool.channel(&id1).await.unwrap();
             let reserve = channel
                 .try_reserve(file_size, true)
@@ -188,13 +196,36 @@ mod tests {
             debug!("Awaiting handle...");
             handle.await;
 
-            _uploaded_id = reserve.chunk_id;
+            uploaded_id = reserve.chunk_id;
             let recv_meta = server_ledger
                 .fragment_meta(&reserve.chunk_id)
                 .await
                 .unwrap();
             assert_eq!(recv_meta.disk_content_size, meta.disk_content_size);
             assert_eq!(recv_meta.disk_physical_size, meta.disk_physical_size);
+        }
+
+        {
+            debug!("Testing download");
+            let channel = client_pool.channel(&id1).await.unwrap();
+            let file_b = File::create(file_b).await.expect("Test file crate failure");
+
+            let handler = Box::new(MeowithMDSFTPChannelPacketHandler::new(
+                client_ledger.clone(),
+                16,
+            ));
+            let handle = channel
+                .retrieve_content(file_b, handler)
+                .await
+                .expect("Retrieve req reg failed");
+            debug!("Handler setup");
+            channel
+                .retrieve_req(uploaded_id, 16)
+                .await
+                .expect("Retrieve req failed");
+
+            debug!("Awaiting handle...");
+            handle.await;
         }
     }
 }

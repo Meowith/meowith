@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use tokio::io::{AsyncRead, BufReader, BufWriter};
+use tokio::io::{AsyncRead, AsyncWrite};
 use uuid::Uuid;
 
 use crate::file_transfer::channel::MDSFTPChannel;
@@ -19,7 +19,12 @@ pub trait ChannelPacketHandler: Send {
         is_last: bool,
     ) -> MDSFTPResult<()>;
 
-    async fn handle_retrieve(&mut self, channel: Channel, chunk_id: Uuid) -> MDSFTPResult<()>;
+    async fn handle_retrieve(
+        &mut self,
+        channel: Channel,
+        chunk_id: Uuid,
+        chunk_buffer: u16,
+    ) -> MDSFTPResult<()>;
 
     async fn handle_put(
         &mut self,
@@ -52,15 +57,15 @@ pub trait UploadDelegator<T: AsyncRead + Unpin>: Send {
     async fn delegate_upload(
         &mut self,
         channel: Channel,
-        source: BufReader<T>,
+        source: T,
         size: u64,
         chunk_buffer: u16,
     ) -> MDSFTPResult<()>;
 }
 
 #[async_trait]
-pub trait DownloadDelegator<T: AsyncRead + Unpin>: Send {
-    async fn delegate_download(output: BufWriter<T>);
+pub trait DownloadDelegator<T: AsyncWrite + Unpin>: Send {
+    async fn delegate_download(&mut self, channel: Channel, output: T) -> MDSFTPResult<()>;
 }
 
 #[async_trait]
