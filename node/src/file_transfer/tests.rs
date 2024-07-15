@@ -11,6 +11,7 @@ mod tests {
     use ntest::timeout;
     use openssl::x509::X509VerifyResult;
     use protocol::file_transfer::authenticator::ConnectionAuthContext;
+    use protocol::file_transfer::data::ReserveFlags;
     use protocol::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
     use protocol::file_transfer::server::MDSFTPServer;
     use protocol::file_transfer::MAX_CHUNK_SIZE;
@@ -167,7 +168,13 @@ mod tests {
             debug!("Testing upload");
             let channel = client_pool.channel(&id1).await.unwrap();
             let reserve = channel
-                .try_reserve(file_size, true)
+                .try_reserve(
+                    file_size,
+                    ReserveFlags {
+                        auto_start: true,
+                        durable: false,
+                    },
+                )
                 .await
                 .expect("Reserve failed");
 
@@ -208,14 +215,16 @@ mod tests {
         {
             debug!("Testing download");
             let channel = client_pool.channel(&id1).await.unwrap();
-            let file_b = File::create(file_b).await.expect("Test file crate failure");
+            let file_ba = File::create(file_b.clone())
+                .await
+                .expect("Test file crate failure");
 
             let handler = Box::new(MeowithMDSFTPChannelPacketHandler::new(
                 client_ledger.clone(),
                 16,
             ));
             let handle = channel
-                .retrieve_content(file_b, handler)
+                .retrieve_content(file_ba, handler)
                 .await
                 .expect("Retrieve req reg failed");
             debug!("Handler setup");
@@ -226,6 +235,13 @@ mod tests {
 
             debug!("Awaiting handle...");
             handle.await;
+
+            let file_bb = File::open(file_b.clone())
+                .await
+                .expect("Test file crate failure");
+            let meta = file_bb.metadata().await.expect("Test file crate failure");
+
+            assert_eq!(meta.len(), file_size);
         }
     }
 }

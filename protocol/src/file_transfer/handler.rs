@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::file_transfer::channel::MDSFTPChannel;
 use crate::file_transfer::channel_handle::MDSFTPHandlerChannel;
-use crate::file_transfer::data::LockKind;
+use crate::file_transfer::data::{LockKind, ReserveFlags};
 use crate::file_transfer::error::MDSFTPResult;
 
 pub type Channel = MDSFTPHandlerChannel;
@@ -37,7 +37,7 @@ pub trait ChannelPacketHandler: Send {
         &mut self,
         channel: Channel,
         desired_size: u64,
-        auto_start: bool,
+        flags: ReserveFlags,
     ) -> MDSFTPResult<()>;
 
     async fn handle_lock_req(
@@ -49,7 +49,7 @@ pub trait ChannelPacketHandler: Send {
 
     async fn handle_receive_ack(&mut self, channel: Channel, chunk_id: u32) -> MDSFTPResult<()>;
 
-    async fn handle_interrupt(&self) -> MDSFTPResult<()>;
+    async fn handle_interrupt(&mut self) -> MDSFTPResult<()>;
 }
 
 #[async_trait]

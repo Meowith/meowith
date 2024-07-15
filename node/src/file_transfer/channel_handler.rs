@@ -1,14 +1,16 @@
-use std::pin::Pin;
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use log::{debug, warn};
+use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
+use tokio::select;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::{mpsc, Mutex};
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use protocol::file_transfer::data::{ChunkErrorKind, LockKind};
+use protocol::file_transfer::data::{ChunkErrorKind, LockKind, ReserveFlags};
 use protocol::file_transfer::error::{MDSFTPError, MDSFTPResult};
 use protocol::file_transfer::handler::{
     Channel, ChannelPacketHandler, DownloadDelegator, UploadDelegator,
@@ -31,6 +33,8 @@ pub struct MeowithMDSFTPChannelPacketHandler {
     reservation_details: Option<ReservationDetails>,
     receive_file_stream: Option<AbstractWriteStream>,
     upload_file_stream: Option<AbstractReadStream>,
+    upload_cancel: Option<CancellationToken>,
+    data_transferred: Arc<AtomicU64>,
 }
 
 impl MeowithMDSFTPChannelPacketHandler {
@@ -44,6 +48,8 @@ impl MeowithMDSFTPChannelPacketHandler {
             reservation_details: None,
             receive_file_stream: None,
             upload_file_stream: None,
+            upload_cancel: None,
+            data_transferred: Default::default(),
         }
     }
 }
@@ -77,28 +83,38 @@ impl MeowithMDSFTPChannelPacketHandler {
         self.recv_ack_sender = Some(Arc::new(tx));
 
         let read = self.upload_file_stream.clone();
+        let transferred = self.data_transferred.clone();
+        let cancellation_token = CancellationToken::new();
+        self.upload_cancel = Some(cancellation_token.clone());
 
         tokio::spawn(async move {
             let read = read.unwrap();
             let read = read.lock().await;
-            match mdsftp_upload(&channel, read, size, rx, chunk_buffer).await {
-                Ok(_) => {}
-                Err(err) => {
-                    warn!("File upload error {}", err);
+            select! {
+                upload = mdsftp_upload(&channel, read, size, rx, chunk_buffer, transferred) => {
+                    match upload {
+                        Ok(_) => {}
+                        Err(err) => {
+                            warn!("File upload error {}", err);
+                        }
+                    }
                 }
+                _ = cancellation_token.cancelled() => {}
             }
 
-            channel.close().await;
+            channel.close(Ok(())).await;
         });
 
         Ok(())
     }
 }
 
+#[allow(unused)]
 #[derive(Clone, Debug)]
 struct ReservationDetails {
     id: Uuid,
     size: u64,
+    durable: bool,
 }
 
 #[allow(unused)]
@@ -117,17 +133,30 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
             }
             Some(stream) => {
                 let mut stream = stream.lock().await;
-                stream.write_all(chunk).await;
+                if let Err(e) = stream.write_all(chunk).await {
+                    channel.close(Err(MDSFTPError::from(e))).await;
+                    return Err(MDSFTPError::Internal);
+                }
+                self.data_transferred
+                    .fetch_and(chunk.len() as u64, Ordering::SeqCst);
 
                 if is_last {
-                    stream.shutdown().await;
+                    // Drop the stream early so that by the time the handler awaits it,
+                    // the writer is closed.
+                    if let Err(e) = stream.shutdown().await {
+                        channel.close(Err(MDSFTPError::from(e))).await;
+                        return Err(MDSFTPError::Internal);
+                    }
+                    drop(stream);
+                    self.receive_file_stream = None;
+
                     if let Some(details) = self.reservation_details.as_ref() {
                         debug!("Releasing reservation {:?}", &details);
                         self.fragment_ledger
                             .release_reservation(&details.id, details.size)
                             .await;
                     }
-                    channel.close().await;
+                    channel.close(Ok(())).await;
                     channel.respond_receive_ack(id).await;
                 } else {
                     channel.respond_receive_ack(id).await;
@@ -184,16 +213,21 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         &mut self,
         channel: Channel,
         desired_size: u64,
-        auto_start: bool,
+        flags: ReserveFlags,
     ) -> MDSFTPResult<()> {
-        match self.fragment_ledger.try_reserve(desired_size).await {
+        match self
+            .fragment_ledger
+            .try_reserve(desired_size, flags.durable)
+            .await
+        {
             Ok(id) => {
                 self.reservation_details = Some(ReservationDetails {
                     id,
                     size: desired_size,
+                    durable: flags.durable,
                 });
 
-                if auto_start {
+                if flags.auto_start {
                     self.start_receiving(id).await;
                 }
                 channel.respond_reserve_ok(id, self.chunk_buffer).await?;
@@ -202,7 +236,7 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
                 channel
                     .respond_reserve_err(self.fragment_ledger.get_available_space())
                     .await?;
-                channel.close();
+                channel.close(Ok(()));
             }
         }
         Ok(())
@@ -216,7 +250,7 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
     ) -> MDSFTPResult<()> {
         if !self.fragment_ledger.fragment_exists(&chunk_id).await {
             channel.respond_lock_err(chunk_id, kind, ChunkErrorKind::NotFound);
-            channel.close();
+            channel.close(Ok(()));
             return Ok(());
         }
 
@@ -252,13 +286,28 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         }
     }
 
-    async fn handle_interrupt(&self) -> MDSFTPResult<()> {
+    async fn handle_interrupt(&mut self) -> MDSFTPResult<()> {
         if let Some(details) = self.reservation_details.as_ref() {
             self.fragment_ledger
-                .release_reservation(&details.id, details.size);
+                .release_reservation(&details.id, self.data_transferred.load(Ordering::SeqCst));
         }
 
-        todo!()
+        if let Some(token) = self.upload_cancel.as_ref() {
+            token.cancel();
+        }
+        match self.receive_file_stream.as_ref() {
+            None => {}
+            Some(stream) => {
+                {
+                    let mut stream = stream.lock().await;
+                    let _ = stream.shutdown().await;
+                }
+                self.receive_file_stream = None
+            }
+        }
+        self.upload_file_stream = None;
+
+        Ok(())
     }
 }
 

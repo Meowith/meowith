@@ -23,6 +23,7 @@ pub enum MDSFTPError {
     RemoteError,
     NoPacketHandler,
     NoPool,
+    Internal,
 }
 
 macro_rules! impl_ssl_from_error {

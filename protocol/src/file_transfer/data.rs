@@ -61,6 +61,27 @@ impl From<ChunkErrorKind> for u8 {
 }
 
 #[derive(Debug, Eq, PartialEq)]
+pub struct ReserveFlags {
+    pub auto_start: bool,
+    pub durable: bool,
+}
+
+impl From<ReserveFlags> for u8 {
+    fn from(value: ReserveFlags) -> Self {
+        value.auto_start as u8 + ((value.durable as u8) << 1u8)
+    }
+}
+
+impl From<u8> for ReserveFlags {
+    fn from(value: u8) -> Self {
+        ReserveFlags {
+            auto_start: (value & 1u8) != 0,
+            durable: (value & 2u8) != 0,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
 pub struct ReserveResult {
     pub chunk_id: Uuid,
     pub chunk_buffer: u16,

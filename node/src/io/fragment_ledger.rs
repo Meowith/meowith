@@ -166,7 +166,7 @@ impl FragmentLedger {
         Ok(file)
     }
 
-    pub async fn try_reserve(&self, size: u64) -> MeowithIoResult<Uuid> {
+    pub async fn try_reserve(&self, size: u64, durable: bool) -> MeowithIoResult<Uuid> {
         let mut reservations = self._internal.reservation_map.write().await;
 
         let available = self.get_available_space();
@@ -174,7 +174,11 @@ impl FragmentLedger {
             return Err(MeowithIoError::InsufficientDiskSpace);
         }
 
-        let reservation = Reservation { file_space: size };
+        let reservation = Reservation {
+            file_space: size,
+            completed: 0,
+            durable,
+        };
 
         let id = Uuid::new_v4();
 
@@ -187,36 +191,59 @@ impl FragmentLedger {
         Ok(id)
     }
 
-    pub async fn release_reservation(&self, id: &Uuid, size: u64) -> MeowithIoResult<()> {
+    pub async fn release_reservation(&self, id: &Uuid, size_actual: u64) -> MeowithIoResult<()> {
         let mut reservations = self._internal.reservation_map.write().await;
+
+        let reservation = reservations.get(id);
+        if reservation.is_none() {
+            return Err(MeowithIoError::NotFound);
+        }
+        let mut reservation = reservation.unwrap();
+
+        let transfer_completed = size_actual == reservation.file_space;
+
         let path = &self.get_path(id);
-        let physical_size = Path::new(path)
-            .size_on_disk()
-            .map_err(|_| MeowithIoError::Internal(None))?;
 
-        self._internal
-            .disk_physical_size
-            .fetch_add(physical_size, ORDERING_DISK_STORE);
-        self._internal
-            .disk_content_size
-            .fetch_add(size, ORDERING_DISK_STORE);
+        if transfer_completed {
+            let physical_size = Path::new(path)
+                .size_on_disk()
+                .map_err(|_| MeowithIoError::Internal(None))?;
 
-        reservations.remove(id);
+            self._internal
+                .disk_physical_size
+                .fetch_add(physical_size, ORDERING_DISK_STORE);
+            self._internal
+                .disk_content_size
+                .fetch_add(size_actual, ORDERING_DISK_STORE);
 
-        self._internal
-            .disk_reserved_size
-            .fetch_sub(size, ORDERING_DISK_STORE);
+            reservations.remove(id);
 
-        drop(reservations);
+            self._internal
+                .disk_reserved_size
+                .fetch_sub(size_actual, ORDERING_DISK_STORE);
 
-        let mut chunks = self._internal.chunk_set.write().await;
-        chunks.insert(
-            *id,
-            FragmentMeta {
-                disk_content_size: size,
-                disk_physical_size: physical_size,
-            },
-        );
+            drop(reservations);
+
+            let mut chunks = self._internal.chunk_set.write().await;
+            chunks.insert(
+                *id,
+                FragmentMeta {
+                    disk_content_size: size_actual,
+                    disk_physical_size: physical_size,
+                },
+            );
+        } else if !transfer_completed && reservation.durable {
+            reservations.get_mut(id).unwrap().completed += size_actual;
+            // TODO handle timeout
+        } else if !transfer_completed && !reservation.durable {
+            reservations.remove(id);
+            tokio::fs::remove_file(path)
+                .await
+                .map_err(|_| MeowithIoError::Internal(None))?;
+            self._internal
+                .disk_reserved_size
+                .fetch_sub(size_actual, ORDERING_DISK_STORE);
+        }
 
         Ok(())
     }
@@ -237,6 +264,8 @@ impl FragmentLedger {
 #[allow(unused)]
 struct Reservation {
     file_space: u64,
+    completed: u64,
+    durable: bool,
 }
 
 #[allow(unused)]

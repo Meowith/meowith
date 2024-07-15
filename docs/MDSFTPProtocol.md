@@ -50,7 +50,7 @@ Flags: `is_last` (true/false)
 |--------|--------------|
 | 1 Byte | 8 Bytes      |
 
-Flags: `Auto-start` (yes/no)
+Flags: `Auto-start` (yes/no), `Durable` (yes\no)
 
 - **Reserve success** (`reserve_ok` Packet ID: 0x06)
 

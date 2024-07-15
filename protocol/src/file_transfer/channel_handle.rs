@@ -68,7 +68,7 @@ impl MDSFTPHandlerChannel {
         respond_receive_ack(chunk_id)
     });
 
-    define_respond_method!(close() -> () {
-        mark_handler_closed()
+    define_respond_method!(close(result: MDSFTPResult<()>) -> () {
+        mark_handler_closed(result)
     });
 }

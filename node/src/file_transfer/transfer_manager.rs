@@ -1,6 +1,8 @@
 use protocol::file_transfer::error::{MDSFTPError, MDSFTPResult};
 use protocol::file_transfer::handler::Channel;
 use protocol::file_transfer::MAX_CHUNK_SIZE;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::MutexGuard;
@@ -12,6 +14,7 @@ pub async fn mdsftp_upload<T: AsyncRead + Unpin>(
     size: u64,
     mut receiver: Receiver<u32>,
     chunk_buffer: u16,
+    transfer_tracker: Arc<AtomicU64>,
 ) -> MDSFTPResult<()> {
     let mut recv: u32 = 0;
     let fragments = size / MAX_CHUNK_SIZE;
@@ -30,6 +33,8 @@ pub async fn mdsftp_upload<T: AsyncRead + Unpin>(
             .respond_chunk(id + 1 == fragments && last == 0, id, &upload_buffer)
             .await?;
 
+        transfer_tracker.store(MAX_CHUNK_SIZE, Ordering::SeqCst);
+
         while id >= recv + chunk_buffer as u32 {
             recv = receiver.recv().await.ok_or(MDSFTPError::Interrupted)?;
         }
@@ -43,6 +48,8 @@ pub async fn mdsftp_upload<T: AsyncRead + Unpin>(
         channel
             .respond_chunk(true, fragments, &upload_buffer[0..last as usize])
             .await?;
+
+        transfer_tracker.store(last, Ordering::SeqCst);
     }
 
     let sent = fragments + if last != 0 { 1 } else { 0 };

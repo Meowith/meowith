@@ -2,7 +2,7 @@
 mod tests {
     use crate::file_transfer::authenticator::ConnectionAuthContext;
     use crate::file_transfer::channel::MDSFTPChannel;
-    use crate::file_transfer::data::{LockAcquireResult, LockKind};
+    use crate::file_transfer::data::{LockAcquireResult, LockKind, ReserveFlags};
     use crate::file_transfer::error::MDSFTPResult;
     use crate::file_transfer::handler::{Channel, ChannelPacketHandler, PacketHandler};
     use crate::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
@@ -102,7 +102,7 @@ mod tests {
                         .await
                         .expect("Chunk echo failed");
                     if is_last {
-                        channel.close().await;
+                        channel.close(Ok(())).await;
                     }
                     Ok(())
                 }
@@ -110,7 +110,7 @@ mod tests {
                     let mut buf = buf.lock().await;
                     buf.write(chunk).expect("write fail");
                     if is_last {
-                        channel.close().await;
+                        channel.close(Ok(())).await;
                     }
                     Ok(())
                 }
@@ -123,7 +123,7 @@ mod tests {
             _chunk_id: Uuid,
             _chunk_buffer: u16,
         ) -> MDSFTPResult<()> {
-            channel.close().await;
+            channel.close(Ok(())).await;
             Ok(())
         }
 
@@ -133,7 +133,7 @@ mod tests {
             _chunk_id: Uuid,
             _content_size: u64,
         ) -> MDSFTPResult<()> {
-            channel.close().await;
+            channel.close(Ok(())).await;
             Ok(())
         }
 
@@ -141,13 +141,13 @@ mod tests {
             &mut self,
             channel: Channel,
             _desired_size: u64,
-            _auto_start: bool,
+            _auto_start: ReserveFlags,
         ) -> MDSFTPResult<()> {
             channel
                 .respond_reserve_ok(Uuid::new_v4(), 16)
                 .await
                 .expect("ReserveOk respond failed");
-            channel.close().await;
+            channel.close(Ok(())).await;
             Ok(())
         }
 
@@ -161,7 +161,7 @@ mod tests {
                 .respond_lock_ok(chunk_id, kind)
                 .await
                 .expect("LockOk respond failed");
-            channel.close().await;
+            channel.close(Ok(())).await;
             Ok(())
         }
 
@@ -173,7 +173,7 @@ mod tests {
             Ok(())
         }
 
-        async fn handle_interrupt(&self) -> MDSFTPResult<()> {
+        async fn handle_interrupt(&mut self) -> MDSFTPResult<()> {
             Ok(())
         }
     }
@@ -264,7 +264,15 @@ mod tests {
         {
             debug!("Test reserve");
             let channel = client_pool.channel(&id1).await.unwrap();
-            let lock_req = channel.try_reserve(15, true).await;
+            let lock_req = channel
+                .try_reserve(
+                    15,
+                    ReserveFlags {
+                        auto_start: true,
+                        durable: false,
+                    },
+                )
+                .await;
             assert!(lock_req.is_ok());
         }
 
