@@ -1,6 +1,6 @@
-use actix_web::{error, HttpResponse};
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
+use actix_web::{error, HttpResponse};
 use derive_more::Display;
 use serde::Serialize;
 
@@ -8,7 +8,7 @@ pub type NodeClientResponse<T> = Result<T, NodeClientError>;
 
 #[derive(Serialize)]
 struct ErrorResponse {
-    message: String
+    message: String,
 }
 
 #[allow(unused)]
@@ -26,7 +26,7 @@ impl error::ResponseError for NodeClientError {
             NodeClientError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             NodeClientError::BadRequest => StatusCode::BAD_REQUEST,
             NodeClientError::BadAuth => StatusCode::UNAUTHORIZED,
-            NodeClientError::InsufficientStorage => StatusCode::IM_A_TEAPOT
+            NodeClientError::InsufficientStorage => StatusCode::IM_A_TEAPOT,
         }
     }
 

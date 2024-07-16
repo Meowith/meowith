@@ -6,6 +6,7 @@ use crate::io::fragment_ledger::FragmentLedger;
 use actix_cors::Cors;
 use actix_web::web::Data;
 use actix_web::{App, HttpServer};
+use commons::access_token_service::JwtService;
 use commons::autoconfigure::general_conf::fetch_general_config;
 use commons::context::microservice_request_context::MicroserviceRequestContext;
 use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
@@ -13,7 +14,6 @@ use openssl::ssl::SslAcceptorBuilder;
 use protocol::file_transfer::server::MDSFTPServer;
 use std::path::Path;
 use std::sync::Arc;
-use commons::access_token_service::JwtService;
 
 mod config;
 mod file_transfer;
@@ -40,7 +40,7 @@ async fn main() -> std::io::Result<()> {
             .to_str()
             .unwrap(),
     )
-        .expect("Failed to init config");
+    .expect("Failed to init config");
 
     let config: NodeConfigInstance = node_config
         .validate_config()
@@ -61,7 +61,7 @@ async fn main() -> std::io::Result<()> {
         &global_conf,
         &config,
     )
-        .await;
+    .await;
 
     fragment_ledger
         .initialize()
@@ -80,7 +80,8 @@ async fn main() -> std::io::Result<()> {
     let app_data = Data::new(AppState {
         mdsftp_server,
         fragment_ledger,
-        jwt_service: JwtService::new(&global_conf.access_token_configuration).expect("JWT Service creation failed"),
+        jwt_service: JwtService::new(&global_conf.access_token_configuration)
+            .expect("JWT Service creation failed"),
         req_ctx,
     });
 
@@ -100,8 +101,8 @@ async fn main() -> std::io::Result<()> {
             .bind((config.addr.clone(), config.port))?
             .run()
     }
-        .await
-        .expect("Failed to start external server");
+    .await
+    .expect("Failed to start external server");
 
     Ok(())
 }

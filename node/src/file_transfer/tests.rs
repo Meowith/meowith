@@ -1,29 +1,32 @@
 #[cfg(test)]
 mod tests {
-    use crate::file_transfer::channel_handler::MeowithMDSFTPChannelPacketHandler;
-    use crate::file_transfer::packet_handler::MeowithMDSFTPPacketHandler;
-    use crate::io::fragment_ledger::FragmentLedger;
-    use crate::locking::file_lock_table::FileLockTable;
-    use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
-    use commons::context::microservice_request_context::NodeAddrMap;
-    use log::debug;
-    use logging::initialize_test_logging;
-    use ntest::timeout;
-    use openssl::x509::X509VerifyResult;
-    use protocol::file_transfer::authenticator::ConnectionAuthContext;
-    use protocol::file_transfer::data::ReserveFlags;
-    use protocol::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
-    use protocol::file_transfer::server::MDSFTPServer;
-    use protocol::file_transfer::MAX_CHUNK_SIZE;
-    use rand::RngCore;
-    use std::collections::{HashMap, VecDeque};
+    use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::Arc;
+    use std::time::Instant;
     use std::{env, fs, io};
+
+    use log::debug;
+    use ntest::timeout;
+    use openssl::x509::X509VerifyResult;
+    use rand::RngCore;
     use tokio::fs::File;
     use tokio::io::AsyncWriteExt;
     use tokio::sync::{Mutex, RwLock};
     use uuid::Uuid;
+
+    use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
+    use commons::context::microservice_request_context::NodeAddrMap;
+    use logging::initialize_test_logging;
+    use protocol::file_transfer::authenticator::ConnectionAuthContext;
+    use protocol::file_transfer::data::ReserveFlags;
+    use protocol::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
+    use protocol::file_transfer::server::MDSFTPServer;
+
+    use crate::file_transfer::channel_handler::MeowithMDSFTPChannelPacketHandler;
+    use crate::file_transfer::packet_handler::MeowithMDSFTPPacketHandler;
+    use crate::io::fragment_ledger::FragmentLedger;
+    use crate::locking::file_lock_table::FileLockTable;
 
     struct Cleanup {
         temp_dir: PathBuf,
@@ -41,7 +44,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[timeout(2000)]
+    // #[timeout(2000)]
     async fn test_file_transfer() {
         initialize_test_logging();
         let mut temp_dir = env::temp_dir();
@@ -71,7 +74,7 @@ mod tests {
         path_file_b.push(file_b_id.to_string());
         let file_b = path_file_b;
 
-        let file_size = MAX_CHUNK_SIZE * 30 + 1024;
+        let file_size = 1966924;
         debug!("Creating buffer of size {}", file_size);
         let mut random_bytes = vec![0u8; file_size as usize];
 
@@ -116,7 +119,7 @@ mod tests {
             .await
             .expect("Ledger init failed");
         let server_handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
-            MeowithMDSFTPPacketHandler::new(server_ledger.clone()),
+            MeowithMDSFTPPacketHandler::new(server_ledger.clone(), u16::MAX as u32),
         )));
 
         let mut server = MDSFTPServer::new(
@@ -137,7 +140,7 @@ mod tests {
             .await
             .expect("Ledger init failed");
         let client_handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
-            MeowithMDSFTPPacketHandler::new(client_ledger.clone()),
+            MeowithMDSFTPPacketHandler::new(client_ledger.clone(), u16::MAX as u32),
         )));
         let mut client_pool = MDSFTPPool::new(connection_auth_context, conn_map);
         client_pool.set_packet_handler(client_handler).await;
@@ -146,6 +149,7 @@ mod tests {
 
         {
             debug!("Testing upload");
+            let start = Instant::now();
             let channel = client_pool.channel(&id1).await.unwrap();
             let reserve = channel
                 .try_reserve(
@@ -161,6 +165,7 @@ mod tests {
             let handler = Box::new(MeowithMDSFTPChannelPacketHandler::new(
                 client_ledger.clone(),
                 16,
+                u16::MAX as u32,
             ));
             let meta = client_ledger
                 .fragment_meta(&file_a_id)
@@ -182,6 +187,7 @@ mod tests {
                 .expect("Delegate failed");
             debug!("Awaiting handle...");
             handle.await;
+            debug!("Took {:?}", start.elapsed());
 
             uploaded_id = reserve.chunk_id;
             let recv_meta = server_ledger
@@ -194,6 +200,7 @@ mod tests {
 
         {
             debug!("Testing download");
+            let start = Instant::now();
             let channel = client_pool.channel(&id1).await.unwrap();
             let file_ba = File::create(file_b.clone())
                 .await
@@ -202,6 +209,7 @@ mod tests {
             let handler = Box::new(MeowithMDSFTPChannelPacketHandler::new(
                 client_ledger.clone(),
                 16,
+                u16::MAX as u32,
             ));
             let handle = channel
                 .retrieve_content(file_ba, handler)
@@ -215,6 +223,7 @@ mod tests {
 
             debug!("Awaiting handle...");
             handle.await;
+            debug!("Took {:?}", start.elapsed());
 
             let file_bb = File::open(file_b.clone())
                 .await

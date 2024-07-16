@@ -17,7 +17,7 @@ pub struct UploadSessionRequest {
     /// Entry size in bytes
     size: u64,
     /// Entry full path
-    name: String
+    name: String,
 }
 
 #[post("/upload/oneshot/{app_id}/{bucket_id}")]
@@ -26,7 +26,9 @@ pub async fn upload_oneshot(_path: web::Path<(Uuid, Uuid)>) -> NodeClientRespons
 }
 
 #[post("/upload/durable/{app_id}/{bucket_id}")]
-pub async fn start_upload_durable(_path: web::Path<(Uuid, Uuid)>) -> NodeClientResponse<web::Json<UploadSessionStartResponse>> {
+pub async fn start_upload_durable(
+    _path: web::Path<(Uuid, Uuid)>,
+) -> NodeClientResponse<web::Json<UploadSessionStartResponse>> {
     todo!()
 }
 

@@ -5,11 +5,11 @@ use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error, HttpMessage,
 };
+use commons::middleware_actions::remove_bearer_prefix;
 use data::model::microservice_node_model::MicroserviceNode;
 use futures_util::future::LocalBoxFuture;
 use std::future::{ready, Ready};
 use std::rc::Rc;
-use commons::middleware_actions::remove_bearer_prefix;
 
 pub struct NodeVerify;
 

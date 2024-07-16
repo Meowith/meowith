@@ -1,6 +1,7 @@
 use crate::config::error::ConfigError;
 use crate::config::size_parser::parse_size;
 use crate::io::get_space;
+use protocol::file_transfer::MAX_CHUNK_SIZE;
 use serde::{Deserialize, Serialize};
 use std::cmp::max;
 use std::fs::{File, OpenOptions};
@@ -16,6 +17,8 @@ pub(crate) struct NodeConfig {
     pub cnc_port: u16,
     pub max_space: String,
     pub ca_certificate: String,
+    pub net_fragment_size: u32,
+
     //internal commons config
     pub addr: String,
     pub port: u16,
@@ -37,6 +40,7 @@ pub(crate) struct NodeConfigInstance {
     pub ssl_certificate: Option<String>,
     pub ssl_private_key: Option<String>,
     pub path: String,
+    pub net_fragment_size: u32,
 }
 
 impl NodeConfig {
@@ -66,6 +70,7 @@ impl NodeConfig {
             ssl_certificate: None,
             ssl_private_key: None,
             path: "/var/meowith/data/".to_string(),
+            net_fragment_size: 256 * 1024,
         };
         let mut new_file = OpenOptions::new()
             .write(true)
@@ -98,6 +103,10 @@ impl NodeConfig {
             return Err(ConfigError::InvalidPort);
         }
 
+        if self.net_fragment_size > MAX_CHUNK_SIZE as u32 {
+            return Err(ConfigError::InvalidFragmentSize);
+        }
+
         // The ledger will create the directory if not found.
         let path = Path::new(&self.path);
 
@@ -123,6 +132,7 @@ impl NodeConfig {
             } else {
                 self.path + "/"
             },
+            net_fragment_size: self.net_fragment_size,
         })
     }
 }

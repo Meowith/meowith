@@ -72,7 +72,7 @@ pub async fn initialize_io(
     let lock_table: LockTable = FileLockTable::new(global_config.max_readers);
     let ledger = FragmentLedger::new(config.path.clone(), config.max_space, lock_table);
     let handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
-        MeowithMDSFTPPacketHandler::new(ledger.clone()),
+        MeowithMDSFTPPacketHandler::new(ledger.clone(), config.net_fragment_size),
     )));
 
     let mut server = MDSFTPServer::new(

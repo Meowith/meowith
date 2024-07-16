@@ -27,10 +27,7 @@ pub async fn get_app_by_name(
     todo!()
 }
 
-pub async fn get_app_by_id(
-    id: Uuid,
-    session: &CachingSession,
-) -> Result<App, MeowithDataError> {
+pub async fn get_app_by_id(id: Uuid, session: &CachingSession) -> Result<App, MeowithDataError> {
     App::find_by_id(id)
         .execute(session)
         .await

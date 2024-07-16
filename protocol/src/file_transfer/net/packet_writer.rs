@@ -1,13 +1,15 @@
+use crate::file_transfer::net::packet_type::MDSFTPPacketType;
+use crate::file_transfer::net::wire::{
+    write_header, MDSFTPHeader, MDSFTPRawPacket, HEADER_SIZE, PAYLOAD_SIZE,
+};
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
 use tokio::time::Instant;
 use tokio_rustls::TlsStream;
 
-use crate::file_transfer::net::wire::{write_header, MDSFTPHeader, MDSFTPRawPacket, PAYLOAD_SIZE};
-
 pub(crate) struct PacketWriter {
     pub(crate) stream: WriteHalf<TlsStream<TcpStream>>,
-    header_buf: [u8; 7],
+    header_buf: [u8; HEADER_SIZE],
     last_write: Instant,
 }
 
@@ -15,7 +17,7 @@ impl PacketWriter {
     pub(crate) fn new(stream: WriteHalf<TlsStream<TcpStream>>) -> Self {
         PacketWriter {
             stream,
-            header_buf: [0u8; 7],
+            header_buf: [0u8; HEADER_SIZE],
             last_write: Instant::now(),
         }
     }
@@ -29,7 +31,7 @@ impl PacketWriter {
             &MDSFTPHeader {
                 packet_id: (&data.packet_type).into(),
                 stream_id: data.stream_id,
-                payload_size: data.payload.len() as u16,
+                payload_size: data.payload.len() as u32,
             },
             &mut self.header_buf,
         );
@@ -37,6 +39,28 @@ impl PacketWriter {
         self.last_write = Instant::now();
         self.stream.write_all(&self.header_buf).await?;
         self.stream.write_all(&data.payload).await
+    }
+
+    // Avoid creating a secondary payload buffer.
+    pub(crate) async fn write_chunk(
+        &mut self,
+        stream_id: u32,
+        payload_header: &[u8],
+        payload: &[u8],
+    ) -> std::io::Result<()> {
+        write_header(
+            &MDSFTPHeader {
+                packet_id: (&MDSFTPPacketType::FileChunk).into(),
+                stream_id,
+                payload_size: (payload_header.len() + payload.len()) as u32,
+            },
+            &mut self.header_buf,
+        );
+
+        self.last_write = Instant::now();
+        self.stream.write_all(&self.header_buf).await?;
+        self.stream.write_all(payload_header).await?;
+        self.stream.write_all(payload).await
     }
 
     pub(crate) async fn last_write(&self) -> Instant {

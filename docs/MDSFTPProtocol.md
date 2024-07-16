@@ -7,7 +7,7 @@ Each packet begins with the universal header:
 
 | Packet ID | Stream ID | Payload Size | Content         |
 |-----------|-----------|--------------|-----------------|
-| 1 Byte    | 4 Bytes   | 2 Bytes      | \[Payload Size] |
+| 1 Byte    | 4 Bytes   | 4 Bytes      | \[Payload Size] |
 
 All the packet data is stored in the content field
 

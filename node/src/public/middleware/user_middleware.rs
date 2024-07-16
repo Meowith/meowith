@@ -1,15 +1,18 @@
 use std::future::{ready, Ready};
 use std::rc::Rc;
 
-use actix_web::{dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform}, Error, FromRequest, HttpMessage, HttpRequest};
+use crate::public::response::NodeClientError;
+use crate::AppState;
+use actix_web::dev::Payload;
 use actix_web::web::Data;
-use futures_util::future::{err, LocalBoxFuture, ok};
-use uuid::Uuid;
+use actix_web::{
+    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
+    Error, FromRequest, HttpMessage, HttpRequest,
+};
 use commons::access_token_service::Permit;
 use commons::middleware_actions::remove_bearer_prefix;
-use crate::AppState;
-use crate::public::response::NodeClientError;
-use actix_web::dev::Payload;
+use futures_util::future::{err, ok, LocalBoxFuture};
+use uuid::Uuid;
 
 pub struct UserAuthenticate;
 
@@ -72,7 +75,6 @@ where
 
             let claim_data = claim_data.unwrap();
 
-
             // TODO "verify nonce"
 
             req.extensions_mut().insert(BucketAccessor {
@@ -88,7 +90,7 @@ where
 
 struct BucketAccessor {
     permits: Vec<Permit>,
-    app_id: Uuid
+    app_id: Uuid,
 }
 
 impl FromRequest for BucketAccessor {

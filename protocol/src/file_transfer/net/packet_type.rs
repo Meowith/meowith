@@ -21,7 +21,7 @@ impl MDSFTPPacketType {
         self_u8 >= 128u8
     }
 
-    pub(crate) fn payload_size(&self) -> u16 {
+    pub(crate) fn payload_size(&self) -> u32 {
         match self {
             MDSFTPPacketType::FileChunk => 6,
             MDSFTPPacketType::Retrieve => 18,

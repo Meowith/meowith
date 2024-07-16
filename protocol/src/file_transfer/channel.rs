@@ -255,23 +255,13 @@ impl InternalMDSFTPChannel {
             .upgrade()
             .expect("Attempted to use a dead connection");
         let mut writer = writer.lock().await;
+        let mut header_buffer = [0u8; 5];
 
-        // chunk id + content length
-        let mut payload_buffer: Vec<u8> = Vec::with_capacity(1 + 4 + content.len());
-
-        payload_buffer.push(if is_last { 0x01 } else { 0x00 });
-        for byte in id.to_be_bytes() {
-            payload_buffer.push(byte);
-        }
-
-        let _ = payload_buffer.write(content);
+        header_buffer[0] = if is_last { 0x01 } else { 0x00 };
+        header_buffer[1..5].copy_from_slice(id.to_be_bytes().as_slice());
 
         writer
-            .write_raw_packet(MDSFTPRawPacket {
-                packet_type: MDSFTPPacketType::FileChunk,
-                stream_id: self.id,
-                payload: payload_buffer,
-            })
+            .write_chunk(self.id, &header_buffer, content)
             .await
             .map_err(|_| MDSFTPError::ConnectionError)?;
 

@@ -10,11 +10,15 @@ pub const BUFFER_SIZE: u16 = 10;
 
 pub struct MeowithMDSFTPPacketHandler {
     fragment_ledger: FragmentLedger,
+    fragment_size: u32,
 }
 
 impl MeowithMDSFTPPacketHandler {
-    pub(crate) fn new(fragment_ledger: FragmentLedger) -> Self {
-        MeowithMDSFTPPacketHandler { fragment_ledger }
+    pub(crate) fn new(fragment_ledger: FragmentLedger, fragment_size: u32) -> Self {
+        MeowithMDSFTPPacketHandler {
+            fragment_ledger,
+            fragment_size,
+        }
     }
 }
 
@@ -26,6 +30,7 @@ impl PacketHandler for MeowithMDSFTPPacketHandler {
             .set_incoming_handler(Box::new(MeowithMDSFTPChannelPacketHandler::new(
                 self.fragment_ledger.clone(),
                 BUFFER_SIZE,
+                self.fragment_size,
             )))
             .await;
         tokio::spawn(async move {

@@ -1,12 +1,12 @@
 use std::error::Error;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use data::dto::config::AccessTokenConfiguration;
 use data::model::app_model::App;
 use data::model::user_model::User;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use data::dto::config::{AccessTokenConfiguration};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Permit {
