@@ -30,31 +30,7 @@ mod tests {
     }
 
     fn remove_dir_iteratively(path: &PathBuf) -> io::Result<()> {
-        let mut dirs_to_delete = VecDeque::new();
-        let mut files_to_delete = Vec::new();
-
-        dirs_to_delete.push_back(path.clone());
-
-        while let Some(current_dir) = dirs_to_delete.pop_front() {
-            for entry in fs::read_dir(&current_dir)? {
-                let entry = entry?;
-                let path = entry.path();
-                if path.is_dir() {
-                    dirs_to_delete.push_back(path);
-                } else {
-                    files_to_delete.push(path);
-                }
-            }
-        }
-
-        for file in files_to_delete {
-            fs::remove_file(file)?;
-        }
-
-        while let Some(dir) = dirs_to_delete.pop_back() {
-            fs::remove_dir(dir)?;
-        }
-
+        let _ = fs::remove_dir_all(path);
         Ok(())
     }
 
@@ -96,12 +72,15 @@ mod tests {
         let file_b = path_file_b;
 
         let file_size = MAX_CHUNK_SIZE * 30 + 1024;
+        debug!("Creating buffer of size {}", file_size);
         let mut random_bytes = vec![0u8; file_size as usize];
 
+        debug!("Generating data");
         let mut rng = rand::thread_rng();
         rng.fill_bytes(&mut random_bytes[..]);
 
         {
+            debug!("Writing...");
             let mut file_a = File::create(file_a).await.expect("Test file crate failure");
             file_a
                 .write_all(&random_bytes)
@@ -109,6 +88,7 @@ mod tests {
                 .expect("Test file crate failure");
         }
 
+        debug!("CA gen");
         let (ca, ca_key) = gen_test_ca();
         let (cert, key) = gen_test_certs(&ca, &ca_key);
 

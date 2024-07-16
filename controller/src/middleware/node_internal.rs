@@ -9,6 +9,7 @@ use data::model::microservice_node_model::MicroserviceNode;
 use futures_util::future::LocalBoxFuture;
 use std::future::{ready, Ready};
 use std::rc::Rc;
+use commons::middleware_actions::remove_bearer_prefix;
 
 pub struct NodeVerify;
 
@@ -33,14 +34,6 @@ where
 
 pub struct NodeVerifyMiddleware<S> {
     service: Rc<S>,
-}
-
-fn remove_bearer_prefix(token: &str) -> String {
-    if let Some(stripped) = token.strip_prefix("Bearer ") {
-        stripped.to_string()
-    } else {
-        token.to_string()
-    }
 }
 
 impl<S, B> Service<ServiceRequest> for NodeVerifyMiddleware<S>
@@ -87,3 +80,5 @@ where
         })
     }
 }
+
+// TODO, impl FromRequest for Node!

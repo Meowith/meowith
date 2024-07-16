@@ -1,19 +1,23 @@
+use actix_web::{error, HttpResponse};
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
-use actix_web::{error, HttpResponse};
 use derive_more::Display;
+use serde::Serialize;
 
 pub type NodeClientResponse<T> = Result<T, NodeClientError>;
+
+#[derive(Serialize)]
+struct ErrorResponse {
+    message: String
+}
 
 #[allow(unused)]
 #[derive(Debug, Display)]
 pub enum NodeClientError {
-    #[display(fmt = "internal error")]
     InternalError,
-    #[display(fmt = "bad request")]
     BadRequest,
-    #[display(fmt = "bad auth")]
     BadAuth,
+    InsufficientStorage,
 }
 
 impl error::ResponseError for NodeClientError {
@@ -22,12 +26,15 @@ impl error::ResponseError for NodeClientError {
             NodeClientError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             NodeClientError::BadRequest => StatusCode::BAD_REQUEST,
             NodeClientError::BadAuth => StatusCode::UNAUTHORIZED,
+            NodeClientError::InsufficientStorage => StatusCode::IM_A_TEAPOT
         }
     }
 
     fn error_response(&self) -> HttpResponse {
         HttpResponse::build(self.status_code())
-            .insert_header(ContentType::html())
-            .body(self.to_string())
+            .insert_header(ContentType::json())
+            .json(ErrorResponse {
+                message: self.to_string(),
+            })
     }
 }

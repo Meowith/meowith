@@ -1,6 +1,7 @@
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct GeneralConfiguration {
     pub port_configuration: PortConfiguration,
+    pub access_token_configuration: AccessTokenConfiguration,
     pub max_readers: u32,
 }
 
@@ -8,6 +9,27 @@ pub struct GeneralConfiguration {
 pub struct PortConfiguration {
     pub internal_server_port: u16,
     pub mdsftp_server_port: u16,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct AccessTokenConfiguration {
+    pub token_validity: u64,
+    pub secret: String,
+}
+
+impl AccessTokenConfiguration {
+    pub fn new() -> Self {
+        AccessTokenConfiguration {
+            token_validity: 999999999999,
+            secret: "".to_string(),
+        }
+    }
+}
+
+impl Default for AccessTokenConfiguration {
+    fn default() -> Self {
+        AccessTokenConfiguration::new()
+    }
 }
 
 impl PortConfiguration {
@@ -29,6 +51,7 @@ impl GeneralConfiguration {
     pub fn new() -> Self {
         GeneralConfiguration {
             port_configuration: Default::default(),
+            access_token_configuration: Default::default(),
             max_readers: 2048u32,
         }
     }

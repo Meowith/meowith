@@ -5,32 +5,33 @@ use charybdis::types::Uuid;
 use scylla::CachingSession;
 
 pub async fn get_apps_from_owner(
-    owner_id: Uuid,
-    session: &CachingSession,
+    _owner_id: Uuid,
+    _session: &CachingSession,
 ) -> Result<CharybdisModelStream<App>, MeowithDataError> {
-    App::find_by_owner_id(owner_id)
-        .execute(session)
-        .await
-        .map_err(|e| e.into())
+    // App::find_by_owner_id(owner_id)
+    //     .execute(session)
+    //     .await
+    //     .map_err(|e| e.into())
+    todo!()
 }
 
 pub async fn get_app_by_name(
-    owner_id: Uuid,
-    name: String,
-    session: &CachingSession,
+    _owner_id: Uuid,
+    _name: String,
+    _session: &CachingSession,
 ) -> Result<App, MeowithDataError> {
-    App::find_first_by_owner_id_and_name(owner_id, name)
-        .execute(session)
-        .await
-        .map_err(|e| e.into())
+    // App::find_first_by_owner_id_and_name(owner_id, name)
+    //     .execute(session)
+    //     .await
+    //     .map_err(|e| e.into())
+    todo!()
 }
 
 pub async fn get_app_by_id(
-    owner_id: Uuid,
     id: Uuid,
     session: &CachingSession,
 ) -> Result<App, MeowithDataError> {
-    App::find_by_owner_id_and_id(owner_id, id)
+    App::find_by_id(id)
         .execute(session)
         .await
         .map_err(|e| e.into())
