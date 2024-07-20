@@ -1,5 +1,5 @@
 use filesize::PathExt;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -46,6 +46,7 @@ impl FragmentLedger {
             disk_physical_size: Default::default(),
             disk_content_size: Default::default(),
             reservation_map: Default::default(),
+            broken_map: Default::default(),
             housekeeper_handle: Mutex::new(None),
             disk_reserved_size: Default::default(),
         };
@@ -61,6 +62,7 @@ impl FragmentLedger {
             loop {
                 interval.tick().await;
                 let _ = housekeeper_arc.validate_max_space().await;
+                let _ = housekeeper_arc.clean_broken_chunks().await;
             }
         }));
 
@@ -178,6 +180,7 @@ impl FragmentLedger {
             file_space: size,
             completed: 0,
             durable,
+            last_update: Instant::now(),
         };
 
         let id = Uuid::new_v4();
@@ -191,6 +194,23 @@ impl FragmentLedger {
         Ok(id)
     }
 
+    /// Notifies the ledger that upload has been resumed, moving the chunk out of the broken queue.
+    pub async fn resume_reservation(&self, id: &Uuid) -> MeowithIoResult<()> {
+        let mut reservations = self._internal.reservation_map.write().await;
+        let mut broken = self._internal.broken_map.write().await;
+
+        let reservation = broken.remove(id).ok_or(MeowithIoError::NotFound)?;
+        reservations.insert(*id, reservation);
+        Ok(())
+    }
+
+    /// Drops the reservation.
+    /// If the actual uploaded size of the chunk does not equal the expected size,
+    /// the behavior depends on the durability of the upload.
+    ///
+    /// If the upload is durable, the chunk gets put into the broken queue,
+    /// where it awaits further data for at most an hour.
+    /// If it is not, the chunk is immediately dropped, releasing the reservation.
     pub async fn release_reservation(&self, id: &Uuid, size_actual: u64) -> MeowithIoResult<()> {
         let mut reservations = self._internal.reservation_map.write().await;
 
@@ -201,7 +221,7 @@ impl FragmentLedger {
         let mut reservation = reservation.unwrap();
 
         let transfer_completed = size_actual == reservation.file_space;
-
+        let expected = reservation.file_space;
         let path = &self.get_path(id);
 
         if transfer_completed {
@@ -233,8 +253,10 @@ impl FragmentLedger {
                 },
             );
         } else if !transfer_completed && reservation.durable {
-            reservations.get_mut(id).unwrap().completed += size_actual;
-            // TODO handle timeout
+            let mut reservation = reservations.remove(id).unwrap();
+            reservation.completed += size_actual;
+            reservation.last_update = Instant::now();
+            self._internal.broken_map.write().await.insert(*id, reservation);
         } else if !transfer_completed && !reservation.durable {
             reservations.remove(id);
             tokio::fs::remove_file(path)
@@ -242,7 +264,7 @@ impl FragmentLedger {
                 .map_err(|_| MeowithIoError::Internal(None))?;
             self._internal
                 .disk_reserved_size
-                .fetch_sub(size_actual, ORDERING_DISK_STORE);
+                .fetch_sub(expected, ORDERING_DISK_STORE);
         }
 
         Ok(())
@@ -266,6 +288,7 @@ struct Reservation {
     file_space: u64,
     completed: u64,
     durable: bool,
+    last_update: Instant,
 }
 
 #[allow(unused)]
@@ -281,6 +304,7 @@ struct InternalLedger {
     file_lock_table: LockTable,
     chunk_set: RwLock<HashMap<Uuid, FragmentMeta>>,
     reservation_map: RwLock<HashMap<Uuid, Reservation>>,
+    broken_map: RwLock<HashMap<Uuid, Reservation>>,
 
     housekeeper_handle: Mutex<Option<JoinHandle<()>>>,
 
@@ -304,6 +328,37 @@ impl InternalLedger {
             warn!("Disk free space is not big enough to contain the app limit, file operations can fail");
         }
         Ok(())
+    }
+
+    async fn clean_broken_chunks(&self) -> MeowithIoResult<()> {
+        let mut broken = self.broken_map.write().await;
+        let mut mark = vec![];
+        let max = Duration::from_secs(3600);
+
+        for (id, reservation) in &*broken {
+            if reservation.last_update.elapsed() > max {
+                mark.push(*id);
+            }
+        }
+
+        debug!("Sweeping {} broken chunks", mark.len());
+        for sweep in mark {
+            let path = &self.get_path(&sweep);
+            let reservation = broken.remove(&sweep).unwrap();
+            tokio::fs::remove_file(path)
+                .await
+                .map_err(|_| MeowithIoError::Internal(None))?;
+            self.disk_reserved_size
+                .fetch_sub(reservation.file_space, ORDERING_DISK_STORE);
+        }
+
+        Ok(())
+    }
+
+    fn get_path(&self, id: &Uuid) -> PathBuf {
+        let mut path = self.root_path.clone();
+        path.push(id.to_string());
+        path
     }
 }
 

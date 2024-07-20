@@ -1,22 +1,35 @@
-use charybdis::macros::charybdis_model;
+use charybdis::macros::{charybdis_model, charybdis_view_model};
 use charybdis::types::{BigInt, Set, Text, Timestamp, Uuid};
 
 use crate::model::permission_model::UserPermission;
 
-// We are using a local index as we will always know the partition key.
-// Because of that, we won't be making requests to all nodes in the cluster
 #[charybdis_model(
     table_name = apps,
     partition_keys = [id],
     clustering_keys = [],
     global_secondary_indexes = [],
-    local_secondary_indexes = [name],
+    local_secondary_indexes = [],
     static_columns = []
 )]
 pub struct App {
     pub id: Uuid,
     pub name: Text,
     pub owner_id: Uuid,
+    pub quota: BigInt,
+    pub created: Timestamp,
+    pub last_modified: Timestamp,
+}
+
+#[charybdis_view_model(
+    table_name = apps_by_owner,
+    base_table = apps,
+    partition_keys = [owner_id],
+    clustering_keys = [id]
+)]
+pub struct AppByOwner {
+    pub owner_id: Uuid,
+    pub id: Uuid,
+    pub name: Text,
     pub quota: BigInt,
     pub created: Timestamp,
     pub last_modified: Timestamp,

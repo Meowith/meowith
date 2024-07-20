@@ -88,9 +88,10 @@ where
     }
 }
 
-struct BucketAccessor {
-    permits: Vec<Permit>,
-    app_id: Uuid,
+#[allow(unused)]
+pub struct BucketAccessor {
+    pub permits: Vec<Permit>,
+    pub app_id: Uuid,
 }
 
 impl FromRequest for BucketAccessor {

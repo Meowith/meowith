@@ -1,10 +1,11 @@
-use actix_web::{get, post, put, web};
+use crate::public::middleware::user_middleware::BucketAccessor;
+use crate::public::response::NodeClientResponse;
+use actix_web::{get, HttpResponse, post, put, web};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::public::response::NodeClientResponse;
-
 #[derive(Serialize)]
+#[allow(unused)]
 pub struct UploadSessionStartResponse {
     /// To be used in the X-UploadCode header
     code: String,
@@ -13,6 +14,7 @@ pub struct UploadSessionStartResponse {
 }
 
 #[derive(Deserialize)]
+#[allow(unused)]
 pub struct UploadSessionRequest {
     /// Entry size in bytes
     size: u64,
@@ -21,23 +23,35 @@ pub struct UploadSessionRequest {
 }
 
 #[post("/upload/oneshot/{app_id}/{bucket_id}")]
-pub async fn upload_oneshot(_path: web::Path<(Uuid, Uuid)>) -> NodeClientResponse<String> {
+pub async fn upload_oneshot(
+    _path: web::Path<(Uuid, Uuid)>,
+    _accessor: BucketAccessor,
+    _body: web::Payload
+) -> NodeClientResponse<HttpResponse> {
     todo!()
 }
 
 #[post("/upload/durable/{app_id}/{bucket_id}")]
 pub async fn start_upload_durable(
     _path: web::Path<(Uuid, Uuid)>,
+    _accessor: BucketAccessor,
 ) -> NodeClientResponse<web::Json<UploadSessionStartResponse>> {
     todo!()
 }
 
-#[put("/upload/put")]
-pub async fn upload_durable() -> NodeClientResponse<String> {
+#[put("/upload/put/{session_id}")]
+pub async fn upload_durable(
+    _path: web::Path<Uuid>,
+    _accessor: BucketAccessor,
+    _body: web::Payload
+) -> NodeClientResponse<HttpResponse> {
     todo!()
 }
 
 #[get("/download/{app_id}/{bucket_id}")]
-pub async fn download(_path: web::Path<(Uuid, Uuid)>) -> NodeClientResponse<String> {
+pub async fn download(
+    _path: web::Path<(Uuid, Uuid)>,
+    _accessor: BucketAccessor,
+) -> NodeClientResponse<HttpResponse> {
     todo!()
 }

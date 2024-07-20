@@ -80,5 +80,3 @@ where
         })
     }
 }
-
-// TODO, impl FromRequest for Node!
