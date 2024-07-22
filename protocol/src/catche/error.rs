@@ -1,6 +1,6 @@
+use openssl::error::ErrorStack;
 use std::array::TryFromSliceError;
 use std::error::Error;
-use openssl::error::ErrorStack;
 
 #[allow(unused)]
 pub type CatcheResult<T> = Result<T, CatcheError>;

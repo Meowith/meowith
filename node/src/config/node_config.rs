@@ -27,6 +27,10 @@ pub(crate) struct NodeConfig {
     pub ssl_certificate: Option<String>,
     pub ssl_private_key: Option<String>,
     pub path: String,
+
+    pub database_nodes: Vec<String>,
+    pub db_username: String,
+    pub db_password: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -41,6 +45,9 @@ pub(crate) struct NodeConfigInstance {
     pub ssl_private_key: Option<String>,
     pub path: String,
     pub net_fragment_size: u32,
+    pub database_nodes: Vec<String>,
+    pub db_username: String,
+    pub db_password: String,
 }
 
 impl NodeConfig {
@@ -71,6 +78,9 @@ impl NodeConfig {
             ssl_private_key: None,
             path: "/var/meowith/data/".to_string(),
             net_fragment_size: 256 * 1024,
+            database_nodes: vec!["127.0.0.1".to_string()],
+            db_username: "root".to_string(),
+            db_password: "root".to_string(),
         };
         let mut new_file = OpenOptions::new()
             .write(true)
@@ -133,6 +143,9 @@ impl NodeConfig {
                 self.path + "/"
             },
             net_fragment_size: self.net_fragment_size,
+            database_nodes: self.database_nodes,
+            db_username: self.db_username,
+            db_password: self.db_password,
         })
     }
 }

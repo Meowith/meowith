@@ -1,20 +1,20 @@
-use std::net::{IpAddr, SocketAddr};
-use std::str::FromStr;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use crate::catche::error::CatcheError;
+use crate::file_transfer::authenticator::ConnectionAuthContext;
+use crate::file_transfer::server::ZERO_UUID;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use std::net::{IpAddr, SocketAddr};
+use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::io;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::{broadcast, oneshot, Mutex};
 use tokio_rustls::{rustls, TlsAcceptor, TlsStream};
 use uuid::{Bytes, Uuid};
-use crate::catche::error::CatcheError;
-use crate::file_transfer::authenticator::ConnectionAuthContext;
-use crate::file_transfer::server::ZERO_UUID;
 
 #[allow(unused)]
 pub struct CatcheServer {
@@ -31,7 +31,7 @@ impl CatcheServer {
             running: Arc::new(AtomicBool::new(false)),
             shutdown_sender: None,
             connections: Arc::new(Mutex::new(Vec::new())),
-            connection_auth_context
+            connection_auth_context,
         }
     }
 
@@ -46,10 +46,8 @@ impl CatcheServer {
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
 
         let acceptor = TlsAcceptor::from(Arc::new(config));
-        let listener = TcpListener::bind(SocketAddr::new(
-            IpAddr::from_str("0.0.0.0").unwrap(),
-            port,
-        )).await?;
+        let listener =
+            TcpListener::bind(SocketAddr::new(IpAddr::from_str("0.0.0.0").unwrap(), port)).await?;
         let auth_ctx = self.connection_auth_context.clone();
 
         self.running.store(true, Ordering::SeqCst);
@@ -74,7 +72,7 @@ impl CatcheServer {
 
                     drop(tx);
 
-                     if !running.load(Ordering::Relaxed) {
+                    if !running.load(Ordering::Relaxed) {
                         return Err(CatcheError::ShuttingDown);
                     }
 
@@ -109,8 +107,11 @@ impl CatcheServer {
                         Uuid::from_bytes(Bytes::try_from(auth_header).unwrap_or(ZERO_UUID));
 
                     if let Some(auth) = &auth_ctx.authenticator {
-                        if !auth.authenticate_incoming(&mut stream, microservice_id).await
-                            .map_err(|_| CatcheError::ConnectionAuthenticationError)? {
+                        if !auth
+                            .authenticate_incoming(&mut stream, microservice_id)
+                            .await
+                            .map_err(|_| CatcheError::ConnectionAuthenticationError)?
+                        {
                             stream
                                 .shutdown()
                                 .await
@@ -123,7 +124,7 @@ impl CatcheServer {
 
                     Ok(())
                 }
-                    .await;
+                .await;
 
                 match res {
                     Ok(_) => {}

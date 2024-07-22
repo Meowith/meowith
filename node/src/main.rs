@@ -10,8 +10,10 @@ use commons::access_token_service::JwtService;
 use commons::autoconfigure::general_conf::fetch_general_config;
 use commons::context::microservice_request_context::MicroserviceRequestContext;
 use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
+use data::database_session::{build_session, CACHE_SIZE};
 use openssl::ssl::SslAcceptorBuilder;
 use protocol::file_transfer::server::MDSFTPServer;
+use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -25,6 +27,7 @@ mod public;
 
 #[allow(unused)]
 pub struct AppState {
+    session: CachingSession,
     mdsftp_server: MDSFTPServer,
     fragment_ledger: FragmentLedger,
     jwt_service: JwtService,
@@ -78,7 +81,17 @@ async fn main() -> std::io::Result<()> {
         ));
     }
 
+    let session = build_session(
+        &config.database_nodes,
+        &config.db_username,
+        &config.db_password,
+        CACHE_SIZE,
+    )
+    .await
+    .expect("Unable to connect to database");
+
     let app_data = Data::new(AppState {
+        session,
         mdsftp_server,
         fragment_ledger,
         jwt_service: JwtService::new(&global_conf.access_token_configuration)

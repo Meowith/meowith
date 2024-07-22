@@ -1,18 +1,23 @@
 use std::future::{ready, Ready};
 use std::rc::Rc;
 
-use crate::public::response::NodeClientError;
-use crate::AppState;
 use actix_web::dev::Payload;
 use actix_web::web::Data;
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error, FromRequest, HttpMessage, HttpRequest,
 };
-use commons::access_token_service::Permit;
-use commons::middleware_actions::remove_bearer_prefix;
 use futures_util::future::{err, ok, LocalBoxFuture};
+use regex::Regex;
 use uuid::Uuid;
+
+use commons::middleware_actions::remove_bearer_prefix;
+use commons::permission::check::check_permission;
+use commons::permission::AppTokenPermit;
+
+use crate::caching::db::validate_nonce;
+use crate::public::response::NodeClientError;
+use crate::AppState;
 
 pub struct UserAuthenticate;
 
@@ -74,8 +79,10 @@ where
             }
 
             let claim_data = claim_data.unwrap();
-
-            // TODO "verify nonce"
+            let nonce_valid = validate_nonce(&claim_data, &app_data.session).await;
+            if !nonce_valid {
+                return Err(Error::from(NodeClientError::BadAuth));
+            }
 
             req.extensions_mut().insert(BucketAccessor {
                 permits: claim_data.perms,
@@ -90,7 +97,7 @@ where
 
 #[allow(unused)]
 pub struct BucketAccessor {
-    pub permits: Vec<Permit>,
+    pub permits: Vec<AppTokenPermit>,
     pub app_id: Uuid,
 }
 
@@ -103,5 +110,28 @@ impl FromRequest for BucketAccessor {
             Some(bucket_accessor) => ok(bucket_accessor),
             None => err(NodeClientError::BadAuth),
         };
+    }
+}
+
+impl BucketAccessor {
+    pub fn has_permission(
+        &self,
+        bucket: &str,
+        app_id: &Uuid,
+        requested: u64,
+    ) -> Result<(), NodeClientError> {
+        if self.app_id != *app_id {
+            return Err(NodeClientError::BadAuth);
+        }
+        match self.permits.iter().find(|p| match Regex::new(&p.scope) {
+            Ok(it) => it.is_match(bucket),
+            Err(_) => false,
+        }) {
+            None => Err(NodeClientError::BadAuth),
+            Some(permit) => match check_permission(permit.allowance, requested) {
+                true => Ok(()),
+                false => Err(NodeClientError::BadAuth),
+            },
+        }
     }
 }

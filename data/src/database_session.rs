@@ -1,6 +1,8 @@
 use scylla::transport::errors::NewSessionError;
 use scylla::{CachingSession, SessionBuilder};
 
+pub static CACHE_SIZE: usize = 256;
+
 pub async fn build_session(
     known_nodes: &Vec<String>,
     user: &String,

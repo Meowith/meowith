@@ -44,7 +44,7 @@ mod tests {
     }
 
     #[tokio::test]
-    // #[timeout(2000)]
+    #[timeout(2000)]
     async fn test_file_transfer() {
         initialize_test_logging();
         let mut temp_dir = env::temp_dir();

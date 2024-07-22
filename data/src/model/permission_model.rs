@@ -3,8 +3,9 @@ use scylla::_macro_internal::{
     CellWriter, ColumnType, FromCqlValError, SerializationError, SerializeCql, WrittenCellProof,
 };
 use scylla::cql_to_rust::FromCqlVal;
+use strum::EnumIter;
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq, EnumIter)]
 pub enum UserPermission {
     Read,
     Write,
@@ -35,6 +36,13 @@ impl FromCqlVal<CqlValue> for UserPermission {
             }
             _ => Err(FromCqlValError::BadCqlType),
         }
+    }
+}
+
+impl UserPermission {
+    pub fn bit(&self) -> u64 {
+        let perm_i8: i8 = self.into();
+        1u64 << (perm_i8 - 1)
     }
 }
 

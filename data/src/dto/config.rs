@@ -9,7 +9,7 @@ pub struct GeneralConfiguration {
 pub struct PortConfiguration {
     pub internal_server_port: u16,
     pub mdsftp_server_port: u16,
-    pub catche_server_port: u16
+    pub catche_server_port: u16,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]

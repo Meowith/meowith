@@ -1,5 +1,5 @@
 use crate::error::MeowithDataError;
-use crate::model::app_model::{App, AppMember, AppByOwner, AppToken};
+use crate::model::app_model::{App, AppByOwner, AppMember, AppToken};
 use charybdis::stream::CharybdisModelStream;
 use charybdis::types::Uuid;
 use scylla::CachingSession;

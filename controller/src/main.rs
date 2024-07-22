@@ -2,10 +2,9 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use actix_cors::Cors;
-use actix_rt::Runtime;
 use actix_web::dev::Server;
 use actix_web::web::Data;
-use actix_web::{App, HttpServer, web};
+use actix_web::{web, App, HttpServer};
 use futures::future;
 use log::{debug, info};
 use openssl::pkey::{PKey, Private};
@@ -20,7 +19,7 @@ use commons::ssl_acceptor::{
     build_autogen_ssl_acceptor_builder, build_provided_ssl_acceptor_builder,
 };
 use data::access::microservice_node_access::get_microservices;
-use data::database_session::build_session;
+use data::database_session::{build_session, CACHE_SIZE};
 use data::model::microservice_node_model::MicroserviceNode;
 use logging::initialize_logging;
 
@@ -94,16 +93,14 @@ async fn main() -> std::io::Result<()> {
         use_ssl = true;
     }
 
-    let runtime = Runtime::new().unwrap();
-
-    let session = runtime
-        .block_on(build_session(
-            &config.database_nodes,
-            &config.db_username,
-            &config.db_password,
-            1,
-        ))
-        .expect("Unable to connect to database");
+    let session = build_session(
+        &config.database_nodes,
+        &config.db_username,
+        &config.db_password,
+        CACHE_SIZE,
+    )
+    .await
+    .expect("Unable to connect to database");
 
     let ca_cert = X509::from_pem(
         read_file(&config.ca_certificate)

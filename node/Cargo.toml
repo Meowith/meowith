@@ -30,6 +30,8 @@ futures-util = "0.3.30"
 futures = "0.3.30"
 cached = { version = "0.53.0", features = ["tokio", "async"] }
 scylla = "0.13.1"
+regex = "1.10.5"
+lazy_static = "1.5.0"
 
 [dev-dependencies]
 ntest = "*"
