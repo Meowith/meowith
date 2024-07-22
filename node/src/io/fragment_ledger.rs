@@ -256,7 +256,11 @@ impl FragmentLedger {
             let mut reservation = reservations.remove(id).unwrap();
             reservation.completed += size_actual;
             reservation.last_update = Instant::now();
-            self._internal.broken_map.write().await.insert(*id, reservation);
+            self._internal
+                .broken_map
+                .write()
+                .await
+                .insert(*id, reservation);
         } else if !transfer_completed && !reservation.durable {
             reservations.remove(id);
             tokio::fs::remove_file(path)

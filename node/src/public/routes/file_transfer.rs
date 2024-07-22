@@ -1,6 +1,6 @@
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::NodeClientResponse;
-use actix_web::{get, HttpResponse, post, put, web};
+use actix_web::{get, post, put, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -26,7 +26,7 @@ pub struct UploadSessionRequest {
 pub async fn upload_oneshot(
     _path: web::Path<(Uuid, Uuid)>,
     _accessor: BucketAccessor,
-    _body: web::Payload
+    _body: web::Payload,
 ) -> NodeClientResponse<HttpResponse> {
     todo!()
 }
@@ -43,7 +43,7 @@ pub async fn start_upload_durable(
 pub async fn upload_durable(
     _path: web::Path<Uuid>,
     _accessor: BucketAccessor,
-    _body: web::Payload
+    _body: web::Payload,
 ) -> NodeClientResponse<HttpResponse> {
     todo!()
 }

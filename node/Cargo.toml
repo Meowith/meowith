@@ -28,6 +28,8 @@ actix-multipart = "0.7.2"
 tokio-util = "0.7.11"
 futures-util = "0.3.30"
 futures = "0.3.30"
+cached = { version = "0.53.0", features = ["tokio", "async"] }
+scylla = "0.13.1"
 
 [dev-dependencies]
 ntest = "*"

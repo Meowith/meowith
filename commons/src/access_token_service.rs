@@ -18,6 +18,7 @@ pub struct Permit {
 pub struct ClaimData {
     pub app_id: Uuid,
     pub issuer_id: Uuid,
+    pub name: String,
     pub nonce: Uuid,
     pub perms: Vec<Permit>,
 }
@@ -26,6 +27,25 @@ pub struct ClaimData {
 pub struct Claims {
     pub sub: String,
     pub exp: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+pub struct ClaimKey {
+    pub app_id: Uuid,
+    pub issuer_id: Uuid,
+    pub name: String,
+    pub nonce: Uuid,
+}
+
+impl From<&ClaimData> for ClaimKey {
+    fn from(value: &ClaimData) -> Self {
+        ClaimKey {
+            app_id: value.app_id,
+            issuer_id: value.issuer_id,
+            name: value.name.clone(),
+            nonce: value.nonce,
+        }
+    }
 }
 
 pub struct JwtService {
@@ -41,6 +61,7 @@ impl JwtService {
         &self,
         issuer: &User,
         app: &App,
+        token_name: &str,
         perms: Vec<Permit>,
         nonce: Uuid,
     ) -> jsonwebtoken::errors::Result<String> {
@@ -49,6 +70,7 @@ impl JwtService {
             sub: serde_json::to_string(&ClaimData {
                 app_id: app.id,
                 issuer_id: issuer.id,
+                name: token_name.to_owned(),
                 nonce,
                 perms,
             })?,

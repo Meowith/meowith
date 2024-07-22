@@ -13,3 +13,6 @@ members = [
     "logging",
     "protocol"
 ]
+
+[dependencies]
+scylla = "0.13.1"

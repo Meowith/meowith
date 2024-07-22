@@ -25,6 +25,7 @@ pub(crate) struct ControllerConfig {
     pub db_password: String,
 
     pub general_configuration: GeneralConfiguration,
+
 }
 
 impl ControllerConfig {

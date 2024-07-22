@@ -14,7 +14,11 @@ struct UploadStream {
 }
 
 impl AsyncRead for UploadStream {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         // If the previous chunk was not read completely, try finishing reading.
         if let Some(ref mut remaining) = self.buffer {
             let to_copy = std::cmp::min(remaining.len(), buf.remaining());
@@ -42,7 +46,7 @@ impl AsyncRead for UploadStream {
             }
             Poll::Ready(Some(Err(e))) => Poll::Ready(Err(io::Error::new(ErrorKind::Other, e))),
             Poll::Ready(None) => Poll::Ready(Ok(())),
-            Poll::Pending => Poll::Pending
+            Poll::Pending => Poll::Pending,
         }
     }
 }

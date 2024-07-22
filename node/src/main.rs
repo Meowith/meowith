@@ -15,6 +15,7 @@ use protocol::file_transfer::server::MDSFTPServer;
 use std::path::Path;
 use std::sync::Arc;
 
+mod caching;
 mod config;
 mod file_transfer;
 mod init_procedure;

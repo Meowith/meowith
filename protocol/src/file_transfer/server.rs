@@ -22,8 +22,7 @@ use crate::file_transfer::authenticator::ConnectionAuthContext;
 use crate::file_transfer::error::MDSFTPError;
 use crate::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
 
-#[allow(unused)]
-const ZERO_UUID: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+pub const ZERO_UUID: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 #[allow(unused)]
 pub struct MDSFTPServer {

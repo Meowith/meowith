@@ -5,7 +5,7 @@ use actix_cors::Cors;
 use actix_rt::Runtime;
 use actix_web::dev::Server;
 use actix_web::web::Data;
-use actix_web::{web, App, HttpServer};
+use actix_web::{App, HttpServer, web};
 use futures::future;
 use log::{debug, info};
 use openssl::pkey::{PKey, Private};
