@@ -12,6 +12,7 @@ use tokio::sync::{RwLock, RwLockReadGuard};
 use uuid::Uuid;
 
 pub type NodeAddrMap = Arc<RwLock<HashMap<Uuid, String>>>;
+pub type NodeStorageMap = Arc<RwLock<HashMap<Uuid, u64>>>;
 
 #[derive(Debug, Clone)]
 pub struct MicroserviceRequestContext {
@@ -20,6 +21,7 @@ pub struct MicroserviceRequestContext {
     pub security_context: SecurityContext,
     pub microservice_type: MicroserviceType,
     pub port_configuration: PortConfiguration,
+    pub id: Uuid,
     client: Arc<RwLock<Client>>,
 }
 
@@ -58,6 +60,7 @@ impl MicroserviceRequestContext {
         security_context: SecurityContext,
         microservice_type: MicroserviceType,
         port_configuration: PortConfiguration,
+        id: Uuid,
     ) -> Self {
         let client = Self::create_client(
             &security_context.access_token,
@@ -69,6 +72,7 @@ impl MicroserviceRequestContext {
             security_context,
             microservice_type,
             port_configuration,
+            id,
             client: Arc::new(RwLock::new(client)),
         }
     }

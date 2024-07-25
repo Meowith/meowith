@@ -1,4 +1,3 @@
-use data::dto::config::GeneralConfiguration;
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
@@ -7,13 +6,15 @@ use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use reqwest::Certificate;
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 use commons::autoconfigure::auth_conf::{register_procedure, RegistrationResult};
 use commons::context::microservice_request_context::{MicroserviceRequestContext, SecurityContext};
+use data::dto::config::GeneralConfiguration;
 use data::model::microservice_node_model::MicroserviceType;
-use protocol::file_transfer::authenticator::ConnectionAuthContext;
-use protocol::file_transfer::pool::PacketHandlerRef;
-use protocol::file_transfer::server::MDSFTPServer;
+use protocol::mdsftp::authenticator::ConnectionAuthContext;
+use protocol::mdsftp::pool::PacketHandlerRef;
+use protocol::mdsftp::server::MDSFTPServer;
 
 use crate::config::node_config::NodeConfigInstance;
 use crate::file_transfer::connection_authenticator::MeowithMDSFTPConnectionAuthenticator;
@@ -45,6 +46,7 @@ pub async fn register_node(
         security_ctx,
         MicroserviceType::StorageNode,
         Default::default(),
+        Uuid::new_v4()
     );
 
     let reg_res = register_procedure(&mut ctx).await;
@@ -67,6 +69,7 @@ pub async fn initialize_io(
         root_certificate: req_ctx.security_context.root_x509.clone(),
         authenticator: Some(Box::new(authenticator)),
         port: req_ctx.port_configuration.mdsftp_server_port,
+        own_id: req_ctx.id,
     });
 
     let lock_table: LockTable = FileLockTable::new(global_config.max_readers);

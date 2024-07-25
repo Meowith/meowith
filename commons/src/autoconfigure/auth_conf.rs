@@ -6,7 +6,6 @@ use log::info;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use regex::Regex;
-
 use data::dto::controller::{
     AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
 };
@@ -47,9 +46,11 @@ pub async fn register_procedure(ctx: &mut MicroserviceRequestContext) -> Registr
         info!("Done.");
     }
     info!("Fetching access token...");
-    ctx.security_context.access_token = fetch_access_token(ctx)
+    let reg_resp = fetch_access_token(ctx)
         .await
         .expect("Failed to fetch the access token");
+    ctx.security_context.access_token = reg_resp.access_token;
+    ctx.id = reg_resp.id;
     ctx.update_client();
     info!("Fetching certificates...");
     let certificate_pair = perform_certificate_request(ctx)
@@ -82,7 +83,7 @@ pub fn read_renewal_token() -> Result<String, Box<dyn Error>> {
 
 pub async fn fetch_access_token(
     ctx: &MicroserviceRequestContext,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<AuthenticationResponse, Box<dyn Error>> {
     let req = AuthenticationRequest {
         renewal_token: ctx.security_context.renewal_token.clone(),
     };
@@ -94,8 +95,7 @@ pub async fn fetch_access_token(
         .send()
         .await?
         .json::<AuthenticationResponse>()
-        .await?
-        .access_token)
+        .await?)
 }
 
 pub async fn perform_registration(

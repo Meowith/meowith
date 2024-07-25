@@ -18,9 +18,9 @@ use uuid::{Bytes, Uuid};
 
 use commons::context::microservice_request_context::NodeAddrMap;
 
-use crate::file_transfer::authenticator::ConnectionAuthContext;
-use crate::file_transfer::error::MDSFTPError;
-use crate::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
+use crate::mdsftp::authenticator::ConnectionAuthContext;
+use crate::mdsftp::error::MDSFTPError;
+use crate::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
 
 pub const ZERO_UUID: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 

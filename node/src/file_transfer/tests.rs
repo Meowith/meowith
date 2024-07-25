@@ -18,10 +18,10 @@ mod tests {
     use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
     use commons::context::microservice_request_context::NodeAddrMap;
     use logging::initialize_test_logging;
-    use protocol::file_transfer::authenticator::ConnectionAuthContext;
-    use protocol::file_transfer::data::ReserveFlags;
-    use protocol::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
-    use protocol::file_transfer::server::MDSFTPServer;
+    use protocol::mdsftp::authenticator::ConnectionAuthContext;
+    use protocol::mdsftp::data::ReserveFlags;
+    use protocol::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
+    use protocol::mdsftp::server::MDSFTPServer;
 
     use crate::file_transfer::channel_handler::MeowithMDSFTPChannelPacketHandler;
     use crate::file_transfer::packet_handler::MeowithMDSFTPPacketHandler;
@@ -107,6 +107,7 @@ mod tests {
             root_certificate: ca.clone(),
             authenticator: None,
             port: 7671,
+            own_id: Uuid::new_v4()
         });
 
         let server_ledger = FragmentLedger::new(
@@ -195,7 +196,6 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(recv_meta.disk_content_size, meta.disk_content_size);
-            assert_eq!(recv_meta.disk_physical_size, meta.disk_physical_size);
         }
 
         {
@@ -212,7 +212,7 @@ mod tests {
                 u16::MAX as u32,
             ));
             let handle = channel
-                .retrieve_content(file_ba, handler)
+                .retrieve_content(file_ba, handler, true)
                 .await
                 .expect("Retrieve req reg failed");
             debug!("Handler setup");

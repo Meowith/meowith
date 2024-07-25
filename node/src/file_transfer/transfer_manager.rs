@@ -1,5 +1,5 @@
-use protocol::file_transfer::error::{MDSFTPError, MDSFTPResult};
-use protocol::file_transfer::handler::Channel;
+use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
+use protocol::mdsftp::handler::Channel;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, BufReader};

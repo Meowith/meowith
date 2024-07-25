@@ -20,6 +20,7 @@ pub struct AuthenticationRequest {
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct AuthenticationResponse {
     pub access_token: String,
+    pub id: Uuid
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]

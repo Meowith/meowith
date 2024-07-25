@@ -1,6 +1,6 @@
-use crate::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
-use crate::file_transfer::data::{ChunkErrorKind, LockKind};
-use crate::file_transfer::error::MDSFTPResult;
+use crate::mdsftp::channel::{InternalMDSFTPChannel, MDSFTPChannel};
+use crate::mdsftp::data::{ChunkErrorKind, LockKind};
+use crate::mdsftp::error::MDSFTPResult;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Weak};

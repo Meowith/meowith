@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use commons::context::microservice_request_context::MicroserviceRequestContext;
-use protocol::file_transfer::authenticator::MDSFTPConnectionAuthenticator;
-use protocol::file_transfer::error::{MDSFTPError, MDSFTPResult};
+use protocol::mdsftp::authenticator::MDSFTPConnectionAuthenticator;
+use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;

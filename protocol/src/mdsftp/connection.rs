@@ -13,13 +13,13 @@ use tokio::time::Instant;
 use tokio_rustls::{TlsConnector, TlsStream};
 use uuid::Uuid;
 
-use crate::file_transfer::authenticator::ConnectionAuthContext;
-use crate::file_transfer::channel::{InternalMDSFTPChannel, MDSFTPChannel};
-use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
-use crate::file_transfer::net::packet_reader::{GlobalHandler, PacketReader};
-use crate::file_transfer::net::packet_type::MDSFTPPacketType;
-use crate::file_transfer::net::packet_writer::PacketWriter;
-use crate::file_transfer::net::wire::MDSFTPRawPacket;
+use crate::mdsftp::authenticator::ConnectionAuthContext;
+use crate::mdsftp::channel::{InternalMDSFTPChannel, MDSFTPChannel};
+use crate::mdsftp::error::{MDSFTPError, MDSFTPResult};
+use crate::mdsftp::net::packet_reader::{GlobalHandler, PacketReader};
+use crate::mdsftp::net::packet_type::MDSFTPPacketType;
+use crate::mdsftp::net::packet_writer::PacketWriter;
+use crate::mdsftp::net::wire::MDSFTPRawPacket;
 
 #[derive(Clone)]
 pub struct MDSFTPConnection {
@@ -33,7 +33,7 @@ impl MDSFTPConnection {
         id: Uuid,
         handler: GlobalHandler,
     ) -> MDSFTPResult<Self> {
-        let conn = Self::create_conn(connection_auth_context, &id, &node_address).await?;
+        let conn = Self::create_conn(connection_auth_context, &node_address).await?;
 
         Ok(MDSFTPConnection {
             _internal_connection: Arc::new(
@@ -56,7 +56,6 @@ impl MDSFTPConnection {
 
     async fn create_conn(
         connection_auth_context: &ConnectionAuthContext,
-        id: &Uuid,
         addr: &SocketAddr,
     ) -> MDSFTPResult<TlsStream<TcpStream>> {
         let mut root_cert_store = RootCertStore::empty();
@@ -84,14 +83,14 @@ impl MDSFTPConnection {
                 .map_err(MDSFTPError::from)?,
         );
 
+        stream
+            .write_all(connection_auth_context.own_id.as_bytes())
+            .await
+            .map_err(|_| MDSFTPError::ConnectionError)?;
+
         if let Some(auth) = &connection_auth_context.authenticator {
             auth.authenticate_outgoing(&mut stream).await?;
         }
-
-        stream
-            .write_all(id.as_bytes())
-            .await
-            .map_err(|_| MDSFTPError::ConnectionError)?;
 
         Ok(stream)
     }

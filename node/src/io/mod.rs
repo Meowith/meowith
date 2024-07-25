@@ -6,7 +6,6 @@ use crate::io::error::{MeowithIoError, MeowithIoResult};
 
 pub mod error;
 pub mod fragment_ledger;
-mod request_stream;
 
 #[derive(PartialOrd, PartialEq)]
 pub struct SpaceUsage {

@@ -1,4 +1,4 @@
-use crate::file_transfer::net::packet_type::MDSFTPPacketType;
+use crate::mdsftp::net::packet_type::MDSFTPPacketType;
 
 pub(crate) const HEADER_SIZE: usize = 9usize;
 pub(crate) const PAYLOAD_SIZE: usize = u32::MAX as usize;
@@ -34,7 +34,7 @@ pub(crate) fn write_header(header: &MDSFTPHeader, buf: &mut [u8]) {
 
 #[cfg(test)]
 mod tests {
-    use crate::file_transfer::net::wire::{read_header, write_header, MDSFTPHeader, HEADER_SIZE};
+    use crate::mdsftp::net::wire::{read_header, write_header, MDSFTPHeader, HEADER_SIZE};
 
     #[test]
     fn test_header() {

@@ -1,5 +1,5 @@
-use crate::file_transfer::net::packet_type::MDSFTPPacketType;
-use crate::file_transfer::net::wire::{
+use crate::mdsftp::net::packet_type::MDSFTPPacketType;
+use crate::mdsftp::net::wire::{
     write_header, MDSFTPHeader, MDSFTPRawPacket, HEADER_SIZE, PAYLOAD_SIZE,
 };
 use tokio::io::{AsyncWriteExt, WriteHalf};

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use log::{debug, warn};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
 use tokio::select;
@@ -10,9 +10,9 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use protocol::file_transfer::data::{ChunkErrorKind, LockKind, ReserveFlags};
-use protocol::file_transfer::error::{MDSFTPError, MDSFTPResult};
-use protocol::file_transfer::handler::{
+use protocol::mdsftp::data::{ChunkErrorKind, LockKind, ReserveFlags};
+use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
+use protocol::mdsftp::handler::{
     Channel, ChannelPacketHandler, DownloadDelegator, UploadDelegator,
 };
 
@@ -32,6 +32,7 @@ pub struct MeowithMDSFTPChannelPacketHandler {
     chunk_buffer: u16,
     fragment_size: u32,
     reservation_details: Option<ReservationDetails>,
+    auto_close: Arc<AtomicBool>,
     receive_file_stream: Option<AbstractWriteStream>,
     upload_file_stream: Option<AbstractReadStream>,
     upload_cancel: Option<CancellationToken>,
@@ -48,6 +49,7 @@ impl MeowithMDSFTPChannelPacketHandler {
             chunk_buffer,
             fragment_size,
             reservation_details: None,
+            auto_close: Arc::new(AtomicBool::new(true)),
             receive_file_stream: None,
             upload_file_stream: None,
             upload_cancel: None,
@@ -145,12 +147,14 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
                 if is_last {
                     // Drop the stream early so that by the time the handler awaits it,
                     // the writer is closed.
-                    if let Err(e) = stream.shutdown().await {
-                        channel.close(Err(MDSFTPError::from(e))).await;
-                        return Err(MDSFTPError::Internal);
+                    if self.auto_close.load(Ordering::Relaxed) {
+                        if let Err(e) = stream.shutdown().await {
+                            channel.close(Err(MDSFTPError::from(e))).await;
+                            return Err(MDSFTPError::Internal);
+                        }
+                        drop(stream);
+                        self.receive_file_stream = None;
                     }
-                    drop(stream);
-                    self.receive_file_stream = None;
 
                     if let Some(details) = self.reservation_details.as_ref() {
                         debug!("Releasing reservation {:?}", &details);
@@ -309,6 +313,7 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
             None => {}
             Some(stream) => {
                 {
+                    // Ignoring auto-close as the stream will be killed anyways.
                     let mut stream = stream.lock().await;
                     let _ = stream.shutdown().await;
                 }
@@ -344,8 +349,9 @@ impl<T> DownloadDelegator<T> for MeowithMDSFTPChannelPacketHandler
 where
     T: AsyncWrite + Unpin + Send + 'static,
 {
-    async fn delegate_download(&mut self, _channel: Channel, output: T) -> MDSFTPResult<()> {
+    async fn delegate_download(&mut self, _channel: Channel, output: T, auto_close: bool) -> MDSFTPResult<()> {
         self.receive_file_stream = Some(Arc::new(Mutex::new(BufWriter::new(Box::pin(output)))));
+        self.auto_close.store(auto_close, Ordering::SeqCst);
         Ok(())
     }
 }

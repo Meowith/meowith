@@ -1,4 +1,4 @@
-use crate::file_transfer::error::MDSFTPError;
+use crate::mdsftp::error::MDSFTPError;
 use uuid::Uuid;
 
 #[derive(Debug, Eq, PartialEq)]

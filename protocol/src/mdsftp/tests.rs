@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use crate::file_transfer::authenticator::ConnectionAuthContext;
-    use crate::file_transfer::channel::MDSFTPChannel;
-    use crate::file_transfer::data::{LockAcquireResult, LockKind, ReserveFlags};
-    use crate::file_transfer::error::MDSFTPResult;
-    use crate::file_transfer::handler::{Channel, ChannelPacketHandler, PacketHandler};
-    use crate::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
-    use crate::file_transfer::server::MDSFTPServer;
+    use crate::mdsftp::authenticator::ConnectionAuthContext;
+    use crate::mdsftp::channel::MDSFTPChannel;
+    use crate::mdsftp::data::{LockAcquireResult, LockKind, ReserveFlags};
+    use crate::mdsftp::error::MDSFTPResult;
+    use crate::mdsftp::handler::{Channel, ChannelPacketHandler, PacketHandler};
+    use crate::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
+    use crate::mdsftp::server::MDSFTPServer;
     use async_trait::async_trait;
     use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
     use commons::context::microservice_request_context::NodeAddrMap;
@@ -198,6 +198,7 @@ mod tests {
             root_certificate: ca.clone(),
             authenticator: None,
             port: 7670,
+            own_id: Uuid::new_v4()
         });
 
         let server_stats = Arc::new(Mutex::new(HandlerStats::default()));

@@ -1,7 +1,7 @@
 use crate::config::error::ConfigError;
 use crate::config::size_parser::parse_size;
 use crate::io::get_space;
-use protocol::file_transfer::MAX_CHUNK_SIZE;
+use protocol::mdsftp::MAX_CHUNK_SIZE;
 use serde::{Deserialize, Serialize};
 use std::cmp::max;
 use std::fs::{File, OpenOptions};

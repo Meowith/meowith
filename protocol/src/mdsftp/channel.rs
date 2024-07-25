@@ -8,16 +8,16 @@ use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use uuid::{Bytes, Uuid};
 
-use crate::file_transfer::channel_handle::{ChannelAwaitHandle, MDSFTPHandlerChannel};
-use crate::file_transfer::data::{
+use crate::mdsftp::channel_handle::{ChannelAwaitHandle, MDSFTPHandlerChannel};
+use crate::mdsftp::data::{
     ChunkErrorKind, LockAcquireResult, LockKind, ReserveFlags, ReserveResult,
 };
-use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
-use crate::file_transfer::handler::{ChannelPacketHandler, DownloadDelegator, UploadDelegator};
-use crate::file_transfer::net::packet_reader::PacketReader;
-use crate::file_transfer::net::packet_type::MDSFTPPacketType;
-use crate::file_transfer::net::packet_writer::PacketWriter;
-use crate::file_transfer::net::wire::MDSFTPRawPacket;
+use crate::mdsftp::error::{MDSFTPError, MDSFTPResult};
+use crate::mdsftp::handler::{ChannelPacketHandler, DownloadDelegator, UploadDelegator};
+use crate::mdsftp::net::packet_reader::PacketReader;
+use crate::mdsftp::net::packet_type::MDSFTPPacketType;
+use crate::mdsftp::net::packet_writer::PacketWriter;
+use crate::mdsftp::net::wire::MDSFTPRawPacket;
 
 pub struct MDSFTPChannel {
     pub(crate) _internal_channel: Arc<InternalMDSFTPChannel>,
@@ -70,11 +70,12 @@ impl MDSFTPChannel {
         &self,
         writer: T,
         handler: Box<impl ChannelPacketHandler + DownloadDelegator<T> + 'static>,
+        auto_close: bool
     ) -> MDSFTPResult<ChannelAwaitHandle> {
         let channel = &self._internal_channel;
         *channel.mdsftp_handler_channel.lock().await = Some(MDSFTPHandlerChannel::new(self));
         self._internal_channel
-            .retrieve_content(handler, writer)
+            .retrieve_content(handler, writer, auto_close)
             .await
     }
 
@@ -299,6 +300,7 @@ impl InternalMDSFTPChannel {
         &self,
         mut handler: Box<impl ChannelPacketHandler + DownloadDelegator<T> + 'static>,
         writer: T,
+        auto_close: bool
     ) -> MDSFTPResult<ChannelAwaitHandle> {
         let (tx, rx) = mpsc::channel(1);
         *self.handler_sender.lock().await = Some(tx);
@@ -311,7 +313,7 @@ impl InternalMDSFTPChannel {
             .unwrap()
             .clone();
 
-        handler.delegate_download(handler_channel, writer).await?;
+        handler.delegate_download(handler_channel, writer, auto_close).await?;
 
         *self.incoming_handler.lock().await = Some(handler);
 

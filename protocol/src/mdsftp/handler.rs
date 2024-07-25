@@ -2,10 +2,10 @@ use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite};
 use uuid::Uuid;
 
-use crate::file_transfer::channel::MDSFTPChannel;
-use crate::file_transfer::channel_handle::MDSFTPHandlerChannel;
-use crate::file_transfer::data::{LockKind, ReserveFlags};
-use crate::file_transfer::error::MDSFTPResult;
+use crate::mdsftp::channel::MDSFTPChannel;
+use crate::mdsftp::channel_handle::MDSFTPHandlerChannel;
+use crate::mdsftp::data::{LockKind, ReserveFlags};
+use crate::mdsftp::error::MDSFTPResult;
 
 pub type Channel = MDSFTPHandlerChannel;
 
@@ -65,7 +65,7 @@ pub trait UploadDelegator<T: AsyncRead + Unpin>: Send {
 
 #[async_trait]
 pub trait DownloadDelegator<T: AsyncWrite + Unpin>: Send {
-    async fn delegate_download(&mut self, channel: Channel, output: T) -> MDSFTPResult<()>;
+    async fn delegate_download(&mut self, channel: Channel, output: T, auto_close: bool) -> MDSFTPResult<()>;
 }
 
 #[async_trait]

@@ -15,12 +15,12 @@ use uuid::Uuid;
 
 use commons::context::microservice_request_context::NodeAddrMap;
 
-use crate::file_transfer::authenticator::ConnectionAuthContext;
-use crate::file_transfer::channel::MDSFTPChannel;
-use crate::file_transfer::connection::MDSFTPConnection;
-use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
-use crate::file_transfer::handler::PacketHandler;
-use crate::file_transfer::net::packet_reader::GlobalHandler;
+use crate::mdsftp::authenticator::ConnectionAuthContext;
+use crate::mdsftp::channel::MDSFTPChannel;
+use crate::mdsftp::connection::MDSFTPConnection;
+use crate::mdsftp::error::{MDSFTPError, MDSFTPResult};
+use crate::mdsftp::handler::PacketHandler;
+use crate::mdsftp::net::packet_reader::GlobalHandler;
 
 pub type PacketHandlerRef = Arc<Mutex<Box<dyn PacketHandler>>>;
 static STALE_TIMEOUT: Duration = Duration::from_secs(5 * 60);

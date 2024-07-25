@@ -1,4 +1,4 @@
-use crate::file_transfer::error::MDSFTPResult;
+use crate::mdsftp::error::MDSFTPResult;
 use async_trait::async_trait;
 use openssl::x509::X509;
 use tokio::net::TcpStream;
@@ -23,4 +23,5 @@ pub struct ConnectionAuthContext {
     pub root_certificate: X509,
     pub authenticator: Option<Box<dyn MDSFTPConnectionAuthenticator>>,
     pub port: u16,
+    pub own_id: Uuid,
 }
