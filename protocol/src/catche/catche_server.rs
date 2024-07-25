@@ -8,6 +8,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use async_trait::async_trait;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -15,13 +16,32 @@ use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::{broadcast, oneshot, Mutex};
 use tokio_rustls::{rustls, TlsAcceptor, TlsStream};
 use uuid::{Bytes, Uuid};
+use crate::catche::connection::CatcheConnection;
+use crate::catche::handler::CatcheHandler;
 
 #[allow(unused)]
 pub struct CatcheServer {
     running: Arc<AtomicBool>,
-    connections: Arc<Mutex<Vec<TlsStream<TcpStream>>>>,
+    connections: Arc<Mutex<Vec<CatcheConnection>>>,
     connection_auth_context: Arc<ConnectionAuthContext>,
     shutdown_sender: Option<Arc<Mutex<Sender<()>>>>,
+}
+
+#[derive(Clone)]
+pub struct CatcheServerHandler {
+    connections: Arc<Mutex<Vec<CatcheConnection>>>,
+}
+
+#[async_trait]
+impl CatcheHandler for CatcheServerHandler {
+    #[allow(clippy::unnecessary_to_owned)]
+    async fn handle_invalidate(&mut self) {
+        let conns = self.connections.lock().await;
+
+        for connection in conns.to_vec() {
+            let _ = connection.write_invalidate_packet().await;
+        }
+    }
 }
 
 impl CatcheServer {
@@ -120,7 +140,15 @@ impl CatcheServer {
                         }
                     }
 
-                    connections.lock().await.push(stream);
+                    let connections_clone = connections.clone();
+
+                    connections.lock().await.push(
+                        CatcheConnection::from_conn(stream, Arc::new(Mutex::new(Box::new(
+                            CatcheServerHandler {
+                                connections: connections_clone,
+                            }
+                        )))).await?
+                    );
 
                     Ok(())
                 }
