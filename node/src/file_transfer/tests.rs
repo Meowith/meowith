@@ -1,17 +1,17 @@
 #[cfg(test)]
 mod tests {
+    use std::{env, fs, io};
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::time::Instant;
-    use std::{env, fs, io};
 
     use log::debug;
     use ntest::timeout;
     use openssl::x509::X509VerifyResult;
     use rand::RngCore;
     use tokio::fs::File;
-    use tokio::io::AsyncWriteExt;
+    use tokio::io::{AsyncWriteExt, BufWriter};
     use tokio::sync::{Mutex, RwLock};
     use uuid::Uuid;
 
@@ -107,7 +107,7 @@ mod tests {
             root_certificate: ca.clone(),
             authenticator: None,
             port: 7671,
-            own_id: Uuid::new_v4()
+            own_id: Uuid::new_v4(),
         });
 
         let server_ledger = FragmentLedger::new(
@@ -128,7 +128,7 @@ mod tests {
             conn_map.clone(),
             server_handler,
         )
-        .await;
+            .await;
         assert!(server.start(&cert, &key).await.is_ok());
 
         let client_ledger = FragmentLedger::new(
@@ -143,7 +143,8 @@ mod tests {
         let client_handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
             MeowithMDSFTPPacketHandler::new(client_ledger.clone(), u16::MAX as u32),
         )));
-        let mut client_pool = MDSFTPPool::new(connection_auth_context, conn_map);
+        let mut client_pool =
+            MDSFTPPool::new(connection_auth_context, conn_map, Default::default());
         client_pool.set_packet_handler(client_handler).await;
 
         let uploaded_id: Uuid;
@@ -158,6 +159,7 @@ mod tests {
                     ReserveFlags {
                         auto_start: true,
                         durable: false,
+                        temp: false,
                     },
                 )
                 .await
@@ -212,7 +214,11 @@ mod tests {
                 u16::MAX as u32,
             ));
             let handle = channel
-                .retrieve_content(file_ba, handler, true)
+                .retrieve_content(
+                    Arc::new(Mutex::new(Box::pin(BufWriter::new(file_ba)))),
+                    handler,
+                    true,
+                )
                 .await
                 .expect("Retrieve req reg failed");
             debug!("Handler setup");

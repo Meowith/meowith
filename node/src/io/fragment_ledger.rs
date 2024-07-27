@@ -1,26 +1,27 @@
+use crate::io::error::{MeowithIoError, MeowithIoResult};
+use crate::io::get_space;
+use crate::locking::file_lock_table::FileLockTable;
 use filesize::PathExt;
 use log::{debug, error, info, warn};
+use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::fs::{File, OpenOptions};
-use tokio::sync::RwLock;
+use tokio::io::{BufReader, BufWriter};
+use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time;
 use uuid::Uuid;
 
-use crate::io::error::{MeowithIoError, MeowithIoResult};
-use crate::io::get_space;
-use crate::locking::file_lock_table::FileLockTable;
-
 pub type LockTable = FileLockTable<Uuid>;
 
-pub type FragmentReadStream = File;
-pub type FragmentWriteStream = File;
+pub type FragmentReadStream = AbstractReadStream;
+pub type FragmentWriteStream = AbstractWriteStream;
 
 #[derive(Clone)]
 pub struct FragmentLedger {
@@ -47,7 +48,7 @@ impl FragmentLedger {
             disk_content_size: Default::default(),
             reservation_map: Default::default(),
             broken_map: Default::default(),
-            housekeeper_handle: Mutex::new(None),
+            housekeeper_handle: std::sync::Mutex::new(None),
             disk_reserved_size: Default::default(),
         };
 
@@ -154,7 +155,7 @@ impl FragmentLedger {
         let file = File::open(self.get_path(id))
             .await
             .map_err(MeowithIoError::from)?;
-        Ok(file)
+        Ok(Arc::new(Mutex::new(Box::pin(BufReader::new(file)))))
     }
 
     pub async fn fragment_write_stream(&self, id: &Uuid) -> MeowithIoResult<FragmentWriteStream> {
@@ -165,7 +166,24 @@ impl FragmentLedger {
             .open(self.get_path(id))
             .await
             .map_err(MeowithIoError::from)?;
-        Ok(file)
+        Ok(Arc::new(Mutex::new(Box::pin(BufWriter::new(file)))))
+    }
+
+    /// Remove a reservation instantly.
+    /// Used when a client reserves space on multiple nodes, but not all the calls succeed.
+    /// In that case, the client cancels every reservation it has made up to that point.
+    pub async fn cancel_reservation(&self, id: &Uuid) -> MeowithIoResult<()> {
+        let mut reservations = self._internal.reservation_map.write().await;
+        if let Some(reservation) = reservations.remove(id) {
+            let path = &self.get_path(id);
+            self._internal
+                .disk_reserved_size
+                .fetch_sub(reservation.file_space, ORDERING_DISK_STORE);
+            tokio::fs::remove_file(path)
+                .await
+                .map_err(|_| MeowithIoError::Internal(None))?;
+        }
+        Ok(())
     }
 
     pub async fn try_reserve(&self, size: u64, durable: bool) -> MeowithIoResult<Uuid> {
@@ -263,12 +281,12 @@ impl FragmentLedger {
                 .insert(*id, reservation);
         } else if !transfer_completed && !reservation.durable {
             reservations.remove(id);
-            tokio::fs::remove_file(path)
-                .await
-                .map_err(|_| MeowithIoError::Internal(None))?;
             self._internal
                 .disk_reserved_size
                 .fetch_sub(expected, ORDERING_DISK_STORE);
+            tokio::fs::remove_file(path)
+                .await
+                .map_err(|_| MeowithIoError::Internal(None))?;
         }
 
         Ok(())
@@ -310,7 +328,7 @@ struct InternalLedger {
     reservation_map: RwLock<HashMap<Uuid, Reservation>>,
     broken_map: RwLock<HashMap<Uuid, Reservation>>,
 
-    housekeeper_handle: Mutex<Option<JoinHandle<()>>>,
+    housekeeper_handle: std::sync::Mutex<Option<JoinHandle<()>>>,
 
     max_physical_size: AtomicU64,
     disk_physical_size: AtomicU64,

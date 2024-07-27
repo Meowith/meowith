@@ -1,6 +1,9 @@
+use crate::catche::connection::CatcheConnection;
 use crate::catche::error::CatcheError;
+use crate::catche::handler::CatcheHandler;
 use crate::mdsftp::authenticator::ConnectionAuthContext;
 use crate::mdsftp::server::ZERO_UUID;
+use async_trait::async_trait;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
@@ -8,7 +11,6 @@ use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use async_trait::async_trait;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -16,8 +18,6 @@ use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::sync::{broadcast, oneshot, Mutex};
 use tokio_rustls::{rustls, TlsAcceptor, TlsStream};
 use uuid::{Bytes, Uuid};
-use crate::catche::connection::CatcheConnection;
-use crate::catche::handler::CatcheHandler;
 
 #[allow(unused)]
 pub struct CatcheServer {
@@ -143,11 +143,13 @@ impl CatcheServer {
                     let connections_clone = connections.clone();
 
                     connections.lock().await.push(
-                        CatcheConnection::from_conn(stream, Arc::new(Mutex::new(Box::new(
-                            CatcheServerHandler {
+                        CatcheConnection::from_conn(
+                            stream,
+                            Arc::new(Mutex::new(Box::new(CatcheServerHandler {
                                 connections: connections_clone,
-                            }
-                        )))).await?
+                            }))),
+                        )
+                        .await?,
                     );
 
                     Ok(())

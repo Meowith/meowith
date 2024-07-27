@@ -101,7 +101,10 @@ pub async fn perform_token_creation(
         }
         node_tk_map.insert(access_token.clone(), node.clone());
 
-        Ok(AuthenticationResponse { access_token, id: node.id })
+        Ok(AuthenticationResponse {
+            access_token,
+            id: node.id,
+        })
     } else {
         Err(NodeError::BadAuth)
     }

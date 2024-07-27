@@ -20,7 +20,7 @@ use commons::context::microservice_request_context::NodeAddrMap;
 
 use crate::mdsftp::authenticator::ConnectionAuthContext;
 use crate::mdsftp::error::MDSFTPError;
-use crate::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
+use crate::mdsftp::pool::{MDSFTPPool, MDSFTPPoolConfigHolder, PacketHandlerRef};
 
 pub const ZERO_UUID: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
@@ -30,7 +30,7 @@ pub struct MDSFTPServer {
     running: Arc<AtomicBool>,
     connection_auth_context: Arc<ConnectionAuthContext>,
     node_addr_map: NodeAddrMap,
-
+    cfg: MDSFTPPoolConfigHolder,
     shutdown_sender: Option<Arc<Mutex<Sender<()>>>>,
 }
 
@@ -39,6 +39,7 @@ impl MDSFTPServer {
         connection_auth_context: Arc<ConnectionAuthContext>,
         node_addr_map: NodeAddrMap,
         incoming_handler: PacketHandlerRef,
+        cfg: MDSFTPPoolConfigHolder,
     ) -> Self {
         let mut srv = MDSFTPServer {
             pool: None,
@@ -46,6 +47,7 @@ impl MDSFTPServer {
             node_addr_map,
             running: Arc::new(AtomicBool::new(false)),
             shutdown_sender: None,
+            cfg,
         };
         srv.create_pool(incoming_handler).await;
         srv
@@ -171,10 +173,15 @@ impl MDSFTPServer {
         Ok(())
     }
 
+    pub fn pool(&self) -> MDSFTPPool {
+        self.pool.clone().unwrap()
+    }
+
     async fn create_pool(&mut self, incoming_handler: PacketHandlerRef) {
         let mut pool = MDSFTPPool::new(
             self.connection_auth_context.clone(),
             self.node_addr_map.clone(),
+            self.cfg.clone(),
         );
         pool.set_packet_handler(incoming_handler).await;
         self.pool = Some(pool)

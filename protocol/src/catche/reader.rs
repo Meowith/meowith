@@ -1,6 +1,6 @@
-use std::sync::{Arc};
+use log::debug;
 use std::sync::atomic::{AtomicBool, Ordering};
-use log::{debug};
+use std::sync::Arc;
 
 use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::TcpStream;
@@ -63,7 +63,7 @@ impl PacketReader {
         })
     }
 
-
+    #[allow(unused)]
     pub(crate) fn close(&self) {
         self.running.store(false, Ordering::SeqCst);
     }

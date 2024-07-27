@@ -1,10 +1,10 @@
+use openssl::x509::X509;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use openssl::x509::X509;
 
-use rustls::{ClientConfig, RootCertStore};
 use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
+use rustls::{ClientConfig, RootCertStore};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_rustls::{TlsConnector, TlsStream};
@@ -18,17 +18,18 @@ pub struct CatcheClient {
     connection: CatcheConnection,
 }
 
+#[allow(unused)]
 impl CatcheClient {
     pub async fn connect(
         addr: &SocketAddr,
         microservice_id: Uuid,
         root_certificate: X509,
-        handler: Box<dyn CatcheHandler>
+        handler: Box<dyn CatcheHandler>,
     ) -> Result<Self, Box<dyn Error>> {
         let mut root_cert_store = RootCertStore::empty();
         root_cert_store
             .add(CertificateDer::from(
-               root_certificate
+                root_certificate
                     .to_der()
                     .map_err(|_| CatcheError::SSLError(None))?,
             ))
@@ -51,8 +52,7 @@ impl CatcheClient {
         );
 
         let client = CatcheClient {
-            connection: CatcheConnection::from_conn(stream,
-            Arc::new(Mutex::new(handler))).await?
+            connection: CatcheConnection::from_conn(stream, Arc::new(Mutex::new(handler))).await?,
         };
 
         client.connection.write_auth_header(microservice_id).await?;

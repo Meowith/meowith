@@ -173,6 +173,14 @@ mod tests {
             Ok(())
         }
 
+        async fn handle_reserve_cancel(
+            &mut self,
+            _channel: Channel,
+            _chunk_id: Uuid,
+        ) -> MDSFTPResult<()> {
+            Ok(())
+        }
+
         async fn handle_interrupt(&mut self) -> MDSFTPResult<()> {
             Ok(())
         }
@@ -198,7 +206,7 @@ mod tests {
             root_certificate: ca.clone(),
             authenticator: None,
             port: 7670,
-            own_id: Uuid::new_v4()
+            own_id: Uuid::new_v4(),
         });
 
         let server_stats = Arc::new(Mutex::new(HandlerStats::default()));
@@ -271,6 +279,7 @@ mod tests {
                     ReserveFlags {
                         auto_start: true,
                         durable: false,
+                        temp: false,
                     },
                 )
                 .await;

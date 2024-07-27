@@ -1,21 +1,22 @@
 use std::sync::Arc;
 
-use crate::file_transfer::channel_handler::{AbstractReadStream, AbstractWriteStream};
-use crate::public::middleware::user_middleware::BucketAccessor;
-use crate::public::response::{NodeClientError, NodeClientResponse};
-use crate::public::service::file_access::{
-    handle_download, handle_upload_durable, handle_upload_oneshot, start_upload_session,
-};
-
+use actix_web::{get, HttpRequest, HttpResponse, post, put, web};
 use actix_web::http::header::{CONTENT_LENGTH, ContentDisposition};
-use actix_web::{get, post, put, web, HttpResponse};
-use futures_util::{StreamExt,};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncWriteExt, BufReader, BufWriter};
 use tokio::sync::Mutex;
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
+
+use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
+
 use crate::AppState;
+use crate::public::middleware::user_middleware::BucketAccessor;
+use crate::public::response::{NodeClientError, NodeClientResponse};
+use crate::public::service::file_access::{
+    handle_download, handle_upload_durable, handle_upload_oneshot, start_upload_session,
+};
 
 const USER_TRANSFER_BUFFER: usize = 1024;
 
@@ -37,18 +38,36 @@ pub struct UploadSessionRequest {
     pub path: String,
 }
 
-#[post("/upload/oneshot/{app_id}/{bucket_id}")]
+#[post("/upload/oneshot/{app_id}/{bucket_id}/{path}")]
 pub async fn upload_oneshot(
-    path: web::Path<(Uuid, String)>,
+    path: web::Path<(Uuid, Uuid, String)>,
     accessor: BucketAccessor,
+    req: HttpRequest,
+    app_state: web::Data<AppState>,
     mut payload: web::Payload,
 ) -> NodeClientResponse<HttpResponse> {
-    let (mut sender, receiver) = tokio::io::duplex(USER_TRANSFER_BUFFER);
+    let content_size: u64 = req
+        .headers()
+        .get(CONTENT_LENGTH)
+        .ok_or(NodeClientError::BadRequest)?
+        .to_str()
+        .map_err(|_| NodeClientError::BadRequest)?
+        .parse()
+        .map_err(|_| NodeClientError::BadRequest)?;
 
+    let (mut sender, receiver) = tokio::io::duplex(USER_TRANSFER_BUFFER);
     let abstract_reader: AbstractReadStream =
-        Arc::new(Mutex::new(BufReader::new(Box::pin(receiver))));
-    let channel_handle =
-        handle_upload_oneshot(path.0, path.1.clone(), accessor, abstract_reader).await?;
+        Arc::new(Mutex::new(Box::pin(BufReader::new(receiver))));
+    let channel_handle = handle_upload_oneshot(
+        path.0,
+        path.1,
+        path.2.clone(),
+        content_size,
+        app_state,
+        accessor,
+        abstract_reader,
+    )
+        .await?;
 
     while let Some(item) = payload.next().await {
         let item = item.map_err(|_| NodeClientError::BadRequest)?;
@@ -68,12 +87,12 @@ pub async fn upload_oneshot(
 
 #[post("/upload/durable/{app_id}/{bucket_id}")]
 pub async fn start_upload_durable(
-    path: web::Path<(Uuid, String)>,
+    path: web::Path<(Uuid, Uuid)>,
     accessor: BucketAccessor,
     req: web::Json<UploadSessionRequest>,
-    data: web::Data<AppState>
+    data: web::Data<AppState>,
 ) -> NodeClientResponse<web::Json<UploadSessionStartResponse>> {
-    start_upload_session(path.0, path.1.clone(), accessor, req.0, &data.upload_manager).await
+    start_upload_session(path.0, path.1, accessor, req.0, &data.upload_manager).await
 }
 
 #[put("/upload/put/{session_id}")]
@@ -85,7 +104,7 @@ pub async fn upload_durable(
     let (mut sender, receiver) = tokio::io::duplex(USER_TRANSFER_BUFFER);
 
     let abstract_reader: AbstractReadStream =
-        Arc::new(Mutex::new(BufReader::new(Box::pin(receiver))));
+        Arc::new(Mutex::new(Box::pin(BufReader::new(receiver))));
     let channel_handle = handle_upload_durable(*path, accessor, abstract_reader).await?;
 
     while let Some(item) = payload.next().await {
@@ -106,21 +125,23 @@ pub async fn upload_durable(
 
 #[get("/download/{app_id}/{bucket_id}/{path}")]
 pub async fn download(
-    path: web::Path<(Uuid, String, String)>,
+    path: web::Path<(Uuid, Uuid, String)>,
     accessor: BucketAccessor,
+    app_data: web::Data<AppState>,
 ) -> NodeClientResponse<HttpResponse> {
     let (sender, receiver) = tokio::io::duplex(USER_TRANSFER_BUFFER);
 
     let abstract_writer: AbstractWriteStream =
-        Arc::new(Mutex::new(BufWriter::new(Box::pin(sender))));
+        Arc::new(Mutex::new(Box::pin(BufWriter::new(sender))));
     let info = handle_download(
         path.0,
-        path.1.clone(),
+        path.1,
         path.2.clone(),
         accessor,
         abstract_writer,
+        app_data,
     )
-    .await?;
+        .await?;
 
     let response_stream = ReaderStream::new(receiver);
 

@@ -1,8 +1,9 @@
 use crate::config::node_config::{NodeConfig, NodeConfigInstance};
-use crate::init_procedure::{initialize_io, register_node};
+use crate::init_procedure::{fetch_storage_nodes, initialize_io, register_node};
 use logging::initialize_logging;
 
 use crate::io::fragment_ledger::FragmentLedger;
+use crate::public::service::durable_transfer_session_manager::DurableTransferSessionManager;
 use actix_cors::Cors;
 use actix_web::web::Data;
 use actix_web::{App, HttpServer};
@@ -16,7 +17,7 @@ use protocol::mdsftp::server::MDSFTPServer;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
-use crate::public::service::durable_transfer_session_manager::DurableTransferSessionManager;
+use tokio::sync::RwLock;
 
 mod caching;
 mod config;
@@ -33,7 +34,7 @@ pub struct AppState {
     upload_manager: DurableTransferSessionManager,
     fragment_ledger: FragmentLedger,
     jwt_service: JwtService,
-    node_storage_map: NodeStorageMap, // TODO prepopulate this garbage
+    node_storage_map: NodeStorageMap,
     req_ctx: Arc<MicroserviceRequestContext>,
 }
 
@@ -100,7 +101,12 @@ async fn main() -> std::io::Result<()> {
         fragment_ledger,
         jwt_service: JwtService::new(&global_conf.access_token_configuration)
             .expect("JWT Service creation failed"),
-        node_storage_map: Arc::new(Default::default()),
+        node_storage_map: Arc::new(RwLock::new(
+            fetch_storage_nodes(&req_ctx)
+                .await
+                .expect("Failed to fetch storage nodes")
+                .peers,
+        )),
         req_ctx,
     });
 

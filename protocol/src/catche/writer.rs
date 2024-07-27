@@ -32,9 +32,11 @@ impl PacketWriter {
         Ok(())
     }
 
+    #[allow(unused)]
     pub(crate) async fn last_write(&self) -> Instant {
         self.last_write
     }
 
+    #[allow(unused)]
     pub(crate) fn close(&mut self) {}
 }

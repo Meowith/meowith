@@ -60,15 +60,19 @@ impl From<ChunkErrorKind> for u8 {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct ReserveFlags {
+    /// Indicates that the connection will receive data immediately
     pub auto_start: bool,
+    /// Reservation for a durable upload
     pub durable: bool,
+    /// Indicates that the channel is temporary, and that the file transfer will commence later
+    pub temp: bool,
 }
 
 impl From<ReserveFlags> for u8 {
     fn from(value: ReserveFlags) -> Self {
-        value.auto_start as u8 + ((value.durable as u8) << 1u8)
+        value.auto_start as u8 + ((value.durable as u8) << 1u8) + ((value.temp as u8) << 2u8)
     }
 }
 
@@ -77,6 +81,7 @@ impl From<u8> for ReserveFlags {
         ReserveFlags {
             auto_start: (value & 1u8) != 0,
             durable: (value & 2u8) != 0,
+            temp: (value & 4u8) != 0,
         }
     }
 }

@@ -1,15 +1,18 @@
-use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
-use protocol::mdsftp::handler::Channel;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
+
+use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::MutexGuard;
 
+use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
+use protocol::mdsftp::handler::AbstractReader;
+use protocol::mdsftp::handler::Channel;
+
 /// Sends a file to different node
-pub async fn mdsftp_upload<T: AsyncRead + Unpin>(
+pub async fn mdsftp_upload(
     channel: &Channel,
-    mut read: MutexGuard<'_, BufReader<T>>,
+    mut read: MutexGuard<'_, AbstractReader>,
     size: u64,
     mut receiver: Receiver<u32>,
     chunk_buffer: u16,

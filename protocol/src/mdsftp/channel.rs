@@ -2,7 +2,6 @@ use std::io::Write;
 use std::sync::{Arc, Weak};
 
 use log::debug;
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
@@ -13,7 +12,10 @@ use crate::mdsftp::data::{
     ChunkErrorKind, LockAcquireResult, LockKind, ReserveFlags, ReserveResult,
 };
 use crate::mdsftp::error::{MDSFTPError, MDSFTPResult};
-use crate::mdsftp::handler::{ChannelPacketHandler, DownloadDelegator, UploadDelegator};
+use crate::mdsftp::handler::{
+    AbstractReadStream, AbstractWriteStream, ChannelPacketHandler, DownloadDelegator,
+    UploadDelegator,
+};
 use crate::mdsftp::net::packet_reader::PacketReader;
 use crate::mdsftp::net::packet_type::MDSFTPPacketType;
 use crate::mdsftp::net::packet_writer::PacketWriter;
@@ -40,18 +42,22 @@ impl MDSFTPChannel {
         self._internal_channel.try_reserve(desired, flags).await
     }
 
+    pub async fn cancel_reserve(&self, chunk_id: Uuid) -> MDSFTPResult<()> {
+        self._internal_channel.cancel_reserve(chunk_id).await
+    }
+
     pub async fn send_chunk(&self, is_last: bool, id: u32, content: &[u8]) -> MDSFTPResult<()> {
         self._internal_channel
             .send_chunk(is_last, id, content)
             .await
     }
 
-    pub async fn send_content<T: AsyncRead + Unpin>(
+    pub async fn send_content(
         &self,
-        reader: T,
+        reader: AbstractReadStream,
         size: u64,
         chunk_buffer: u16,
-        handler: Box<impl ChannelPacketHandler + UploadDelegator<T> + 'static>,
+        handler: Box<impl ChannelPacketHandler + UploadDelegator + 'static>,
     ) -> MDSFTPResult<ChannelAwaitHandle> {
         let channel = &self._internal_channel;
         *channel.mdsftp_handler_channel.lock().await = Some(MDSFTPHandlerChannel::new(self));
@@ -66,11 +72,11 @@ impl MDSFTPChannel {
             .await
     }
 
-    pub async fn retrieve_content<T: AsyncWrite + Unpin>(
+    pub async fn retrieve_content(
         &self,
-        writer: T,
-        handler: Box<impl ChannelPacketHandler + DownloadDelegator<T> + 'static>,
-        auto_close: bool
+        writer: AbstractWriteStream,
+        handler: Box<impl ChannelPacketHandler + DownloadDelegator + 'static>,
+        auto_close: bool,
     ) -> MDSFTPResult<ChannelAwaitHandle> {
         let channel = &self._internal_channel;
         *channel.mdsftp_handler_channel.lock().await = Some(MDSFTPHandlerChannel::new(self));
@@ -200,6 +206,11 @@ impl InternalMDSFTPChannel {
         { lock.recv().await.ok_or(MDSFTPError::Interrupted)? }
     });
 
+    internal_sender_method!(payload_buffer this none cancel_reserve(MDSFTPPacketType::ReserveCancel, chunk_id: Uuid) -> MDSFTPResult<()> {
+        { let _ = payload_buffer.write(chunk_id.as_bytes().as_slice()); }
+        { Ok(()) }
+    });
+
     internal_sender_method!(payload_buffer this none respond_lock_ok(MDSFTPPacketType::LockAcquire, chunk_id: Uuid, kind: LockKind) -> MDSFTPResult<()> {
         {
             let kind: u8 = kind.into();
@@ -269,10 +280,10 @@ impl InternalMDSFTPChannel {
         Ok(())
     }
 
-    pub(crate) async fn send_content<T: AsyncRead + Unpin>(
+    pub(crate) async fn send_content(
         &self,
-        mut handler: Box<impl ChannelPacketHandler + UploadDelegator<T> + 'static>,
-        reader: T,
+        mut handler: Box<impl ChannelPacketHandler + UploadDelegator + 'static>,
+        reader: AbstractReadStream,
         size: u64,
         chunk_buffer: u16,
     ) -> MDSFTPResult<ChannelAwaitHandle> {
@@ -296,11 +307,11 @@ impl InternalMDSFTPChannel {
         Ok(ChannelAwaitHandle { _receiver: rx })
     }
 
-    pub(crate) async fn retrieve_content<T: AsyncWrite + Unpin>(
+    pub(crate) async fn retrieve_content(
         &self,
-        mut handler: Box<impl ChannelPacketHandler + DownloadDelegator<T> + 'static>,
-        writer: T,
-        auto_close: bool
+        mut handler: Box<impl ChannelPacketHandler + DownloadDelegator + 'static>,
+        writer: AbstractWriteStream,
+        auto_close: bool,
     ) -> MDSFTPResult<ChannelAwaitHandle> {
         let (tx, rx) = mpsc::channel(1);
         *self.handler_sender.lock().await = Some(tx);
@@ -313,7 +324,9 @@ impl InternalMDSFTPChannel {
             .unwrap()
             .clone();
 
-        handler.delegate_download(handler_channel, writer, auto_close).await?;
+        handler
+            .delegate_download(handler_channel, writer, auto_close)
+            .await?;
 
         *self.incoming_handler.lock().await = Some(handler);
 
@@ -435,6 +448,15 @@ impl InternalMDSFTPChannel {
                     let flags: ReserveFlags = packet.payload[0].into();
                     let size = u64::from_be_bytes(packet.payload[1..9].try_into().unwrap());
                     handler.handle_reserve(handler_channel, size, flags).await?;
+                }
+                MDSFTPPacketType::ReserveCancel => {
+                    let chunk_id = Uuid::from_bytes(
+                        Bytes::try_from(&packet.payload.as_slice()[0..16])
+                            .map_err(MDSFTPError::from)?,
+                    );
+                    handler
+                        .handle_reserve_cancel(handler_channel, chunk_id)
+                        .await?;
                 }
                 MDSFTPPacketType::LockReq => {
                     let kind = LockKind::from(packet.payload[0]);

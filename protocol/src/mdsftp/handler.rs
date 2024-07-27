@@ -1,5 +1,9 @@
+use std::pin::Pin;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::mdsftp::channel::MDSFTPChannel;
@@ -49,23 +53,31 @@ pub trait ChannelPacketHandler: Send {
 
     async fn handle_receive_ack(&mut self, channel: Channel, chunk_id: u32) -> MDSFTPResult<()>;
 
+    async fn handle_reserve_cancel(&mut self, channel: Channel, chunk_id: Uuid)
+        -> MDSFTPResult<()>;
+
     async fn handle_interrupt(&mut self) -> MDSFTPResult<()>;
 }
 
 #[async_trait]
-pub trait UploadDelegator<T: AsyncRead + Unpin>: Send {
+pub trait UploadDelegator: Send {
     async fn delegate_upload(
         &mut self,
         channel: Channel,
-        source: T,
+        source: AbstractReadStream,
         size: u64,
         chunk_buffer: u16,
     ) -> MDSFTPResult<()>;
 }
 
 #[async_trait]
-pub trait DownloadDelegator<T: AsyncWrite + Unpin>: Send {
-    async fn delegate_download(&mut self, channel: Channel, output: T, auto_close: bool) -> MDSFTPResult<()>;
+pub trait DownloadDelegator: Send {
+    async fn delegate_download(
+        &mut self,
+        channel: Channel,
+        output: AbstractWriteStream,
+        auto_close: bool,
+    ) -> MDSFTPResult<()>;
 }
 
 #[async_trait]
@@ -75,3 +87,8 @@ pub trait PacketHandler: Send {
     async fn channel_close(&mut self, channel_id: u32, conn_id: Uuid);
     async fn channel_err(&mut self, channel_id: u32, conn_id: Uuid);
 }
+
+pub type AbstractReader = Pin<Box<dyn AsyncRead + Unpin + Send>>;
+pub type AbstractWriter = Pin<Box<dyn AsyncWrite + Unpin + Send>>;
+pub type AbstractReadStream = Arc<Mutex<AbstractReader>>;
+pub type AbstractWriteStream = Arc<Mutex<AbstractWriter>>;

@@ -2,10 +2,19 @@ use crate::discovery::routes::{UpdateStorageNodeProperties, UpdateStorageNodeRes
 use crate::error::node::NodeError;
 use crate::health::health_service::perform_storage_node_properties_update;
 use crate::AppState;
-use actix_web::{post, web};
+use actix_web::{get, post, web};
 use chrono::Utc;
 use commons::context::controller_request_context::NodeHealth;
+use data::dto::controller::StorageResponse;
 use data::model::microservice_node_model::MicroserviceNode;
+
+#[get("/storage")]
+pub async fn fetch_free_storage(
+    _state: web::Data<AppState>,
+    _node: MicroserviceNode,
+) -> Result<web::Json<StorageResponse>, NodeError> {
+    todo!()
+}
 
 #[post("/storage")]
 pub async fn update_storage_node_properties(

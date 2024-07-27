@@ -16,6 +16,7 @@ struct ErrorResponse {
 pub enum NodeClientError {
     InternalError,
     BadRequest,
+    NotFound,
     BadAuth,
     InsufficientStorage,
 }
@@ -27,6 +28,7 @@ impl error::ResponseError for NodeClientError {
             NodeClientError::BadRequest => StatusCode::BAD_REQUEST,
             NodeClientError::BadAuth => StatusCode::UNAUTHORIZED,
             NodeClientError::InsufficientStorage => StatusCode::IM_A_TEAPOT,
+            NodeClientError::NotFound => StatusCode::NOT_FOUND,
         }
     }
 

@@ -1,4 +1,5 @@
 use crate::model::microservice_node_model::MicroserviceType;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -20,7 +21,7 @@ pub struct AuthenticationRequest {
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct AuthenticationResponse {
     pub access_token: String,
-    pub id: Uuid
+    pub id: Uuid,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -32,4 +33,9 @@ pub struct ValidatePeerRequest {
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct ValidatePeerResponse {
     pub valid: bool,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct StorageResponse {
+    pub peers: HashMap<Uuid, u64>,
 }

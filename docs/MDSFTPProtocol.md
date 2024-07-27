@@ -52,13 +52,19 @@ Flags: `is_last` (true/false)
 
 Flags: `Auto-start` (yes/no), `Durable` (yes\no)
 
-- **Reserve success** (`reserve_ok` Packet ID: 0x06)
+- **Reserve Cancel** (`reserve_cancel` Packet ID: 0x06)
+
+| Chunk ID |
+|----------|
+| 16 Bytes |
+
+- **Reserve success** (`reserve_ok` Packet ID: 0x07)
 
 | Chunk ID | Chunk Buffer |
 |----------|--------------|
 | 16 Bytes | 2 Bytes      |
 
-- **Reserve error** (`reserve_err` Packet ID: 0x07)
+- **Reserve error** (`reserve_err` Packet ID: 0x08)
 
 | Max space |
 |-----------|
@@ -66,7 +72,7 @@ Flags: `Auto-start` (yes/no), `Durable` (yes\no)
 
 ## Locks
 
-- **Lock request** (`lock_req` Packet ID: 0x08)
+- **Lock request** (`lock_req` Packet ID: 0x09)
 
 | Flags   | Chunk ID |
 |---------|----------|
@@ -74,7 +80,7 @@ Flags: `Auto-start` (yes/no), `Durable` (yes\no)
 
 Flags: `kind` (read/write)
 
-- **Lock acquire** (`lock_acquire` Packet ID: 0x09)
+- **Lock acquire** (`lock_acquire` Packet ID: 0x0A)
 
 | Flags   | Chunk ID |
 |---------|----------|
@@ -82,7 +88,7 @@ Flags: `kind` (read/write)
 
 Flags: `kind` (read/write)
 
-- **Lock Error** (`lock_err` Packet ID: 0x0A)
+- **Lock Error** (`lock_err` Packet ID: 0x0B)
 
 | Flags   | Chunk ID |
 |---------|----------|
