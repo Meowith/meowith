@@ -85,6 +85,10 @@ impl MDSFTPChannel {
             .await
     }
 
+    pub async fn delete_chunk(&self, id: Uuid) -> MDSFTPResult<()> {
+        self._internal_channel.delete_chunk(id).await
+    }
+
     pub async fn set_incoming_handler(
         &self,
         handler: Box<dyn ChannelPacketHandler>,
@@ -253,6 +257,11 @@ impl InternalMDSFTPChannel {
             let _ = payload_buffer.write(chunk_id.as_bytes().as_slice());
             let _ = payload_buffer.write(&chunk_buffer.to_be_bytes());
         }
+        { Ok(()) }
+    });
+
+    internal_sender_method!(payload_buffer this none delete_chunk(MDSFTPPacketType::DeleteChunk, chunk_id: Uuid) -> MDSFTPResult<()> {
+        { let _ = payload_buffer.write(chunk_id.as_bytes().as_slice()); }
         { Ok(()) }
     });
 
@@ -472,6 +481,15 @@ impl InternalMDSFTPChannel {
                     let chunk_id = u32::from_be_bytes(packet.payload[0..4].try_into().unwrap());
                     handler
                         .handle_receive_ack(handler_channel, chunk_id)
+                        .await?;
+                }
+                MDSFTPPacketType::DeleteChunk => {
+                    let chunk_id = Uuid::from_bytes(
+                        Bytes::try_from(&packet.payload.as_slice()[0..16])
+                            .map_err(MDSFTPError::from)?,
+                    );
+                    handler
+                        .handle_delete_chunk(handler_channel, chunk_id)
                         .await?;
                 }
                 _ => {}

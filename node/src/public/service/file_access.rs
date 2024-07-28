@@ -21,13 +21,13 @@ use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 use protocol::mdsftp::pool::MDSFTPPool;
 
-use crate::AppState;
 use crate::file_transfer::channel_handler::MeowithMDSFTPChannelPacketHandler;
 use crate::io::fragment_ledger::FragmentLedger;
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::{NodeClientError, NodeClientResponse};
 use crate::public::routes::file_transfer::{UploadSessionRequest, UploadSessionStartResponse};
 use crate::public::service::durable_transfer_session_manager::DurableTransferSessionManager;
+use crate::AppState;
 
 // TODO more concise error handling, perhaps a debug!
 // call in the from method?
@@ -58,10 +58,10 @@ pub async fn handle_upload_oneshot(
     bucket: Uuid,
     path: String,
     size: u64,
-    app_state: web::Data<AppState>,
+    app_state: Data<AppState>,
     accessor: BucketAccessor,
-    _reader: AbstractReadStream,
-) -> NodeClientResponse<ChannelAwaitHandle> {
+    reader: AbstractReadStream,
+) -> NodeClientResponse<()> {
     // quit early if the user cannot upload at all.
     accessor.has_permission(&bucket, &app_id, *UPLOAD_ALLOWANCE)?;
     let path = split_path(path);
@@ -69,12 +69,9 @@ pub async fn handle_upload_oneshot(
     // check if the file will be overwritten and if the user can do that.
     let file = get_file(bucket, path.0, path.1, &app_state.session).await;
 
-    match file {
-        Ok(_) => {
-            accessor.has_permission(&bucket, &app_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
-            // TODO overwrites, config
-        }
-        Err(_) => {} // No such file.
+    if let Ok(_) = file {
+        accessor.has_permission(&bucket, &app_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
+        // TODO overwrites, config
     }
 
     let reservation = reserve_chunks(
@@ -90,10 +87,30 @@ pub async fn handle_upload_oneshot(
         &app_state.req_ctx,
         app_state.mdsftp_server.pool(),
     )
+    .await?;
+
+    let mut chunks: Vec<FileChunk> = vec![];
+    for (i, space) in (0_i8..).zip(reservation.fragments.into_iter()) {
+        chunks.push(FileChunk {
+            server_id: space.1,
+            chunk_id: space.2,
+            chunk_size: space.3 as i64,
+            chunk_order: i,
+        });
+
+        inbound_transfer(
+            reader.clone(),
+            space.1,
+            space.2,
+            space.0,
+            space.4,
+            space.3,
+            &app_state,
+        )
         .await?;
+    }
 
-
-    todo!()
+    Ok(())
 }
 
 pub async fn start_upload_session(
@@ -130,7 +147,7 @@ pub async fn handle_download(
     path: String,
     accessor: BucketAccessor,
     writer: AbstractWriteStream,
-    app_state: web::Data<AppState>,
+    app_state: Data<AppState>,
 ) -> NodeClientResponse<DlInfo> {
     accessor.has_permission(&bucket, &app_id, *DOWNLOAD_ALLOWANCE)?;
     let path = split_path(path);
@@ -143,13 +160,7 @@ pub async fn handle_download(
     chunk_ids.sort_by_key(|chunk| chunk.chunk_order);
 
     for chunk in chunk_ids {
-        outbound_transfer(
-            writer.clone(),
-            chunk.server_id,
-            chunk.chunk_id,
-            &app_state,
-        )
-            .await?
+        outbound_transfer(writer.clone(), chunk.server_id, chunk.chunk_id, &app_state).await?
     }
 
     Ok(DlInfo {
@@ -171,7 +182,10 @@ async fn inbound_transfer(
     state: &Data<AppState>,
 ) -> NodeClientResponse<()> {
     if node_id == state.req_ctx.id {
-        let writer = state.fragment_ledger.fragment_write_stream(&chunk_id).await
+        let writer = state
+            .fragment_ledger
+            .fragment_write_stream(&chunk_id)
+            .await
             .map_err(|_| NodeClientError::InternalError)?;
         let mut writer = writer.lock().await;
         let mut reader = reader.lock().await;
@@ -184,7 +198,7 @@ async fn inbound_transfer(
         let pool = state.mdsftp_server.pool();
         match channel {
             None => eff_channel = todo!(),
-            Some(c) => eff_channel = c
+            Some(c) => eff_channel = c,
         }
 
         let handler = Box::new(MeowithMDSFTPChannelPacketHandler::new(
@@ -193,13 +207,9 @@ async fn inbound_transfer(
             pool.cfg.fragment_size,
         ));
         let handle = eff_channel
-            .send_content(
-                reader,
-                size,
-                chunk_buffer,
-                handler,
-            )
-            .await.map_err(|_| NodeClientError::InternalError)?;
+            .send_content(reader, size, chunk_buffer, handler)
+            .await
+            .map_err(|_| NodeClientError::InternalError)?;
 
         handle
             .await
@@ -216,7 +226,8 @@ async fn outbound_transfer(
 ) -> NodeClientResponse<()> {
     if node_id == state.req_ctx.id {
         // send local chunk, no need for net io
-        let reader = state.fragment_ledger
+        let reader = state
+            .fragment_ledger
             .fragment_read_stream(&chunk_id)
             .await
             .map_err(|_| NodeClientError::NotFound)?;
@@ -318,7 +329,7 @@ async fn reserve_chunks(
         }
         Ok(())
     }
-        .await;
+    .await;
 
     match res {
         Ok(_) => Ok(ReserveInfo { fragments }),

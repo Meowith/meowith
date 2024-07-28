@@ -1,9 +1,3 @@
-use crate::io::error::{MeowithIoError, MeowithIoResult};
-use crate::io::get_space;
-use crate::locking::file_lock_table::FileLockTable;
-use filesize::PathExt;
-use log::{debug, error, info, warn};
-use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -11,12 +5,21 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+use filesize::PathExt;
+use log::{debug, error, info, warn};
 use tokio::fs::{File, OpenOptions};
 use tokio::io::{BufReader, BufWriter};
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time;
 use uuid::Uuid;
+
+use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
+
+use crate::io::error::{MeowithIoError, MeowithIoResult};
+use crate::io::get_space;
+use crate::locking::file_lock_table::FileLockTable;
 
 pub type LockTable = FileLockTable<Uuid>;
 
@@ -149,6 +152,26 @@ impl FragmentLedger {
         let mut path = self._internal.root_path.clone();
         path.push(id.to_string());
         path
+    }
+
+    pub async fn delete_chunk(&self, id: &Uuid) -> MeowithIoResult<()> {
+        let path = self.get_path(id);
+        tokio::fs::remove_file(path)
+            .await
+            .map_err(|_| MeowithIoError::Internal(None))?;
+        let mut chunks = self._internal.chunk_set.write().await;
+        let chunk = chunks.remove(id);
+
+        if let Some(chunk) = chunk {
+            self._internal
+                .disk_content_size
+                .fetch_sub(chunk.disk_content_size, ORDERING_DISK_STORE);
+            self._internal
+                .disk_physical_size
+                .fetch_sub(chunk.disk_physical_size, ORDERING_DISK_STORE);
+        }
+
+        Ok(())
     }
 
     pub async fn fragment_read_stream(&self, id: &Uuid) -> MeowithIoResult<FragmentReadStream> {

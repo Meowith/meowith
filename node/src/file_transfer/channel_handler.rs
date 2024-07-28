@@ -1,8 +1,9 @@
-use async_trait::async_trait;
-use log::{debug, warn};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+
+use async_trait::async_trait;
+use log::{debug, warn};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tokio::select;
 use tokio::sync::mpsc::Sender;
@@ -302,6 +303,12 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         chunk_id: Uuid,
     ) -> MDSFTPResult<()> {
         let _ = self.fragment_ledger.cancel_reservation(&chunk_id).await;
+        channel.close(Ok(())).await;
+        Ok(())
+    }
+
+    async fn handle_delete_chunk(&mut self, channel: Channel, chunk_id: Uuid) -> MDSFTPResult<()> {
+        let _ = self.fragment_ledger.delete_chunk(&chunk_id).await;
         channel.close(Ok(())).await;
         Ok(())
     }

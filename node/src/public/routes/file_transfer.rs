@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use actix_web::{get, HttpRequest, HttpResponse, post, put, web};
-use actix_web::http::header::{CONTENT_LENGTH, ContentDisposition};
+use actix_web::http::header::{ContentDisposition, CONTENT_LENGTH};
+use actix_web::{get, post, put, web, HttpRequest, HttpResponse};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncWriteExt, BufReader, BufWriter};
@@ -11,12 +11,12 @@ use uuid::Uuid;
 
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 
-use crate::AppState;
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::{NodeClientError, NodeClientResponse};
 use crate::public::service::file_access::{
     handle_download, handle_upload_durable, handle_upload_oneshot, start_upload_session,
 };
+use crate::AppState;
 
 const USER_TRANSFER_BUFFER: usize = 1024;
 
@@ -58,16 +58,18 @@ pub async fn upload_oneshot(
     let (mut sender, receiver) = tokio::io::duplex(USER_TRANSFER_BUFFER);
     let abstract_reader: AbstractReadStream =
         Arc::new(Mutex::new(Box::pin(BufReader::new(receiver))));
-    let channel_handle = handle_upload_oneshot(
-        path.0,
-        path.1,
-        path.2.clone(),
-        content_size,
-        app_state,
-        accessor,
-        abstract_reader,
-    )
-        .await?;
+    let channel_handle = tokio::spawn(async move {
+        handle_upload_oneshot(
+            path.0,
+            path.1,
+            path.2.clone(),
+            content_size,
+            app_state,
+            accessor,
+            abstract_reader,
+        )
+        .await
+    });
 
     while let Some(item) = payload.next().await {
         let item = item.map_err(|_| NodeClientError::BadRequest)?;
@@ -77,10 +79,9 @@ pub async fn upload_oneshot(
             .map_err(|_| NodeClientError::InternalError)?;
     }
 
-    match channel_handle.await {
-        None => {}
-        Some(err) => err.map_err(|_| NodeClientError::InternalError)?,
-    }
+    channel_handle
+        .await
+        .map_err(|_| NodeClientError::InternalError)??;
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -141,7 +142,7 @@ pub async fn download(
         abstract_writer,
         app_data,
     )
-        .await?;
+    .await?;
 
     let response_stream = ReaderStream::new(receiver);
 

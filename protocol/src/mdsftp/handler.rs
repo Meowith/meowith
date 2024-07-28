@@ -56,6 +56,8 @@ pub trait ChannelPacketHandler: Send {
     async fn handle_reserve_cancel(&mut self, channel: Channel, chunk_id: Uuid)
         -> MDSFTPResult<()>;
 
+    async fn handle_delete_chunk(&mut self, channel: Channel, chunk_id: Uuid) -> MDSFTPResult<()>;
+
     async fn handle_interrupt(&mut self) -> MDSFTPResult<()>;
 }
 

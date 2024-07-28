@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use std::{env, fs, io};
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::time::Instant;
+    use std::{env, fs, io};
 
     use log::debug;
     use ntest::timeout;
@@ -127,8 +127,9 @@ mod tests {
             connection_auth_context.clone(),
             conn_map.clone(),
             server_handler,
+            Default::default(),
         )
-            .await;
+        .await;
         assert!(server.start(&cert, &key).await.is_ok());
 
         let client_ledger = FragmentLedger::new(

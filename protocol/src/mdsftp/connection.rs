@@ -3,7 +3,8 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use rand::{thread_rng, Rng};
+use rand::prelude::StdRng;
+use rand::{Rng, SeedableRng};
 use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
 use rustls::{ClientConfig, RootCertStore};
 use tokio::io::AsyncWriteExt;
@@ -181,7 +182,7 @@ impl InternalMDSFTPConnection {
     }
 
     async fn generate_id(&self) -> MDSFTPResult<u32> {
-        let mut rng = thread_rng();
+        let mut rng = StdRng::from_entropy();
         let map = self.reader.conn_map.read().await;
         let max_tries = 5;
         let max_ids = 1_000_000usize;
