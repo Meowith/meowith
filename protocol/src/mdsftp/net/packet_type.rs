@@ -15,6 +15,8 @@ pub(crate) enum MDSFTPPacketType {
     LockReq = 10u8,
     LockAcquire = 11u8,
     LockErr = 12u8,
+    PutOk = 13u8,
+    PutErr = 14u8,
     ChannelOpen = 138u8,
     ChannelClose = 129u8,
     ChannelErr = 130u8,
@@ -30,7 +32,7 @@ impl MDSFTPPacketType {
         match self {
             MDSFTPPacketType::FileChunk => 6,
             MDSFTPPacketType::Retrieve => 18,
-            MDSFTPPacketType::Put => 24,
+            MDSFTPPacketType::Put => 25,
             MDSFTPPacketType::RecvAck => 4,
             MDSFTPPacketType::Reserve => 9,
             MDSFTPPacketType::ReserveCancel => 16,
@@ -43,6 +45,8 @@ impl MDSFTPPacketType {
             MDSFTPPacketType::ChannelClose => 0,
             MDSFTPPacketType::ChannelErr => 0,
             MDSFTPPacketType::DeleteChunk => 16,
+            MDSFTPPacketType::PutOk => 2,
+            MDSFTPPacketType::PutErr => 1,
         }
     }
 }

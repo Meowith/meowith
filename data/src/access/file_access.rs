@@ -1,5 +1,6 @@
+use charybdis::operations::Insert;
 use charybdis::stream::CharybdisModelStream;
-use scylla::CachingSession;
+use scylla::{CachingSession, QueryResult};
 use uuid::Uuid;
 
 use crate::error::MeowithDataError;
@@ -47,4 +48,11 @@ pub async fn get_bucket(
         .execute(session)
         .await
         .map_err(|e| e.into())
+}
+
+pub async fn insert_file(
+    file: &File,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    file.insert().execute(session).await.map_err(|e| e.into())
 }

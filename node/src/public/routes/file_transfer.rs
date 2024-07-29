@@ -93,7 +93,7 @@ pub async fn start_upload_durable(
     req: web::Json<UploadSessionRequest>,
     data: web::Data<AppState>,
 ) -> NodeClientResponse<web::Json<UploadSessionStartResponse>> {
-    start_upload_session(path.0, path.1, accessor, req.0, &data.upload_manager).await
+    start_upload_session(path.0, path.1, accessor, req.0, data).await
 }
 
 #[put("/upload/put/{session_id}")]

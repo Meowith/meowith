@@ -2,7 +2,11 @@ use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::{error, HttpResponse};
 use derive_more::Display;
+use log::error;
 use serde::Serialize;
+
+use data::error::MeowithDataError;
+use protocol::mdsftp::error::MDSFTPError;
 
 pub type NodeClientResponse<T> = Result<T, NodeClientError>;
 
@@ -17,6 +21,7 @@ pub enum NodeClientError {
     InternalError,
     BadRequest,
     NotFound,
+    NoSuchSession,
     BadAuth,
     InsufficientStorage,
 }
@@ -29,6 +34,7 @@ impl error::ResponseError for NodeClientError {
             NodeClientError::BadAuth => StatusCode::UNAUTHORIZED,
             NodeClientError::InsufficientStorage => StatusCode::IM_A_TEAPOT,
             NodeClientError::NotFound => StatusCode::NOT_FOUND,
+            NodeClientError::NoSuchSession => StatusCode::NOT_FOUND,
         }
     }
 
@@ -38,5 +44,29 @@ impl error::ResponseError for NodeClientError {
             .json(ErrorResponse {
                 message: self.to_string(),
             })
+    }
+}
+
+impl From<MeowithDataError> for NodeClientError {
+    fn from(value: MeowithDataError) -> Self {
+        match value {
+            MeowithDataError::NotFound => NodeClientError::NotFound,
+            _ => {
+                error!("DB ERROR: {:?}", value);
+                NodeClientError::InternalError
+            }
+        }
+    }
+}
+
+impl From<MDSFTPError> for NodeClientError {
+    fn from(value: MDSFTPError) -> Self {
+        match value {
+            MDSFTPError::ReserveError(_) => NodeClientError::InsufficientStorage,
+            _ => {
+                error!("MDSFTP ERROR: {:?}", value);
+                NodeClientError::InternalError
+            }
+        }
     }
 }

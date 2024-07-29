@@ -9,7 +9,7 @@ use uuid::{Bytes, Uuid};
 
 use crate::mdsftp::channel_handle::{ChannelAwaitHandle, MDSFTPHandlerChannel};
 use crate::mdsftp::data::{
-    ChunkErrorKind, LockAcquireResult, LockKind, ReserveFlags, ReserveResult,
+    ChunkErrorKind, LockAcquireResult, LockKind, PutFlags, PutResult, ReserveFlags, ReserveResult,
 };
 use crate::mdsftp::error::{MDSFTPError, MDSFTPResult};
 use crate::mdsftp::handler::{
@@ -89,6 +89,15 @@ impl MDSFTPChannel {
         self._internal_channel.delete_chunk(id).await
     }
 
+    pub async fn request_put(
+        &self,
+        flags: PutFlags,
+        id: Uuid,
+        size: u64,
+    ) -> MDSFTPResult<PutResult> {
+        self._internal_channel.request_put(flags, id, size).await
+    }
+
     pub async fn set_incoming_handler(
         &self,
         handler: Box<dyn ChannelPacketHandler>,
@@ -147,6 +156,7 @@ pub(crate) struct InternalMDSFTPChannel {
 
     lock_sender: Mutex<Option<Sender<MDSFTPResult<LockAcquireResult>>>>,
     reserve_sender: Mutex<Option<Sender<MDSFTPResult<ReserveResult>>>>,
+    put_sender: Mutex<Option<Sender<MDSFTPResult<PutResult>>>>,
 }
 
 impl InternalMDSFTPChannel {
@@ -164,6 +174,7 @@ impl InternalMDSFTPChannel {
             incoming_handler: Mutex::new(None),
             mdsftp_handler_channel: Mutex::new(None),
             handler_sender: Mutex::new(None),
+            put_sender: Mutex::new(None),
         }
     }
 
@@ -252,6 +263,19 @@ impl InternalMDSFTPChannel {
         { Ok(()) }
     });
 
+    internal_sender_method!(payload_buffer this none respond_put_ok(MDSFTPPacketType::PutOk, chunk_buffer: u16) -> MDSFTPResult<()> {
+        { let _ = payload_buffer.write(&chunk_buffer.to_be_bytes()); }
+        { Ok(()) }
+    });
+
+    internal_sender_method!(payload_buffer this none respond_put_err(MDSFTPPacketType::PutErr, err: ChunkErrorKind) -> MDSFTPResult<()> {
+        {
+            let kind: u8 = err.into();
+            payload_buffer.push(kind);
+        }
+        { Ok(()) }
+    });
+
     internal_sender_method!(payload_buffer this none retrieve_req(MDSFTPPacketType::Retrieve, chunk_id: Uuid, chunk_buffer: u16) -> MDSFTPResult<()> {
         {
             let _ = payload_buffer.write(chunk_id.as_bytes().as_slice());
@@ -263,6 +287,19 @@ impl InternalMDSFTPChannel {
     internal_sender_method!(payload_buffer this none delete_chunk(MDSFTPPacketType::DeleteChunk, chunk_id: Uuid) -> MDSFTPResult<()> {
         { let _ = payload_buffer.write(chunk_id.as_bytes().as_slice()); }
         { Ok(()) }
+    });
+
+    internal_sender_method!(payload_buffer this lock request_put(MDSFTPPacketType::Put, flags: PutFlags, chunk_id: Uuid, size: u64) -> MDSFTPResult<PutResult> {
+        {
+            let flags: u8 = flags.into();
+            payload_buffer.push(flags);
+            let _ = payload_buffer.write(chunk_id.as_bytes().as_slice());
+            let _ = payload_buffer.write(&size.to_be_bytes());
+            let (tx, rx) = mpsc::channel(1);
+            *this.put_sender.lock().await = Some(tx);
+            rx
+        }
+        { lock.recv().await.ok_or(MDSFTPError::Interrupted)? }
     });
 
     pub(super) async fn send_chunk(
@@ -408,6 +445,27 @@ impl InternalMDSFTPChannel {
                 *self.lock_sender.lock().await = None;
                 return Ok(());
             }
+            MDSFTPPacketType::PutErr => {
+                if let Some(tx) = self.put_sender.lock().await.as_ref() {
+                    let err_kind: ChunkErrorKind = packet.payload[0].into();
+                    tx.send(Err(err_kind.into())).await.unwrap()
+                } else {
+                    debug!("Received a PutErr whilst not awaiting a lock");
+                }
+                *self.put_sender.lock().await = None;
+                return Ok(());
+            }
+            MDSFTPPacketType::PutOk => {
+                if let Some(tx) = self.put_sender.lock().await.as_ref() {
+                    let chunk_buffer: u16 =
+                        u16::from_be_bytes(packet.payload[0..2].try_into().unwrap());
+                    tx.send(Ok(PutResult { chunk_buffer })).await.unwrap()
+                } else {
+                    debug!("Received a PutOk whilst not awaiting a lock");
+                }
+                *self.put_sender.lock().await = None;
+                return Ok(());
+            }
             _ => {}
         }
 
@@ -444,14 +502,15 @@ impl InternalMDSFTPChannel {
                         .await?;
                 }
                 MDSFTPPacketType::Put => {
-                    let mut size_bytes = [0; 8];
-                    size_bytes.copy_from_slice(packet.payload[16..24].as_ref());
+                    let flags: PutFlags = packet.payload[0].into();
                     let chunk_id = Uuid::from_bytes(
-                        Bytes::try_from(&packet.payload.as_slice()[0..16])
+                        Bytes::try_from(&packet.payload.as_slice()[1..17])
                             .map_err(MDSFTPError::from)?,
                     );
-                    let size = u64::from_be_bytes(size_bytes);
-                    handler.handle_put(handler_channel, chunk_id, size).await?;
+                    let size = u64::from_be_bytes(packet.payload[17..25].try_into().unwrap());
+                    handler
+                        .handle_put(handler_channel, flags, chunk_id, size)
+                        .await?;
                 }
                 MDSFTPPacketType::Reserve => {
                     let flags: ReserveFlags = packet.payload[0].into();
@@ -520,6 +579,9 @@ impl InternalMDSFTPChannel {
             let _ = tx.send(Err(MDSFTPError::Interrupted)).await;
         }
         if let Some(tx) = self.handler_sender.lock().await.as_ref() {
+            let _ = tx.send(Err(MDSFTPError::Interrupted)).await;
+        }
+        if let Some(tx) = self.put_sender.lock().await.as_ref() {
             let _ = tx.send(Err(MDSFTPError::Interrupted)).await;
         }
 

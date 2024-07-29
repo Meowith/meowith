@@ -1,5 +1,6 @@
-use crate::mdsftp::error::MDSFTPError;
 use uuid::Uuid;
+
+use crate::mdsftp::error::MDSFTPError;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum LockKind {
@@ -68,11 +69,16 @@ pub struct ReserveFlags {
     pub durable: bool,
     /// Indicates that the channel is temporary, and that the file transfer will commence later
     pub temp: bool,
+    /// Prep already existing chunk for being overwritten.
+    pub overwrite: bool,
 }
 
 impl From<ReserveFlags> for u8 {
     fn from(value: ReserveFlags) -> Self {
-        value.auto_start as u8 + ((value.durable as u8) << 1u8) + ((value.temp as u8) << 2u8)
+        value.auto_start as u8
+            + ((value.durable as u8) << 1u8)
+            + ((value.temp as u8) << 2u8)
+            + ((value.overwrite as u8) << 3u8)
     }
 }
 
@@ -82,7 +88,25 @@ impl From<u8> for ReserveFlags {
             auto_start: (value & 1u8) != 0,
             durable: (value & 2u8) != 0,
             temp: (value & 4u8) != 0,
+            overwrite: (value & 8u8) != 0,
         }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub struct PutFlags {
+    // TODO
+}
+
+impl From<PutFlags> for u8 {
+    fn from(_: PutFlags) -> Self {
+        0
+    }
+}
+
+impl From<u8> for PutFlags {
+    fn from(_: u8) -> Self {
+        PutFlags {}
     }
 }
 
@@ -96,4 +120,9 @@ pub struct ReserveResult {
 pub struct LockAcquireResult {
     pub kind: LockKind,
     pub chunk_id: Uuid,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct PutResult {
+    pub chunk_buffer: u16,
 }

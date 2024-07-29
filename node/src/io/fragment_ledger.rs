@@ -37,7 +37,8 @@ const ORDERING_DISK_STORE: Ordering = Ordering::SeqCst;
 
 const AVAILABLE_BUFFER: u64 = 65535;
 
-// TODO: verify the fragments should exist with database
+// TODO: verify the fragments should exist with database.
+// TODO: allow for appending to chunks when restarting upload.
 
 #[allow(unused)]
 impl FragmentLedger {
@@ -192,6 +193,17 @@ impl FragmentLedger {
         Ok(Arc::new(Mutex::new(Box::pin(BufWriter::new(file)))))
     }
 
+    pub async fn fragment_append_stream(&self, id: &Uuid) -> MeowithIoResult<FragmentWriteStream> {
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open(self.get_path(id))
+            .await
+            .map_err(MeowithIoError::from)?;
+        Ok(Arc::new(Mutex::new(Box::pin(BufWriter::new(file)))))
+    }
+
     /// Remove a reservation instantly.
     /// Used when a client reserves space on multiple nodes, but not all the calls succeed.
     /// In that case, the client cancels every reservation it has made up to that point.
@@ -242,6 +254,19 @@ impl FragmentLedger {
 
         let reservation = broken.remove(id).ok_or(MeowithIoError::NotFound)?;
         reservations.insert(*id, reservation);
+        Ok(())
+    }
+
+    /// Moves the reservation into the idle 1H timeout state.
+    pub async fn pause_reservation(&self, id: &Uuid) -> MeowithIoResult<()> {
+        let mut reservations = self._internal.reservation_map.write().await;
+        let mut reservation = reservations.remove(id).ok_or(MeowithIoError::NotFound)?;
+        reservation.last_update = Instant::now();
+        self._internal
+            .broken_map
+            .write()
+            .await
+            .insert(*id, reservation);
         Ok(())
     }
 

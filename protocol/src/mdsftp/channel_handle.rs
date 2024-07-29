@@ -1,12 +1,14 @@
-use crate::mdsftp::channel::{InternalMDSFTPChannel, MDSFTPChannel};
-use crate::mdsftp::data::{ChunkErrorKind, LockKind};
-use crate::mdsftp::error::MDSFTPResult;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
+
 use tokio::sync::mpsc::Receiver;
 use uuid::Uuid;
+
+use crate::mdsftp::channel::{InternalMDSFTPChannel, MDSFTPChannel};
+use crate::mdsftp::data::{ChunkErrorKind, LockKind};
+use crate::mdsftp::error::MDSFTPResult;
 
 pub struct ChannelAwaitHandle {
     pub(crate) _receiver: Receiver<MDSFTPResult<()>>,
@@ -66,6 +68,14 @@ impl MDSFTPHandlerChannel {
 
     define_respond_method!(respond_receive_ack(chunk_id: u32) -> MDSFTPResult<()> {
         respond_receive_ack(chunk_id)
+    });
+
+    define_respond_method!(respond_put_ok(chunk_buffer: u16) -> MDSFTPResult<()> {
+        respond_put_ok(chunk_buffer)
+    });
+
+    define_respond_method!(respond_put_err(err: ChunkErrorKind) -> MDSFTPResult<()> {
+        respond_put_err(err)
     });
 
     define_respond_method!(close(result: MDSFTPResult<()>) -> () {

@@ -18,7 +18,7 @@ mod tests {
 
     use crate::mdsftp::authenticator::ConnectionAuthContext;
     use crate::mdsftp::channel::MDSFTPChannel;
-    use crate::mdsftp::data::{LockAcquireResult, LockKind, ReserveFlags};
+    use crate::mdsftp::data::{LockAcquireResult, LockKind, PutFlags, ReserveFlags};
     use crate::mdsftp::error::MDSFTPResult;
     use crate::mdsftp::handler::{Channel, ChannelPacketHandler, PacketHandler};
     use crate::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
@@ -133,9 +133,11 @@ mod tests {
         async fn handle_put(
             &mut self,
             channel: Channel,
+            _flags: PutFlags,
             _chunk_id: Uuid,
             _content_size: u64,
         ) -> MDSFTPResult<()> {
+            channel.respond_put_ok(8).await?;
             channel.close(Ok(())).await;
             Ok(())
         }
@@ -186,8 +188,8 @@ mod tests {
 
         async fn handle_delete_chunk(
             &mut self,
-            channel: Channel,
-            chunk_id: Uuid,
+            _channel: Channel,
+            _chunk_id: Uuid,
         ) -> MDSFTPResult<()> {
             Ok(())
         }
@@ -293,10 +295,18 @@ mod tests {
                         auto_start: true,
                         durable: false,
                         temp: false,
+                        overwrite: false,
                     },
                 )
                 .await;
             assert!(lock_req.is_ok());
+        }
+
+        {
+            debug!("Test Put");
+            let channel = client_pool.channel(&id1).await.unwrap();
+            let put_req = channel.request_put(PutFlags {}, Uuid::new_v4(), 1024).await;
+            assert!(put_req.is_ok());
         }
 
         client_pool.shutdown().await;

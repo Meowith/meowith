@@ -32,9 +32,23 @@ Flags: `is_last` (true/false)
 
 - **Put** (`put` Packet ID: 0x03)
 
-| Chunk ID | Chunk Size |
-|----------|------------|
-| 16 Bytes | 8 Bytes    |`
+| Flags  | Chunk ID | Chunk Size |
+|--------|----------|------------|
+| 1 Byte | 16 Bytes | 8 Bytes    |`
+
+- **PutOk** (`put_ok` Packet ID: 0x0D)
+
+| Chunk Buffer |
+|--------------|
+| 2 Bytes      |
+
+- **PutErr** (`put_err` Packet ID: 0x0E)
+
+| Flags   |
+|---------|
+| 1 Bytes |
+
+Flags: `error_kind` (not_found/internal)
 
 - **RecvAck** (`receive_ack`, Packet ID: 0x04)
 
@@ -56,7 +70,7 @@ Flags: `is_last` (true/false)
 |--------|--------------|
 | 1 Byte | 8 Bytes      |
 
-Flags: `Auto-start` (yes/no), `Durable` (yes\no)
+Flags: `Auto-start` (yes/no), `Durable` (yes\no), `Overwrite` (yes/no)
 
 - **Reserve Cancel** (`reserve_cancel` Packet ID: 0x07)
 

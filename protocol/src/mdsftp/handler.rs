@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::mdsftp::channel::MDSFTPChannel;
 use crate::mdsftp::channel_handle::MDSFTPHandlerChannel;
-use crate::mdsftp::data::{LockKind, ReserveFlags};
+use crate::mdsftp::data::{LockKind, PutFlags, ReserveFlags};
 use crate::mdsftp::error::MDSFTPResult;
 
 pub type Channel = MDSFTPHandlerChannel;
@@ -33,6 +33,7 @@ pub trait ChannelPacketHandler: Send {
     async fn handle_put(
         &mut self,
         channel: Channel,
+        flags: PutFlags,
         chunk_id: Uuid,
         content_size: u64,
     ) -> MDSFTPResult<()>;
