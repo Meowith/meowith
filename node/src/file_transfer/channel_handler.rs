@@ -357,7 +357,7 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         if flags.r#final {
             let _ = self.fragment_ledger.commit_chunk(&chunk_id).await;
         } else if flags.keep_alive {
-            todo!("keep alive")
+            let _ = self.fragment_ledger.commit_alive(&chunk_id).await;
         } else if flags.reject {
             let _ = self.fragment_ledger.delete_chunk(&chunk_id).await;
         }

@@ -303,7 +303,14 @@ async fn commit_chunk(
     state: &Data<AppState>,
 ) -> NodeClientResponse<()> {
     if node_id == state.req_ctx.id {
-        todo!("fragment ledger commit :O")
+        if flags.r#final {
+            let _ = state.fragment_ledger.commit_chunk(&chunk_id).await;
+        } else if flags.keep_alive {
+            let _ = state.fragment_ledger.commit_alive(&chunk_id).await;
+        } else if flags.reject {
+            let _ = state.fragment_ledger.delete_chunk(&chunk_id).await;
+        }
+        Ok(())
     } else {
         let pool = state.mdsftp_server.pool();
         let channel = pool.channel(&node_id).await?;

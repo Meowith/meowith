@@ -196,11 +196,11 @@ mod tests {
 
         async fn handle_commit(
             &mut self,
-            channel: Channel,
-            chunk_id: Uuid,
-            flags: CommitFlags,
+            _channel: Channel,
+            _chunk_id: Uuid,
+            _flags: CommitFlags,
         ) -> MDSFTPResult<()> {
-            todo!()
+            Ok(())
         }
 
         async fn handle_interrupt(&mut self) -> MDSFTPResult<()> {

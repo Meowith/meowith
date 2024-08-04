@@ -80,7 +80,7 @@ async fn main() -> std::io::Result<()> {
     let _ = connect_catche(
         config.cnc_addr.as_str(),
         global_conf.clone(),
-        req_ctx.id.clone(),
+        req_ctx.id,
         req_ctx.security_context.root_x509.clone(),
         req_ctx.security_context.access_token.clone(),
     )

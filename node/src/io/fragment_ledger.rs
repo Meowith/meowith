@@ -1,4 +1,5 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -68,6 +69,7 @@ impl FragmentLedger {
                 interval.tick().await;
                 let _ = housekeeper_arc.validate_max_space().await;
                 let _ = housekeeper_arc.clean_broken_chunks().await;
+                let _ = housekeeper_arc.clean_uncommitted().await;
             }
         }));
 
@@ -150,41 +152,11 @@ impl FragmentLedger {
     }
 
     fn get_path(&self, chunk_id: &Uuid, uncommited: bool) -> PathBuf {
-        if uncommited {
-            self.get_path_uncommited(chunk_id)
-        } else {
-            let mut path = self._internal.root_path.clone();
-            path.push(chunk_id.to_string());
-            path
-        }
-    }
-
-    fn get_path_uncommited(&self, chunk_id: &Uuid) -> PathBuf {
-        let mut path = self._internal.root_path.clone();
-        path.push(format!("{chunk_id}.uncommited"));
-        path
+        self._internal.get_path(chunk_id, uncommited)
     }
 
     pub async fn delete_chunk(&self, chunk_id: &Uuid) -> MeowithIoResult<()> {
-        let mut uncommited = self._internal.uncommited_map.write().await;
-        let uncommited = uncommited.remove(chunk_id);
-        let path = self.get_path(chunk_id, uncommited);
-        tokio::fs::remove_file(path)
-            .await
-            .map_err(|_| MeowithIoError::Internal(None))?;
-        let mut chunks = self._internal.chunk_set.write().await;
-        let chunk = chunks.remove(chunk_id);
-
-        if let Some(chunk) = chunk {
-            self._internal
-                .disk_content_size
-                .fetch_sub(chunk.disk_content_size, ORDERING_DISK_STORE);
-            self._internal
-                .disk_physical_size
-                .fetch_sub(chunk.disk_physical_size, ORDERING_DISK_STORE);
-        }
-
-        Ok(())
+        self._internal.delete_chunk(chunk_id).await
     }
 
     pub async fn fragment_read_stream(
@@ -233,7 +205,7 @@ impl FragmentLedger {
         if let Some(reservation) = reservations.remove(id) {
             let mut uncommited = self._internal.uncommited_map.write().await;
             let uncommited = uncommited.remove(id);
-            let path = &self.get_path(id, uncommited);
+            let path = &self.get_path(id, uncommited.is_some());
             self._internal
                 .disk_reserved_size
                 .fetch_sub(reservation.file_space, ORDERING_DISK_STORE);
@@ -268,7 +240,7 @@ impl FragmentLedger {
             .fetch_add(size, ORDERING_DISK_STORE);
 
         let mut uncommited = self._internal.uncommited_map.write().await;
-        uncommited.insert(id);
+        uncommited.insert(id, CommitInfo::new());
 
         Ok(id)
     }
@@ -315,7 +287,7 @@ impl FragmentLedger {
         let transfer_completed = size_actual == reservation.file_space;
         let expected = reservation.file_space;
         let mut uncommited = self._internal.uncommited_map.write().await;
-        let is_uncommited = uncommited.contains(id);
+        let is_uncommited = uncommited.contains_key(id);
         let path = &self.get_path(id, is_uncommited);
 
         if transfer_completed {
@@ -368,12 +340,23 @@ impl FragmentLedger {
     pub async fn commit_chunk(&self, id: &Uuid) -> MeowithIoResult<()> {
         let mut uncommited = self._internal.uncommited_map.write().await;
         let uncommited = uncommited.remove(id);
-        if uncommited {
+        if uncommited.is_some() {
             tokio::fs::rename(self.get_path(id, true), self.get_path(id, false))
                 .await
                 .map_err(|_| MeowithIoError::Internal(None))?;
         }
         Ok(())
+    }
+
+    /// Update the timeout on the chunk.
+    pub(crate) async fn commit_alive(&self, chunk_id: &Uuid) -> MeowithIoResult<()> {
+        match self._internal.uncommited_map.write().await.entry(*chunk_id) {
+            Entry::Occupied(mut entry) => {
+                entry.insert(CommitInfo::new());
+                Ok(())
+            }
+            Entry::Vacant(_) => Err(MeowithIoError::NotFound),
+        }
     }
 
     pub fn get_available_space(&self) -> u64 {
@@ -398,11 +381,23 @@ pub struct Reservation {
     pub last_update: Instant,
 }
 
-#[allow(unused)]
 #[derive(Clone, Debug)]
 pub struct FragmentMeta {
     pub disk_content_size: u64,
     pub disk_physical_size: u64,
+}
+
+#[derive(Clone, Debug)]
+struct CommitInfo {
+    pub access: Instant,
+}
+
+impl CommitInfo {
+    fn new() -> Self {
+        CommitInfo {
+            access: Instant::now(),
+        }
+    }
 }
 
 #[allow(unused)]
@@ -412,7 +407,7 @@ struct InternalLedger {
     chunk_set: RwLock<HashMap<Uuid, FragmentMeta>>,
     reservation_map: RwLock<HashMap<Uuid, Reservation>>,
     broken_map: RwLock<HashMap<Uuid, Reservation>>,
-    uncommited_map: RwLock<HashSet<Uuid>>,
+    uncommited_map: RwLock<HashMap<Uuid, CommitInfo>>,
 
     housekeeper_handle: std::sync::Mutex<Option<JoinHandle<()>>>,
 
@@ -440,6 +435,7 @@ impl InternalLedger {
 
     async fn clean_broken_chunks(&self) -> MeowithIoResult<()> {
         let mut broken = self.broken_map.write().await;
+        let mut uncommitted = self.uncommited_map.write().await;
         let mut mark = vec![];
         let max = Duration::from_secs(3600);
 
@@ -451,7 +447,8 @@ impl InternalLedger {
 
         debug!("Sweeping {} broken chunks", mark.len());
         for sweep in mark {
-            let path = &self.get_path(&sweep);
+            let uncommited = uncommitted.remove(&sweep).is_some();
+            let path = &self.get_path(&sweep, uncommited);
             let reservation = broken.remove(&sweep).unwrap();
             tokio::fs::remove_file(path)
                 .await
@@ -463,9 +460,62 @@ impl InternalLedger {
         Ok(())
     }
 
-    fn get_path(&self, id: &Uuid) -> PathBuf {
+    async fn clean_uncommitted(&self) -> MeowithIoResult<()> {
+        let mut mark = vec![];
+        let max = Duration::from_secs(3600);
+
+        {
+            let uncommitted = self.uncommited_map.read().await;
+            for (id, info) in &*uncommitted {
+                if info.access.elapsed() > max {
+                    mark.push(*id);
+                }
+            }
+        }
+
+        debug!("Sweeping {} uncommitted chunks", mark.len());
+
+        for sweep in mark {
+            self.delete_chunk(&sweep).await?
+        }
+
+        Ok(())
+    }
+
+    pub async fn delete_chunk(&self, chunk_id: &Uuid) -> MeowithIoResult<()> {
+        let mut uncommited = self.uncommited_map.write().await;
+        let uncommited = uncommited.remove(chunk_id);
+        let path = self.get_path(chunk_id, uncommited.is_some());
+        tokio::fs::remove_file(path)
+            .await
+            .map_err(|_| MeowithIoError::NotFound)?;
+
+        if let Some(chunk) = self.chunk_set.write().await.remove(chunk_id) {
+            self.disk_content_size
+                .fetch_sub(chunk.disk_content_size, ORDERING_DISK_STORE);
+            self.disk_physical_size
+                .fetch_sub(chunk.disk_physical_size, ORDERING_DISK_STORE);
+        } else if let Some(broken) = self.broken_map.write().await.remove(chunk_id) {
+            self.disk_reserved_size
+                .fetch_sub(broken.file_space, ORDERING_DISK_STORE);
+        }
+
+        Ok(())
+    }
+
+    fn get_path(&self, chunk_id: &Uuid, uncommited: bool) -> PathBuf {
+        if uncommited {
+            self.get_path_uncommited(chunk_id)
+        } else {
+            let mut path = self.root_path.clone();
+            path.push(chunk_id.to_string());
+            path
+        }
+    }
+
+    fn get_path_uncommited(&self, chunk_id: &Uuid) -> PathBuf {
         let mut path = self.root_path.clone();
-        path.push(id.to_string());
+        path.push(format!("{chunk_id}.uncommited"));
         path
     }
 }
