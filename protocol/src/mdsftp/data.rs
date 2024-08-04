@@ -95,18 +95,69 @@ impl From<u8> for ReserveFlags {
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct PutFlags {
-    // TODO
+    pub append: bool,
 }
 
 impl From<PutFlags> for u8 {
-    fn from(_: PutFlags) -> Self {
-        0
+    fn from(value: PutFlags) -> Self {
+        value.append as u8
     }
 }
 
 impl From<u8> for PutFlags {
-    fn from(_: u8) -> Self {
-        PutFlags {}
+    fn from(value: u8) -> Self {
+        PutFlags {
+            append: (value & 1u8) != 0,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub struct CommitFlags {
+    pub reject: bool,
+    pub keep_alive: bool,
+    pub r#final: bool,
+}
+
+impl CommitFlags {
+    pub fn reject() -> Self {
+        CommitFlags {
+            reject: true,
+            keep_alive: false,
+            r#final: false,
+        }
+    }
+
+    pub fn keep_alive() -> Self {
+        CommitFlags {
+            reject: false,
+            keep_alive: true,
+            r#final: false,
+        }
+    }
+
+    pub fn r#final() -> Self {
+        CommitFlags {
+            reject: false,
+            keep_alive: false,
+            r#final: true,
+        }
+    }
+}
+
+impl From<CommitFlags> for u8 {
+    fn from(value: CommitFlags) -> Self {
+        value.reject as u8 + ((value.keep_alive as u8) << 1) + ((value.r#final as u8) << 2)
+    }
+}
+
+impl From<u8> for CommitFlags {
+    fn from(value: u8) -> Self {
+        CommitFlags {
+            reject: (value & 1u8) != 0,
+            keep_alive: (value & 2u8) != 0,
+            r#final: (value & 4u8) != 0,
+        }
     }
 }
 

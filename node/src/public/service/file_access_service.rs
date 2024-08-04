@@ -1,24 +1,26 @@
-use std::collections::HashSet;
-use std::path::Path;
-
 use actix_web::http::header::ContentType;
 use actix_web::web;
 use actix_web::web::Data;
 use chrono::Utc;
+use futures_util::future::try_join_all;
 use lazy_static::lazy_static;
 use log::debug;
 use mime_guess::mime;
-use tokio::io;
+use std::collections::HashSet;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Mutex;
+use tokio::{io, time};
 use uuid::Uuid;
 
 use commons::context::microservice_request_context::NodeStorageMap;
 use commons::permission::PermissionList;
-use data::access::file_access::{get_file, insert_file};
-use data::model::file_model::{File, FileChunk};
+use data::access::file_access::{delete_file, get_bucket, get_file, insert_file};
+use data::model::file_model::{Bucket, File, FileChunk};
 use data::model::permission_model::UserPermission;
 use protocol::mdsftp::channel::MDSFTPChannel;
-use protocol::mdsftp::channel_handle::ChannelAwaitHandle;
-use protocol::mdsftp::data::{PutFlags, ReserveFlags};
+use protocol::mdsftp::data::{CommitFlags, PutFlags, ReserveFlags};
 use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 
@@ -51,7 +53,7 @@ pub struct DlInfo {
 
 pub async fn handle_upload_oneshot(
     app_id: Uuid,
-    bucket: Uuid,
+    bucket_id: Uuid,
     path: String,
     size: u64,
     app_state: Data<AppState>,
@@ -59,18 +61,34 @@ pub async fn handle_upload_oneshot(
     reader: AbstractReadStream,
 ) -> NodeClientResponse<()> {
     // quit early if the user cannot upload at all.
-    accessor.has_permission(&bucket, &app_id, *UPLOAD_ALLOWANCE)?;
+    accessor.has_permission(&bucket_id, &app_id, *UPLOAD_ALLOWANCE)?;
     let path = split_path(path);
 
+    let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
+
     // check if the file will be overwritten and if the user can do that.
-    let file = get_file(bucket, path.0.clone(), path.1.clone(), &app_state.session).await;
+    let file = get_file(
+        bucket_id,
+        path.0.clone(),
+        path.1.clone(),
+        &app_state.session,
+    )
+    .await;
+    let mut old_file: Option<File> = None;
     let overwrite = if file.is_ok() {
-        accessor.has_permission(&bucket, &app_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
+        accessor.has_permission(&bucket_id, &app_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
+        old_file = Some(file.unwrap());
+        if !bucket.atomic_upload {
+            do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
+        }
         true
-        // TODO config
     } else {
         false
     };
+
+    if bucket.space_taken.0 + size as i64 > bucket.quota {
+        return Err(NodeClientError::InsufficientStorage);
+    }
 
     let reservation = reserve_chunks(
         size,
@@ -85,10 +103,30 @@ pub async fn handle_upload_oneshot(
     )
     .await?;
 
-    let mut chunks: HashSet<FileChunk> = HashSet::new();
+    let data = app_state.clone();
+    let chunks: Arc<Mutex<HashSet<FileChunk>>> = Default::default();
+    let chunks_clone = chunks.clone();
+
+    let notifier = tokio::spawn(async move {
+        let mut interval = time::interval(Duration::from_secs(10 * 60));
+        loop {
+            interval.tick().await;
+            let mut futures = vec![];
+            for chunk in &*chunks_clone.lock().await {
+                futures.push(commit_chunk(
+                    CommitFlags::keep_alive(),
+                    chunk.server_id,
+                    chunk.chunk_id,
+                    &data,
+                ));
+            }
+            let _ = try_join_all(futures).await;
+        }
+    });
+
     let transfer_result: NodeClientResponse<()> = async {
         for (i, space) in (0_i8..).zip(reservation.fragments.into_iter()) {
-            chunks.insert(FileChunk {
+            chunks.lock().await.insert(FileChunk {
                 server_id: space.node_id,
                 chunk_id: space.chunk_id,
                 chunk_size: space.size as i64,
@@ -100,8 +138,11 @@ pub async fn handle_upload_oneshot(
                 space.node_id,
                 space.chunk_id,
                 space.channel,
-                space.chunk_buffer,
-                space.size,
+                ChunkInfo {
+                    chunk_buffer: space.chunk_buffer,
+                    size: space.size,
+                    append: false, // always the case for non-durable uploads.
+                },
                 &app_state,
             )
             .await?;
@@ -114,32 +155,51 @@ pub async fn handle_upload_oneshot(
         let err = transfer_result.unwrap_err();
         debug!("Oneshot upload failure, deleting. {}", &err);
 
-        for chunk in chunks {
-            let res = delete_chunk(chunk.server_id, chunk.chunk_id, &app_state).await;
-            if res.is_err() {
-                debug!("Delete err. {}", res.unwrap_err());
-            }
+        let mut futures = vec![];
+        for chunk in &*chunks.lock().await {
+            futures.push(commit_chunk(
+                CommitFlags::reject(),
+                chunk.server_id,
+                chunk.chunk_id,
+                &app_state,
+            ));
         }
+        try_join_all(futures).await?;
 
         return Err(err);
     }
 
-    // TODO commit stuff validate bucket space and increment file counter.
+    notifier.abort();
+
+    let mut futures = vec![];
+    for chunk in &*chunks.lock().await {
+        futures.push(commit_chunk(
+            CommitFlags::r#final(),
+            chunk.server_id,
+            chunk.server_id,
+            &app_state,
+        ))
+    }
+    try_join_all(futures).await?;
 
     let now = Utc::now();
-    insert_file(
-        &File {
-            bucket_id: bucket,
-            directory: path.0,
-            name: path.1,
-            size: size as i64,
-            chunk_ids: chunks,
-            created: now,
-            last_modified: now,
-        },
-        &app_state.session,
-    )
-    .await?;
+    let chunks = chunks.lock().await.clone();
+
+    let file = File {
+        bucket_id,
+        directory: path.0,
+        name: path.1,
+        size: size as i64,
+        chunk_ids: chunks,
+        created: now,
+        last_modified: now,
+    };
+
+    insert_file(&file, &bucket, &app_state.session).await?;
+
+    if bucket.atomic_upload && old_file.is_some() {
+        do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
+    }
 
     Ok(())
 }
@@ -172,7 +232,7 @@ pub async fn start_upload_session(
         ReserveFlags {
             auto_start: false,
             durable: true,
-            temp: true, // TODO channel handler. will re-open channels later.
+            temp: true,
             overwrite,
         },
         ReservationMode::PreferSelfThenMostFree,
@@ -197,10 +257,13 @@ pub async fn start_upload_session(
 }
 
 pub async fn handle_upload_durable(
-    _session_id: Uuid,
+    session_id: Uuid,
     _accessor: BucketAccessor,
     _reader: AbstractReadStream,
-) -> NodeClientResponse<ChannelAwaitHandle> {
+    app_state: Data<AppState>,
+) -> NodeClientResponse<()> {
+    let _session = app_state.upload_manager.get_session(&session_id).await?;
+
     todo!()
 }
 
@@ -233,6 +296,25 @@ pub async fn handle_download(
     })
 }
 
+async fn commit_chunk(
+    flags: CommitFlags,
+    node_id: Uuid,
+    chunk_id: Uuid,
+    state: &Data<AppState>,
+) -> NodeClientResponse<()> {
+    if node_id == state.req_ctx.id {
+        todo!("fragment ledger commit :O")
+    } else {
+        let pool = state.mdsftp_server.pool();
+        let channel = pool.channel(&node_id).await?;
+        channel
+            .commit(chunk_id, flags)
+            .await
+            .map_err(NodeClientError::from)
+    }
+}
+
+#[allow(unused)]
 async fn delete_chunk(
     node_id: Uuid,
     chunk_id: Uuid,
@@ -254,21 +336,49 @@ async fn delete_chunk(
     }
 }
 
+pub struct ChunkInfo {
+    pub chunk_buffer: u16,
+    pub size: u64,
+    pub append: bool,
+}
+
+// TODO err handling
+async fn do_delete_file(
+    file: &File,
+    bucket: &Bucket,
+    state: &Data<AppState>,
+) -> NodeClientResponse<()> {
+    for chunk in &file.chunk_ids {
+        if chunk.server_id == state.req_ctx.id {
+            let _ = state.fragment_ledger.delete_chunk(&chunk.chunk_id).await;
+        } else if let Ok(channel) = state.mdsftp_server.pool().channel(&chunk.server_id).await {
+            let _ = channel.delete_chunk(chunk.chunk_id).await;
+        }
+    }
+
+    delete_file(file, bucket, &state.session).await?;
+
+    Ok(())
+}
+
 async fn inbound_transfer(
     reader: AbstractReadStream,
     node_id: Uuid,
     chunk_id: Uuid,
     channel: Option<MDSFTPChannel>,
-    chunk_buffer: u16,
-    size: u64,
+    chunk: ChunkInfo,
     state: &Data<AppState>,
 ) -> NodeClientResponse<()> {
     if node_id == state.req_ctx.id {
-        let writer = state
-            .fragment_ledger
-            .fragment_write_stream(&chunk_id)
-            .await
-            .map_err(|_| NodeClientError::InternalError)?;
+        let writer = if chunk.append {
+            state.fragment_ledger.fragment_write_stream(&chunk_id).await
+        } else {
+            state
+                .fragment_ledger
+                .fragment_append_stream(&chunk_id)
+                .await
+        }
+        .map_err(|_| NodeClientError::InternalError)?;
         let mut writer = writer.lock().await;
         let mut reader = reader.lock().await;
         io::copy(&mut *reader, &mut *writer)
@@ -281,7 +391,15 @@ async fn inbound_transfer(
         match channel {
             None => {
                 let channel = pool.channel(&node_id).await?;
-                channel.request_put(PutFlags {}, chunk_id, size).await?;
+                channel
+                    .request_put(
+                        PutFlags {
+                            append: chunk.append,
+                        },
+                        chunk_id,
+                        chunk.size,
+                    )
+                    .await?;
                 eff_channel = channel;
             }
             Some(c) => eff_channel = c,
@@ -293,7 +411,7 @@ async fn inbound_transfer(
             pool.cfg.fragment_size,
         ));
         let handle = eff_channel
-            .send_content(reader, size, chunk_buffer, handler)
+            .send_content(reader, chunk.size, chunk.chunk_buffer, handler)
             .await?;
 
         handle.await.map_or(Ok(()), |e| e)?;
@@ -515,7 +633,7 @@ fn split_path(file_path: String) -> (String, String) {
 
 #[cfg(test)]
 mod tests {
-    use crate::public::service::file_access::split_path;
+    use crate::public::service::file_access_service::split_path;
 
     #[test]
     fn test_split_path() {

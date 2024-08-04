@@ -8,6 +8,8 @@ use serde::Serialize;
 use data::error::MeowithDataError;
 use protocol::mdsftp::error::MDSFTPError;
 
+use crate::io::error::MeowithIoError;
+
 pub type NodeClientResponse<T> = Result<T, NodeClientError>;
 
 #[derive(Serialize)]
@@ -53,6 +55,18 @@ impl From<MeowithDataError> for NodeClientError {
             MeowithDataError::NotFound => NodeClientError::NotFound,
             _ => {
                 error!("DB ERROR: {:?}", value);
+                NodeClientError::InternalError
+            }
+        }
+    }
+}
+
+impl From<MeowithIoError> for NodeClientError {
+    fn from(value: MeowithIoError) -> Self {
+        match value {
+            MeowithIoError::NotFound => NodeClientError::NotFound,
+            _ => {
+                error!("MEOWITH IO ERROR: {:?}", value);
                 NodeClientError::InternalError
             }
         }

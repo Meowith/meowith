@@ -1,18 +1,20 @@
-use async_trait::async_trait;
-use commons::context::microservice_request_context::MicroserviceRequestContext;
-use protocol::mdsftp::authenticator::MDSFTPConnectionAuthenticator;
-use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
 use std::sync::Arc;
+
+use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use uuid::Uuid;
+
+use commons::context::microservice_request_context::MicroserviceRequestContext;
+use protocol::mdsftp::authenticator::MeowithConnectionAuthenticator;
+use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
 
 pub struct MeowithMDSFTPConnectionAuthenticator {
     pub req_ctx: Arc<MicroserviceRequestContext>,
 }
 
 #[async_trait]
-impl MDSFTPConnectionAuthenticator for MeowithMDSFTPConnectionAuthenticator {
+impl MeowithConnectionAuthenticator for MeowithMDSFTPConnectionAuthenticator {
     async fn authenticate_outgoing(
         &self,
         stream: &mut tokio_rustls::TlsStream<TcpStream>,

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use log::{debug, LevelFilter};
+use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;

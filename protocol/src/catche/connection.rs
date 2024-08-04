@@ -23,12 +23,16 @@ impl CatcheConnection {
         })
     }
 
-    pub async fn write_invalidate_packet(&self) -> std::io::Result<()> {
+    pub async fn write_invalidate_packet(
+        &self,
+        cache_id: u32,
+        cache_key_size: String,
+    ) -> std::io::Result<()> {
         self._internal_connection
             .writer
             .lock()
             .await
-            .write_invalidate_packet()
+            .write_invalidate_packet(cache_id, cache_key_size)
             .await
     }
 
@@ -39,6 +43,16 @@ impl CatcheConnection {
             .lock()
             .await
             .write(uuid.as_bytes())
+            .await
+    }
+
+    #[allow(unused)]
+    pub async fn write_token(&self, token: String) -> std::io::Result<()> {
+        self._internal_connection
+            .writer
+            .lock()
+            .await
+            .write(token.as_bytes())
             .await
     }
 }

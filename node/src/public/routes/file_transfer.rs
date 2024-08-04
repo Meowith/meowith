@@ -13,7 +13,7 @@ use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::{NodeClientError, NodeClientResponse};
-use crate::public::service::file_access::{
+use crate::public::service::file_access_service::{
     handle_download, handle_upload_durable, handle_upload_oneshot, start_upload_session,
 };
 use crate::AppState;
@@ -101,12 +101,16 @@ pub async fn upload_durable(
     path: web::Path<Uuid>,
     accessor: BucketAccessor,
     mut payload: web::Payload,
+    data: web::Data<AppState>,
 ) -> NodeClientResponse<HttpResponse> {
     let (mut sender, receiver) = tokio::io::duplex(USER_TRANSFER_BUFFER);
 
     let abstract_reader: AbstractReadStream =
         Arc::new(Mutex::new(Box::pin(BufReader::new(receiver))));
-    let channel_handle = handle_upload_durable(*path, accessor, abstract_reader).await?;
+    let channel_handle =
+        tokio::spawn(
+            async move { handle_upload_durable(*path, accessor, abstract_reader, data).await },
+        );
 
     while let Some(item) = payload.next().await {
         let item = item.map_err(|_| NodeClientError::BadRequest)?;
@@ -116,10 +120,9 @@ pub async fn upload_durable(
             .map_err(|_| NodeClientError::InternalError)?;
     }
 
-    match channel_handle.await {
-        None => {}
-        Some(err) => err.map_err(|_| NodeClientError::InternalError)?,
-    }
+    channel_handle
+        .await
+        .map_err(|_| NodeClientError::InternalError)??;
 
     Ok(HttpResponse::Ok().finish())
 }

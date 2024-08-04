@@ -11,7 +11,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use protocol::mdsftp::data::{ChunkErrorKind, LockKind, PutFlags, ReserveFlags};
+use protocol::mdsftp::data::{ChunkErrorKind, CommitFlags, LockKind, PutFlags, ReserveFlags};
 use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
 use protocol::mdsftp::handler::{
     AbstractReadStream, AbstractWriteStream, Channel, ChannelPacketHandler, DownloadDelegator,
@@ -59,7 +59,7 @@ impl MeowithMDSFTPChannelPacketHandler {
 }
 
 impl MeowithMDSFTPChannelPacketHandler {
-    async fn start_receiving(&mut self, id: Uuid) -> MDSFTPResult<()> {
+    async fn start_receiving(&mut self, id: Uuid, append: bool) -> MDSFTPResult<()> {
         self.write_guard = Some(Arc::new(
             self.fragment_ledger
                 .lock_table()
@@ -68,10 +68,12 @@ impl MeowithMDSFTPChannelPacketHandler {
                 .map_err(|_| MDSFTPError::ReservationError)?,
         ));
         self.receive_file_stream = Some(
-            self.fragment_ledger
-                .fragment_write_stream(&id)
-                .await
-                .map_err(|_| MDSFTPError::RemoteError)?,
+            if append {
+                self.fragment_ledger.fragment_write_stream(&id).await
+            } else {
+                self.fragment_ledger.fragment_append_stream(&id).await
+            }
+            .map_err(|_| MDSFTPError::RemoteError)?,
         );
 
         Ok(())
@@ -208,15 +210,21 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
     async fn handle_put(
         &mut self,
         channel: Channel,
-        _flags: PutFlags,
+        flags: PutFlags,
         chunk_id: Uuid,
-        _content_size: u64,
+        content_size: u64,
     ) -> MDSFTPResult<()> {
         match self.fragment_ledger.resume_reservation(&chunk_id).await {
-            Ok(_) => {
-                // TODO validate size
-                self.start_receiving(chunk_id).await?;
-                channel.respond_put_ok(self.chunk_buffer).await?;
+            Ok(reservation) => {
+                if content_size == reservation.file_space - reservation.completed {
+                    self.start_receiving(chunk_id, flags.append).await?;
+                    channel.respond_put_ok(self.chunk_buffer).await?;
+                } else {
+                    channel
+                        .respond_put_err(ChunkErrorKind::NotAvailable)
+                        .await?;
+                    channel.close(Ok(())).await;
+                }
             }
             Err(MeowithIoError::NotFound) => {
                 channel.respond_put_err(ChunkErrorKind::NotFound).await?;
@@ -252,7 +260,8 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
                 });
 
                 if flags.auto_start {
-                    self.start_receiving(id).await?;
+                    // Only case is when an upload is non-durable, which would be non-append anyway.
+                    self.start_receiving(id, false).await?;
                 }
                 channel.respond_reserve_ok(id, self.chunk_buffer).await?;
                 if flags.temp {
@@ -335,6 +344,24 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
 
     async fn handle_delete_chunk(&mut self, channel: Channel, chunk_id: Uuid) -> MDSFTPResult<()> {
         let _ = self.fragment_ledger.delete_chunk(&chunk_id).await;
+        channel.close(Ok(())).await;
+        Ok(())
+    }
+
+    async fn handle_commit(
+        &mut self,
+        channel: Channel,
+        chunk_id: Uuid,
+        flags: CommitFlags,
+    ) -> MDSFTPResult<()> {
+        if flags.r#final {
+            let _ = self.fragment_ledger.commit_chunk(&chunk_id).await;
+        } else if flags.keep_alive {
+            todo!("keep alive")
+        } else if flags.reject {
+            let _ = self.fragment_ledger.delete_chunk(&chunk_id).await;
+        }
+
         channel.close(Ok(())).await;
         Ok(())
     }

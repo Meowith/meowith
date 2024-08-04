@@ -17,7 +17,8 @@ pub(crate) enum MDSFTPPacketType {
     LockErr = 12u8,
     PutOk = 13u8,
     PutErr = 14u8,
-    ChannelOpen = 138u8,
+    Commit = 15u8,
+    ChannelOpen = 128u8,
     ChannelClose = 129u8,
     ChannelErr = 130u8,
 }
@@ -47,6 +48,7 @@ impl MDSFTPPacketType {
             MDSFTPPacketType::DeleteChunk => 16,
             MDSFTPPacketType::PutOk => 2,
             MDSFTPPacketType::PutErr => 1,
+            MDSFTPPacketType::Commit => 17,
         }
     }
 }

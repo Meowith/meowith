@@ -1,12 +1,13 @@
-use crate::mdsftp::error::MDSFTPResult;
 use async_trait::async_trait;
 use openssl::x509::X509;
 use tokio::net::TcpStream;
 use tokio_rustls::TlsStream;
 use uuid::Uuid;
 
+use crate::mdsftp::error::MDSFTPResult;
+
 #[async_trait]
-pub trait MDSFTPConnectionAuthenticator: Send + Sync {
+pub trait MeowithConnectionAuthenticator: Send + Sync {
     /// Used when opening a new connection to a remote server.
     async fn authenticate_outgoing(&self, stream: &mut TlsStream<TcpStream>) -> MDSFTPResult<()>;
 
@@ -21,7 +22,7 @@ pub trait MDSFTPConnectionAuthenticator: Send + Sync {
 
 pub struct ConnectionAuthContext {
     pub root_certificate: X509,
-    pub authenticator: Option<Box<dyn MDSFTPConnectionAuthenticator>>,
+    pub authenticator: Option<Box<dyn MeowithConnectionAuthenticator>>,
     pub port: u16,
     pub own_id: Uuid,
 }

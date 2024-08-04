@@ -1,8 +1,8 @@
-pub mod catche_server;
-pub mod error;
-mod connection;
-mod handler;
-mod writer;
-mod reader;
 mod catche_client;
+pub mod catche_server;
+mod connection;
+pub mod error;
+mod handler;
+mod reader;
 mod tests;
+mod writer;

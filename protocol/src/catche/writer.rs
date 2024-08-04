@@ -3,8 +3,7 @@ use tokio::net::TcpStream;
 use tokio::time::Instant;
 use tokio_rustls::TlsStream;
 
-pub const PACKET_SIZE: usize = 1;
-pub const INVALIDATE_PAYLOAD: [u8; 1] = [1];
+pub const INITIAL_SIZE: usize = 8;
 
 #[derive(Debug)]
 pub(crate) struct PacketWriter {
@@ -20,8 +19,14 @@ impl PacketWriter {
         }
     }
 
-    pub(crate) async fn write_invalidate_packet(&mut self) -> std::io::Result<()> {
-        let _ = self.write(INVALIDATE_PAYLOAD.as_slice()).await;
+    pub(crate) async fn write_invalidate_packet(
+        &mut self,
+        cache_id: u32,
+        cache_key: String,
+    ) -> std::io::Result<()> {
+        let _ = self.write(&cache_id.to_be_bytes()).await;
+        let _ = self.write(&cache_key.len().to_be_bytes()).await;
+        let _ = self.write(cache_key.as_bytes()).await;
         Ok(())
     }
 

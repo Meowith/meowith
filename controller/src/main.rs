@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 
 use actix_cors::Cors;
 use actix_web::dev::Server;
@@ -23,6 +24,7 @@ use data::database_session::{build_session, CACHE_SIZE};
 use data::model::microservice_node_model::MicroserviceNode;
 use logging::initialize_logging;
 
+use crate::catche::catche::{start_server, ControllerAuthenticator};
 use crate::config::controller_config::ControllerConfig;
 use crate::discovery::routes::{
     authenticate_node, config_fetch, register_node, security_csr, validate_peer,
@@ -31,6 +33,7 @@ use crate::health::routes::{microservice_heart_beat, update_storage_node_propert
 use crate::ioutils::read_file;
 use crate::middleware::node_internal::NodeVerify;
 
+mod catche;
 mod config;
 mod discovery;
 mod error;
@@ -146,7 +149,6 @@ async fn main() -> std::io::Result<()> {
         Certificate::from_pem(ca_cert.to_pem().unwrap().as_slice())
             .expect("Invalid certificate file"),
     );
-
     let app_data = Data::new(AppState {
         session,
         config: config.clone(),
@@ -156,6 +158,21 @@ async fn main() -> std::io::Result<()> {
     });
 
     let init_app_data = app_data.clone();
+    let internal_certs = create_internal_certs(&init_app_data, &clonfig);
+
+    start_server(
+        config
+            .clone()
+            .general_configuration
+            .port_configuration
+            .catche_server_port,
+        ca_cert.clone(),
+        ControllerAuthenticator {
+            req_ctx: Arc::new(req_ctx.clone()),
+        },
+        internal_certs.clone(),
+    )
+    .await;
     let internode_server = HttpServer::new(move || {
         let internode_app_data = app_data.clone();
         let cors = Cors::permissive();
@@ -191,7 +208,6 @@ async fn main() -> std::io::Result<()> {
     let internode_server_future: Server;
     let controller_server_future: Server;
 
-    let internal_certs = create_internal_certs(&init_app_data, &clonfig);
     let internode_ssl = build_autogen_ssl_acceptor_builder(internal_certs.0, internal_certs.1);
 
     internode_server_future = internode_server

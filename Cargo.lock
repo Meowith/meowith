@@ -733,6 +733,7 @@ dependencies = [
  "actix-cors",
  "actix-rt",
  "actix-web",
+ "async-trait",
  "charybdis",
  "chrono",
  "commons",
@@ -744,6 +745,7 @@ dependencies = [
  "log",
  "logging",
  "openssl",
+ "protocol",
  "rand",
  "rand_chacha 0.9.0-alpha.1",
  "rcgen",
@@ -753,6 +755,7 @@ dependencies = [
  "serde_yaml",
  "strum",
  "tokio",
+ "tokio-rustls",
  "uuid",
 ]
 

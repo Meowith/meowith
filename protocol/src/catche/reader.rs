@@ -1,6 +1,6 @@
-use std::sync::{Arc};
+use log::debug;
 use std::sync::atomic::{AtomicBool, Ordering};
-use log::{debug};
+use std::sync::Arc;
 
 use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::TcpStream;
@@ -10,10 +10,9 @@ use tokio::time::Instant;
 use tokio_rustls::TlsStream;
 
 use crate::catche::handler::CatcheHandler;
-use crate::catche::writer::PACKET_SIZE;
+use crate::catche::writer::INITIAL_SIZE;
 
 pub type CatchePacketHandler = Arc<Mutex<Box<dyn CatcheHandler>>>;
-
 
 #[derive(Debug)]
 pub(crate) struct PacketReader {
@@ -45,25 +44,36 @@ impl PacketReader {
 
         tokio::spawn(async move {
             let mut stream = stream_ref.lock().await;
-            let mut packet_buf: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
+            let mut packet_buf: [u8; INITIAL_SIZE] = [0; INITIAL_SIZE];
 
             while running.load(Ordering::Relaxed) {
                 if stream.read_exact(&mut packet_buf).await.is_err() {
                     debug!("Packet read failed");
                     break;
                 };
-                if packet_buf[0] != 1 {
-                    debug!("Invalid packet received");
-                    break;
-                }
 
-                let _ = handler.lock().await.handle_invalidate().await;
+                let cache_id = u32::from_be_bytes(packet_buf[0..4].try_into().unwrap());
+                let cache_key_size = u32::from_be_bytes(packet_buf[4..8].try_into().unwrap());
+
+                let mut cache_key = vec![0u8; cache_key_size as usize];
+                if stream.read_exact(&mut cache_key).await.is_err() {
+                    running.store(false, Ordering::SeqCst);
+                    debug!("Packet payload read failed");
+                    break;
+                };
+
+                let cache_key = String::from_utf8_lossy(cache_key.as_slice()).to_string();
+
+                let _ = handler
+                    .lock()
+                    .await
+                    .handle_invalidate(cache_id, cache_key)
+                    .await;
                 *last_read.lock().await = Instant::now();
             }
             debug!("Reader loop close");
         })
     }
-
 
     #[allow(unused)]
     pub(crate) fn close(&self) {

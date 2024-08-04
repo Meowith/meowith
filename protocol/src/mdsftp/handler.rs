@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::mdsftp::channel::MDSFTPChannel;
 use crate::mdsftp::channel_handle::MDSFTPHandlerChannel;
-use crate::mdsftp::data::{LockKind, PutFlags, ReserveFlags};
+use crate::mdsftp::data::{CommitFlags, LockKind, PutFlags, ReserveFlags};
 use crate::mdsftp::error::MDSFTPResult;
 
 pub type Channel = MDSFTPHandlerChannel;
@@ -58,6 +58,13 @@ pub trait ChannelPacketHandler: Send {
         -> MDSFTPResult<()>;
 
     async fn handle_delete_chunk(&mut self, channel: Channel, chunk_id: Uuid) -> MDSFTPResult<()>;
+
+    async fn handle_commit(
+        &mut self,
+        channel: Channel,
+        chunk_id: Uuid,
+        flags: CommitFlags,
+    ) -> MDSFTPResult<()>;
 
     async fn handle_interrupt(&mut self) -> MDSFTPResult<()>;
 }

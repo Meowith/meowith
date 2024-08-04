@@ -31,18 +31,37 @@ pub struct File {
 #[charybdis_model(
     table_name = buckets,
     partition_keys = [app_id],
-    clustering_keys = [name],
+    clustering_keys = [id],
     global_secondary_indexes = [],
-    local_secondary_indexes = [],
+    local_secondary_indexes = [name],
     static_columns = []
 )]
 pub struct Bucket {
     pub app_id: Uuid,
-    pub name: Text,
     pub id: Uuid,
+    pub name: Text,
     pub encrypted: Boolean,
-    pub quota: BigInt,       // in bytes
-    pub file_count: Counter, // avoid querying count(*)
+    pub atomic_upload: Boolean,
+    pub quota: BigInt,        // in bytes
+    pub file_count: Counter,  // avoid querying count(*)
+    pub space_taken: Counter, // avoid querying sum(size)
     pub created: Timestamp,
     pub last_modified: Timestamp,
+}
+
+impl Default for Bucket {
+    fn default() -> Self {
+        Bucket {
+            app_id: Default::default(),
+            id: Default::default(),
+            name: "".to_string(),
+            encrypted: false,
+            atomic_upload: false,
+            quota: 0,
+            file_count: Counter::default(),
+            space_taken: Counter::default(),
+            created: Default::default(),
+            last_modified: Default::default(),
+        }
+    }
 }

@@ -9,7 +9,8 @@ use uuid::{Bytes, Uuid};
 
 use crate::mdsftp::channel_handle::{ChannelAwaitHandle, MDSFTPHandlerChannel};
 use crate::mdsftp::data::{
-    ChunkErrorKind, LockAcquireResult, LockKind, PutFlags, PutResult, ReserveFlags, ReserveResult,
+    ChunkErrorKind, CommitFlags, LockAcquireResult, LockKind, PutFlags, PutResult, ReserveFlags,
+    ReserveResult,
 };
 use crate::mdsftp::error::{MDSFTPError, MDSFTPResult};
 use crate::mdsftp::handler::{
@@ -87,6 +88,10 @@ impl MDSFTPChannel {
 
     pub async fn delete_chunk(&self, id: Uuid) -> MDSFTPResult<()> {
         self._internal_channel.delete_chunk(id).await
+    }
+
+    pub async fn commit(&self, id: Uuid, flags: CommitFlags) -> MDSFTPResult<()> {
+        self._internal_channel.commit(flags, id).await
     }
 
     pub async fn request_put(
@@ -286,6 +291,14 @@ impl InternalMDSFTPChannel {
 
     internal_sender_method!(payload_buffer this none delete_chunk(MDSFTPPacketType::DeleteChunk, chunk_id: Uuid) -> MDSFTPResult<()> {
         { let _ = payload_buffer.write(chunk_id.as_bytes().as_slice()); }
+        { Ok(()) }
+    });
+
+    internal_sender_method!(payload_buffer this none commit(MDSFTPPacketType::Commit, flags: CommitFlags, chunk_id: Uuid) -> MDSFTPResult<()> {
+        {
+            payload_buffer.push(flags.into());
+            let _ = payload_buffer.write(chunk_id.as_bytes().as_slice());
+        }
         { Ok(()) }
     });
 
@@ -549,6 +562,16 @@ impl InternalMDSFTPChannel {
                     );
                     handler
                         .handle_delete_chunk(handler_channel, chunk_id)
+                        .await?;
+                }
+                MDSFTPPacketType::Commit => {
+                    let flags: CommitFlags = packet.payload[0].into();
+                    let chunk_id = Uuid::from_bytes(
+                        Bytes::try_from(&packet.payload.as_slice()[1..17])
+                            .map_err(MDSFTPError::from)?,
+                    );
+                    handler
+                        .handle_commit(handler_channel, chunk_id, flags)
                         .await?;
                 }
                 _ => {}

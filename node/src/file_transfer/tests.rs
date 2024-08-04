@@ -19,7 +19,7 @@ mod tests {
     use commons::context::microservice_request_context::NodeAddrMap;
     use logging::initialize_test_logging;
     use protocol::mdsftp::authenticator::ConnectionAuthContext;
-    use protocol::mdsftp::data::ReserveFlags;
+    use protocol::mdsftp::data::{CommitFlags, ReserveFlags};
     use protocol::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
     use protocol::mdsftp::server::MDSFTPServer;
 
@@ -192,9 +192,11 @@ mod tests {
                 .expect("Delegate failed");
             debug!("Awaiting handle...");
             handle.await;
+            uploaded_id = reserve.chunk_id;
+            let channel = client_pool.channel(&id1).await.unwrap();
+            channel.commit(uploaded_id, CommitFlags::r#final()).await.unwrap();
             debug!("Took {:?}", start.elapsed());
 
-            uploaded_id = reserve.chunk_id;
             let recv_meta = server_ledger
                 .fragment_meta(&reserve.chunk_id)
                 .await

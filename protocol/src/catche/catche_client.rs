@@ -1,8 +1,9 @@
 use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use rustls::{ClientConfig, RootCertStore};
+
 use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
+use rustls::{ClientConfig, RootCertStore};
 use tokio::net::TcpStream;
 use tokio_rustls::{TlsConnector, TlsStream};
 use uuid::Uuid;
@@ -16,12 +17,14 @@ pub struct CatcheClient {
     connection: CatcheConnection,
 }
 
+#[allow(unused)]
 impl CatcheClient {
     pub async fn connect(
         addr: &SocketAddr,
         microservice_id: Uuid,
         authenticator: Arc<ConnectionAuthContext>,
-        handler: CatchePacketHandler
+        handler: CatchePacketHandler,
+        token: Option<String>,
     ) -> Result<Self, Box<dyn Error>> {
         let mut root_cert_store = RootCertStore::empty();
         root_cert_store
@@ -50,15 +53,25 @@ impl CatcheClient {
         );
 
         let client = CatcheClient {
-            connection: CatcheConnection::from_conn(stream, handler).await?
+            connection: CatcheConnection::from_conn(stream, handler).await?,
         };
 
         client.connection.write_auth_header(microservice_id).await?;
 
+        if let Some(token) = token {
+            client.connection.write_token(token).await?;
+        }
+
         Ok(client)
     }
 
-    pub async fn write_invalidate_packet(&self) -> std::io::Result<()> {
-        self.connection.write_invalidate_packet().await
+    pub async fn write_invalidate_packet(
+        &self,
+        cache_id: u32,
+        cache_key: String,
+    ) -> std::io::Result<()> {
+        self.connection
+            .write_invalidate_packet(cache_id, cache_key)
+            .await
     }
 }

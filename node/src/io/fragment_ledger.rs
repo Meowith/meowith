@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -38,7 +38,6 @@ const ORDERING_DISK_STORE: Ordering = Ordering::SeqCst;
 const AVAILABLE_BUFFER: u64 = 65535;
 
 // TODO: verify the fragments should exist with database.
-// TODO: allow for appending to chunks when restarting upload.
 
 #[allow(unused)]
 impl FragmentLedger {
@@ -52,6 +51,7 @@ impl FragmentLedger {
             disk_content_size: Default::default(),
             reservation_map: Default::default(),
             broken_map: Default::default(),
+            uncommited_map: Default::default(),
             housekeeper_handle: std::sync::Mutex::new(None),
             disk_reserved_size: Default::default(),
         };
@@ -141,27 +141,39 @@ impl FragmentLedger {
         self._internal.file_lock_table.clone()
     }
 
-    pub async fn fragment_exists(&self, id: &Uuid) -> bool {
-        self._internal.chunk_set.read().await.contains_key(id)
+    pub async fn fragment_exists(&self, chunk_id: &Uuid) -> bool {
+        self._internal.chunk_set.read().await.contains_key(chunk_id)
     }
 
-    pub async fn fragment_meta(&self, id: &Uuid) -> Option<FragmentMeta> {
-        self._internal.chunk_set.read().await.get(id).cloned()
+    pub async fn fragment_meta(&self, chunk_id: &Uuid) -> Option<FragmentMeta> {
+        self._internal.chunk_set.read().await.get(chunk_id).cloned()
     }
 
-    fn get_path(&self, id: &Uuid) -> PathBuf {
+    fn get_path(&self, chunk_id: &Uuid, uncommited: bool) -> PathBuf {
+        if uncommited {
+            self.get_path_uncommited(chunk_id)
+        } else {
+            let mut path = self._internal.root_path.clone();
+            path.push(chunk_id.to_string());
+            path
+        }
+    }
+
+    fn get_path_uncommited(&self, chunk_id: &Uuid) -> PathBuf {
         let mut path = self._internal.root_path.clone();
-        path.push(id.to_string());
+        path.push(format!("{chunk_id}.uncommited"));
         path
     }
 
-    pub async fn delete_chunk(&self, id: &Uuid) -> MeowithIoResult<()> {
-        let path = self.get_path(id);
+    pub async fn delete_chunk(&self, chunk_id: &Uuid) -> MeowithIoResult<()> {
+        let mut uncommited = self._internal.uncommited_map.write().await;
+        let uncommited = uncommited.remove(chunk_id);
+        let path = self.get_path(chunk_id, uncommited);
         tokio::fs::remove_file(path)
             .await
             .map_err(|_| MeowithIoError::Internal(None))?;
         let mut chunks = self._internal.chunk_set.write().await;
-        let chunk = chunks.remove(id);
+        let chunk = chunks.remove(chunk_id);
 
         if let Some(chunk) = chunk {
             self._internal
@@ -175,30 +187,39 @@ impl FragmentLedger {
         Ok(())
     }
 
-    pub async fn fragment_read_stream(&self, id: &Uuid) -> MeowithIoResult<FragmentReadStream> {
-        let file = File::open(self.get_path(id))
+    pub async fn fragment_read_stream(
+        &self,
+        chunk_id: &Uuid,
+    ) -> MeowithIoResult<FragmentReadStream> {
+        let file = File::open(self.get_path(chunk_id, false))
             .await
             .map_err(MeowithIoError::from)?;
         Ok(Arc::new(Mutex::new(Box::pin(BufReader::new(file)))))
     }
 
-    pub async fn fragment_write_stream(&self, id: &Uuid) -> MeowithIoResult<FragmentWriteStream> {
+    pub async fn fragment_write_stream(
+        &self,
+        chunk_id: &Uuid,
+    ) -> MeowithIoResult<FragmentWriteStream> {
         let file = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .open(self.get_path(id))
+            .open(self.get_path(chunk_id, true))
             .await
             .map_err(MeowithIoError::from)?;
         Ok(Arc::new(Mutex::new(Box::pin(BufWriter::new(file)))))
     }
 
-    pub async fn fragment_append_stream(&self, id: &Uuid) -> MeowithIoResult<FragmentWriteStream> {
+    pub async fn fragment_append_stream(
+        &self,
+        chunk_id: &Uuid,
+    ) -> MeowithIoResult<FragmentWriteStream> {
         let file = OpenOptions::new()
             .create(true)
             .write(true)
             .append(true)
-            .open(self.get_path(id))
+            .open(self.get_path(chunk_id, true))
             .await
             .map_err(MeowithIoError::from)?;
         Ok(Arc::new(Mutex::new(Box::pin(BufWriter::new(file)))))
@@ -210,7 +231,9 @@ impl FragmentLedger {
     pub async fn cancel_reservation(&self, id: &Uuid) -> MeowithIoResult<()> {
         let mut reservations = self._internal.reservation_map.write().await;
         if let Some(reservation) = reservations.remove(id) {
-            let path = &self.get_path(id);
+            let mut uncommited = self._internal.uncommited_map.write().await;
+            let uncommited = uncommited.remove(id);
+            let path = &self.get_path(id, uncommited);
             self._internal
                 .disk_reserved_size
                 .fetch_sub(reservation.file_space, ORDERING_DISK_STORE);
@@ -244,17 +267,20 @@ impl FragmentLedger {
             .disk_reserved_size
             .fetch_add(size, ORDERING_DISK_STORE);
 
+        let mut uncommited = self._internal.uncommited_map.write().await;
+        uncommited.insert(id);
+
         Ok(id)
     }
 
     /// Notifies the ledger that upload has been resumed, moving the chunk out of the broken queue.
-    pub async fn resume_reservation(&self, id: &Uuid) -> MeowithIoResult<()> {
+    pub async fn resume_reservation(&self, id: &Uuid) -> MeowithIoResult<Reservation> {
         let mut reservations = self._internal.reservation_map.write().await;
         let mut broken = self._internal.broken_map.write().await;
 
         let reservation = broken.remove(id).ok_or(MeowithIoError::NotFound)?;
-        reservations.insert(*id, reservation);
-        Ok(())
+        reservations.insert(*id, reservation.clone());
+        Ok(reservation)
     }
 
     /// Moves the reservation into the idle 1H timeout state.
@@ -288,7 +314,9 @@ impl FragmentLedger {
 
         let transfer_completed = size_actual == reservation.file_space;
         let expected = reservation.file_space;
-        let path = &self.get_path(id);
+        let mut uncommited = self._internal.uncommited_map.write().await;
+        let is_uncommited = uncommited.contains(id);
+        let path = &self.get_path(id, is_uncommited);
 
         if transfer_completed {
             let physical_size = Path::new(path)
@@ -301,15 +329,11 @@ impl FragmentLedger {
             self._internal
                 .disk_content_size
                 .fetch_add(size_actual, ORDERING_DISK_STORE);
-
             reservations.remove(id);
-
             self._internal
                 .disk_reserved_size
                 .fetch_sub(size_actual, ORDERING_DISK_STORE);
-
             drop(reservations);
-
             let mut chunks = self._internal.chunk_set.write().await;
             chunks.insert(
                 *id,
@@ -329,6 +353,7 @@ impl FragmentLedger {
                 .insert(*id, reservation);
         } else if !transfer_completed && !reservation.durable {
             reservations.remove(id);
+            uncommited.remove(id);
             self._internal
                 .disk_reserved_size
                 .fetch_sub(expected, ORDERING_DISK_STORE);
@@ -337,6 +362,17 @@ impl FragmentLedger {
                 .map_err(|_| MeowithIoError::Internal(None))?;
         }
 
+        Ok(())
+    }
+
+    pub async fn commit_chunk(&self, id: &Uuid) -> MeowithIoResult<()> {
+        let mut uncommited = self._internal.uncommited_map.write().await;
+        let uncommited = uncommited.remove(id);
+        if uncommited {
+            tokio::fs::rename(self.get_path(id, true), self.get_path(id, false))
+                .await
+                .map_err(|_| MeowithIoError::Internal(None))?;
+        }
         Ok(())
     }
 
@@ -354,11 +390,12 @@ impl FragmentLedger {
 }
 
 #[allow(unused)]
-struct Reservation {
-    file_space: u64,
-    completed: u64,
-    durable: bool,
-    last_update: Instant,
+#[derive(Clone, Debug)]
+pub struct Reservation {
+    pub file_space: u64,
+    pub completed: u64,
+    pub durable: bool,
+    pub last_update: Instant,
 }
 
 #[allow(unused)]
@@ -375,6 +412,7 @@ struct InternalLedger {
     chunk_set: RwLock<HashMap<Uuid, FragmentMeta>>,
     reservation_map: RwLock<HashMap<Uuid, Reservation>>,
     broken_map: RwLock<HashMap<Uuid, Reservation>>,
+    uncommited_map: RwLock<HashSet<Uuid>>,
 
     housekeeper_handle: std::sync::Mutex<Option<JoinHandle<()>>>,
 

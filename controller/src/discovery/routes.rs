@@ -1,12 +1,13 @@
 use actix_web::web::Bytes;
 use actix_web::{get, post, web, HttpRequest};
+use openssl::x509::X509Req;
+
 use data::dto::config::GeneralConfiguration;
 use data::dto::controller::{
     AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
     ValidatePeerRequest, ValidatePeerResponse,
 };
 use data::model::microservice_node_model::MicroserviceNode;
-use openssl::x509::X509Req;
 
 use crate::discovery::discovery_service::{
     get_address, perform_register_node, perform_token_creation, sign_node_csr,

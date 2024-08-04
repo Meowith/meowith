@@ -18,7 +18,7 @@ mod tests {
 
     use crate::mdsftp::authenticator::ConnectionAuthContext;
     use crate::mdsftp::channel::MDSFTPChannel;
-    use crate::mdsftp::data::{LockAcquireResult, LockKind, PutFlags, ReserveFlags};
+    use crate::mdsftp::data::{CommitFlags, LockAcquireResult, LockKind, PutFlags, ReserveFlags};
     use crate::mdsftp::error::MDSFTPResult;
     use crate::mdsftp::handler::{Channel, ChannelPacketHandler, PacketHandler};
     use crate::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
@@ -194,6 +194,15 @@ mod tests {
             Ok(())
         }
 
+        async fn handle_commit(
+            &mut self,
+            channel: Channel,
+            chunk_id: Uuid,
+            flags: CommitFlags,
+        ) -> MDSFTPResult<()> {
+            todo!()
+        }
+
         async fn handle_interrupt(&mut self) -> MDSFTPResult<()> {
             Ok(())
         }
@@ -305,7 +314,9 @@ mod tests {
         {
             debug!("Test Put");
             let channel = client_pool.channel(&id1).await.unwrap();
-            let put_req = channel.request_put(PutFlags {}, Uuid::new_v4(), 1024).await;
+            let put_req = channel
+                .request_put(PutFlags { append: false }, Uuid::new_v4(), 1024)
+                .await;
             assert!(put_req.is_ok());
         }
 

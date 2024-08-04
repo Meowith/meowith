@@ -116,6 +116,16 @@ Flags: `kind` (read/write)
 
 Flags: `lock_kind` (read/write) `error_kind` (not_found/internal)
 
+## Commit
+
+- **Commit** (`commit` Packet ID: 0x0F)
+
+| Flags  | Chunk ID |
+|--------|----------|
+| 1 Byte | 16 Bytes |
+
+Flags: `reject` (yes/no) `keep-alive` (yes/no) `final` (yes/no)
+
 ## Channels
 
 - **Channel open** (`channel_open` Packet ID: 0x80)

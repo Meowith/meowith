@@ -8,7 +8,7 @@ use uuid::Uuid;
 use data::model::file_model::FileChunk;
 
 use crate::public::response::{NodeClientError, NodeClientResponse};
-use crate::public::service::file_access::ReserveInfo;
+use crate::public::service::file_access_service::ReserveInfo;
 
 #[allow(unused)]
 pub struct DurableTransferSessionManager {
