@@ -15,31 +15,49 @@ use uuid::Uuid;
 
 use commons::context::microservice_request_context::NodeAddrMap;
 
-use crate::file_transfer::authenticator::ConnectionAuthContext;
-use crate::file_transfer::channel::MDSFTPChannel;
-use crate::file_transfer::connection::MDSFTPConnection;
-use crate::file_transfer::error::{MDSFTPError, MDSFTPResult};
-use crate::file_transfer::handler::PacketHandler;
-use crate::file_transfer::net::packet_reader::GlobalHandler;
+use crate::mdsftp::authenticator::ConnectionAuthContext;
+use crate::mdsftp::channel::MDSFTPChannel;
+use crate::mdsftp::connection::MDSFTPConnection;
+use crate::mdsftp::error::{MDSFTPError, MDSFTPResult};
+use crate::mdsftp::handler::PacketHandler;
+use crate::mdsftp::net::packet_reader::GlobalHandler;
 
 pub type PacketHandlerRef = Arc<Mutex<Box<dyn PacketHandler>>>;
 static STALE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Clone)]
+pub struct MDSFTPPoolConfigHolder {
+    pub fragment_size: u32,
+    pub buffer_size: u16,
+}
+
+impl Default for MDSFTPPoolConfigHolder {
+    fn default() -> Self {
+        MDSFTPPoolConfigHolder {
+            fragment_size: u16::MAX as u32,
+            buffer_size: 16,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct MDSFTPPool {
     pub(crate) _internal_pool: Arc<Mutex<InternalMDSFTPPool>>,
+    pub cfg: MDSFTPPoolConfigHolder,
 }
 
 impl MDSFTPPool {
     pub fn new(
         connection_auth_context: Arc<ConnectionAuthContext>,
         node_addr_map: NodeAddrMap,
+        cfg: MDSFTPPoolConfigHolder,
     ) -> Self {
         MDSFTPPool {
             _internal_pool: Arc::new(Mutex::new(InternalMDSFTPPool::new(
                 connection_auth_context,
                 node_addr_map,
             ))),
+            cfg,
         }
     }
 

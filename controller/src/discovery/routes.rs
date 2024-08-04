@@ -14,7 +14,7 @@ use crate::discovery::discovery_service::{
 use crate::error::node::NodeError;
 use crate::AppState;
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct UpdateStorageNodeProperties {
     pub max_space: u64,
     pub used_space: u64,

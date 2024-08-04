@@ -1,21 +1,23 @@
 use crate::config::node_config::{NodeConfig, NodeConfigInstance};
-use crate::init_procedure::{initialize_io, register_node};
+use crate::init_procedure::{fetch_storage_nodes, initialize_io, register_node};
 use logging::initialize_logging;
 
 use crate::io::fragment_ledger::FragmentLedger;
+use crate::public::service::durable_transfer_session_manager::DurableTransferSessionManager;
 use actix_cors::Cors;
 use actix_web::web::Data;
 use actix_web::{App, HttpServer};
 use commons::access_token_service::JwtService;
 use commons::autoconfigure::general_conf::fetch_general_config;
-use commons::context::microservice_request_context::MicroserviceRequestContext;
+use commons::context::microservice_request_context::{MicroserviceRequestContext, NodeStorageMap};
 use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
 use data::database_session::{build_session, CACHE_SIZE};
 use openssl::ssl::SslAcceptorBuilder;
-use protocol::file_transfer::server::MDSFTPServer;
+use protocol::mdsftp::server::MDSFTPServer;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 mod caching;
 mod config;
@@ -29,8 +31,10 @@ mod public;
 pub struct AppState {
     session: CachingSession,
     mdsftp_server: MDSFTPServer,
+    upload_manager: DurableTransferSessionManager,
     fragment_ledger: FragmentLedger,
     jwt_service: JwtService,
+    node_storage_map: NodeStorageMap,
     req_ctx: Arc<MicroserviceRequestContext>,
 }
 
@@ -93,9 +97,16 @@ async fn main() -> std::io::Result<()> {
     let app_data = Data::new(AppState {
         session,
         mdsftp_server,
+        upload_manager: DurableTransferSessionManager::new(),
         fragment_ledger,
         jwt_service: JwtService::new(&global_conf.access_token_configuration)
             .expect("JWT Service creation failed"),
+        node_storage_map: Arc::new(RwLock::new(
+            fetch_storage_nodes(&req_ctx)
+                .await
+                .expect("Failed to fetch storage nodes")
+                .peers,
+        )),
         req_ctx,
     });
 

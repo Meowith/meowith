@@ -1,25 +1,28 @@
 #[cfg(test)]
 mod tests {
-    use crate::file_transfer::authenticator::ConnectionAuthContext;
-    use crate::file_transfer::channel::MDSFTPChannel;
-    use crate::file_transfer::data::{LockAcquireResult, LockKind, ReserveFlags};
-    use crate::file_transfer::error::MDSFTPResult;
-    use crate::file_transfer::handler::{Channel, ChannelPacketHandler, PacketHandler};
-    use crate::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
-    use crate::file_transfer::server::MDSFTPServer;
-    use async_trait::async_trait;
-    use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
-    use commons::context::microservice_request_context::NodeAddrMap;
-    use log::{debug, info};
-    use logging::initialize_test_logging;
-    use openssl::x509::X509VerifyResult;
     use std::collections::HashMap;
     use std::io::Write;
     use std::sync::Arc;
     use std::time::Duration;
+
+    use async_trait::async_trait;
+    use log::{debug, info};
+    use openssl::x509::X509VerifyResult;
     use tokio::sync::{Mutex, RwLock};
     use tokio::time::sleep;
     use uuid::Uuid;
+
+    use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
+    use commons::context::microservice_request_context::NodeAddrMap;
+    use logging::initialize_test_logging;
+
+    use crate::mdsftp::authenticator::ConnectionAuthContext;
+    use crate::mdsftp::channel::MDSFTPChannel;
+    use crate::mdsftp::data::{LockAcquireResult, LockKind, PutFlags, ReserveFlags};
+    use crate::mdsftp::error::MDSFTPResult;
+    use crate::mdsftp::handler::{Channel, ChannelPacketHandler, PacketHandler};
+    use crate::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
+    use crate::mdsftp::server::MDSFTPServer;
 
     struct HandlerStats {
         pub channels_opened: u32,
@@ -130,9 +133,11 @@ mod tests {
         async fn handle_put(
             &mut self,
             channel: Channel,
+            _flags: PutFlags,
             _chunk_id: Uuid,
             _content_size: u64,
         ) -> MDSFTPResult<()> {
+            channel.respond_put_ok(8).await?;
             channel.close(Ok(())).await;
             Ok(())
         }
@@ -173,6 +178,22 @@ mod tests {
             Ok(())
         }
 
+        async fn handle_reserve_cancel(
+            &mut self,
+            _channel: Channel,
+            _chunk_id: Uuid,
+        ) -> MDSFTPResult<()> {
+            Ok(())
+        }
+
+        async fn handle_delete_chunk(
+            &mut self,
+            _channel: Channel,
+            _chunk_id: Uuid,
+        ) -> MDSFTPResult<()> {
+            Ok(())
+        }
+
         async fn handle_interrupt(&mut self) -> MDSFTPResult<()> {
             Ok(())
         }
@@ -198,6 +219,7 @@ mod tests {
             root_certificate: ca.clone(),
             authenticator: None,
             port: 7670,
+            own_id: Uuid::new_v4(),
         });
 
         let server_stats = Arc::new(Mutex::new(HandlerStats::default()));
@@ -209,6 +231,7 @@ mod tests {
             connection_auth_context.clone(),
             conn_map.clone(),
             server_handler,
+            Default::default(),
         )
         .await;
         assert!(server.start(&cert, &key).await.is_ok());
@@ -218,7 +241,8 @@ mod tests {
         let client_handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
             TestIncomingHandler::default(client_stats.clone(), None, "client_pool".to_string()),
         )));
-        let mut client_pool = MDSFTPPool::new(connection_auth_context, conn_map);
+        let mut client_pool =
+            MDSFTPPool::new(connection_auth_context, conn_map, Default::default());
         client_pool.set_packet_handler(client_handler).await;
 
         {
@@ -270,10 +294,19 @@ mod tests {
                     ReserveFlags {
                         auto_start: true,
                         durable: false,
+                        temp: false,
+                        overwrite: false,
                     },
                 )
                 .await;
             assert!(lock_req.is_ok());
+        }
+
+        {
+            debug!("Test Put");
+            let channel = client_pool.channel(&id1).await.unwrap();
+            let put_req = channel.request_put(PutFlags {}, Uuid::new_v4(), 1024).await;
+            assert!(put_req.is_ok());
         }
 
         client_pool.shutdown().await;

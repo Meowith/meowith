@@ -8,7 +8,6 @@ use actix_web::{
     Error, FromRequest, HttpMessage, HttpRequest,
 };
 use futures_util::future::{err, ok, LocalBoxFuture};
-use regex::Regex;
 use uuid::Uuid;
 
 use commons::middleware_actions::remove_bearer_prefix;
@@ -116,17 +115,14 @@ impl FromRequest for BucketAccessor {
 impl BucketAccessor {
     pub fn has_permission(
         &self,
-        bucket: &str,
+        bucket: &Uuid,
         app_id: &Uuid,
         requested: u64,
     ) -> Result<(), NodeClientError> {
         if self.app_id != *app_id {
             return Err(NodeClientError::BadAuth);
         }
-        match self.permits.iter().find(|p| match Regex::new(&p.scope) {
-            Ok(it) => it.is_match(bucket),
-            Err(_) => false,
-        }) {
+        match self.permits.iter().find(|p| p.bucket_id == *bucket) {
             None => Err(NodeClientError::BadAuth),
             Some(permit) => match check_permission(permit.allowance, requested) {
                 true => Ok(()),

@@ -2,8 +2,8 @@ use crate::file_transfer::channel_handler::MeowithMDSFTPChannelPacketHandler;
 use crate::io::fragment_ledger::FragmentLedger;
 use async_trait::async_trait;
 use log::debug;
-use protocol::file_transfer::channel::MDSFTPChannel;
-use protocol::file_transfer::handler::PacketHandler;
+use protocol::mdsftp::channel::MDSFTPChannel;
+use protocol::mdsftp::handler::PacketHandler;
 use uuid::Uuid;
 
 pub const BUFFER_SIZE: u16 = 10;

@@ -12,13 +12,13 @@ use tokio::time::Instant;
 use tokio_rustls::TlsStream;
 use uuid::Uuid;
 
-use crate::file_transfer::channel::InternalMDSFTPChannel;
-use crate::file_transfer::connection::ChannelFactory;
-use crate::file_transfer::error::MDSFTPError;
-use crate::file_transfer::handler::PacketHandler;
-use crate::file_transfer::net::packet_type::MDSFTPPacketType;
-use crate::file_transfer::net::validate::PreValidate;
-use crate::file_transfer::net::wire::{read_header, MDSFTPRawPacket, HEADER_SIZE};
+use crate::mdsftp::channel::InternalMDSFTPChannel;
+use crate::mdsftp::connection::ChannelFactory;
+use crate::mdsftp::error::MDSFTPError;
+use crate::mdsftp::handler::PacketHandler;
+use crate::mdsftp::net::packet_type::MDSFTPPacketType;
+use crate::mdsftp::net::validate::PreValidate;
+use crate::mdsftp::net::wire::{read_header, MDSFTPRawPacket, HEADER_SIZE};
 
 pub type ConnectionMap = Arc<RwLock<HashMap<u32, Arc<InternalMDSFTPChannel>>>>;
 pub type GlobalHandler = Arc<Mutex<Box<dyn PacketHandler>>>;

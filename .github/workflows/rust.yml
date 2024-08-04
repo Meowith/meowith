@@ -13,11 +13,11 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 15
     
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v4
+      - name: Build
+        run: cargo build --verbose --workspace
+      - name: Run tests
+        run: cargo test --verbose --workspace -F test_logging

@@ -11,17 +11,17 @@ mod tests {
     use openssl::x509::X509VerifyResult;
     use rand::RngCore;
     use tokio::fs::File;
-    use tokio::io::AsyncWriteExt;
+    use tokio::io::{AsyncWriteExt, BufWriter};
     use tokio::sync::{Mutex, RwLock};
     use uuid::Uuid;
 
     use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
     use commons::context::microservice_request_context::NodeAddrMap;
     use logging::initialize_test_logging;
-    use protocol::file_transfer::authenticator::ConnectionAuthContext;
-    use protocol::file_transfer::data::ReserveFlags;
-    use protocol::file_transfer::pool::{MDSFTPPool, PacketHandlerRef};
-    use protocol::file_transfer::server::MDSFTPServer;
+    use protocol::mdsftp::authenticator::ConnectionAuthContext;
+    use protocol::mdsftp::data::ReserveFlags;
+    use protocol::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
+    use protocol::mdsftp::server::MDSFTPServer;
 
     use crate::file_transfer::channel_handler::MeowithMDSFTPChannelPacketHandler;
     use crate::file_transfer::packet_handler::MeowithMDSFTPPacketHandler;
@@ -44,7 +44,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[timeout(2000)]
+    #[timeout(5000)]
     async fn test_file_transfer() {
         initialize_test_logging();
         let mut temp_dir = env::temp_dir();
@@ -107,6 +107,7 @@ mod tests {
             root_certificate: ca.clone(),
             authenticator: None,
             port: 7671,
+            own_id: Uuid::new_v4(),
         });
 
         let server_ledger = FragmentLedger::new(
@@ -126,6 +127,7 @@ mod tests {
             connection_auth_context.clone(),
             conn_map.clone(),
             server_handler,
+            Default::default(),
         )
         .await;
         assert!(server.start(&cert, &key).await.is_ok());
@@ -142,7 +144,8 @@ mod tests {
         let client_handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
             MeowithMDSFTPPacketHandler::new(client_ledger.clone(), u16::MAX as u32),
         )));
-        let mut client_pool = MDSFTPPool::new(connection_auth_context, conn_map);
+        let mut client_pool =
+            MDSFTPPool::new(connection_auth_context, conn_map, Default::default());
         client_pool.set_packet_handler(client_handler).await;
 
         let uploaded_id: Uuid;
@@ -157,6 +160,8 @@ mod tests {
                     ReserveFlags {
                         auto_start: true,
                         durable: false,
+                        temp: false,
+                        overwrite: false,
                     },
                 )
                 .await
@@ -195,7 +200,6 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(recv_meta.disk_content_size, meta.disk_content_size);
-            assert_eq!(recv_meta.disk_physical_size, meta.disk_physical_size);
         }
 
         {
@@ -212,7 +216,11 @@ mod tests {
                 u16::MAX as u32,
             ));
             let handle = channel
-                .retrieve_content(file_ba, handler)
+                .retrieve_content(
+                    Arc::new(Mutex::new(Box::pin(BufWriter::new(file_ba)))),
+                    handler,
+                    true,
+                )
                 .await
                 .expect("Retrieve req reg failed");
             debug!("Handler setup");

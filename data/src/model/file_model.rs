@@ -2,7 +2,7 @@ use charybdis::macros::{charybdis_model, charybdis_udt_model};
 use charybdis::types::{BigInt, Boolean, Counter, Frozen, Set, Text, Timestamp, TinyInt, Uuid};
 
 #[charybdis_udt_model(type_name = file_chunk)]
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Hash, Eq, PartialEq, Clone)]
 pub struct FileChunk {
     pub server_id: Uuid,
     pub chunk_id: Uuid,

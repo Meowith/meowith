@@ -1,5 +1,5 @@
-use crate::file_transfer::net::packet_type::MDSFTPPacketType;
-use crate::file_transfer::net::wire::MDSFTPHeader;
+use crate::mdsftp::net::packet_type::MDSFTPPacketType;
+use crate::mdsftp::net::wire::MDSFTPHeader;
 
 pub(crate) trait PreValidate {
     /// Checks if the packet is even worth parsing.

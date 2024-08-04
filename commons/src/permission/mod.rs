@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppTokenPermit {
-    pub scope: String,
+    pub bucket_id: Uuid,
     pub allowance: u64,
 }
 

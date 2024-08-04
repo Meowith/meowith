@@ -1,4 +1,5 @@
 # MDSFTP Protocol
+
 Meowith Distributed Services File Transfer Protocol
 
 # Packet format
@@ -31,9 +32,23 @@ Flags: `is_last` (true/false)
 
 - **Put** (`put` Packet ID: 0x03)
 
-| Chunk ID | Chunk Size |
-|----------|------------|
-| 16 Bytes | 8 Bytes    |`
+| Flags  | Chunk ID | Chunk Size |
+|--------|----------|------------|
+| 1 Byte | 16 Bytes | 8 Bytes    |`
+
+- **PutOk** (`put_ok` Packet ID: 0x0D)
+
+| Chunk Buffer |
+|--------------|
+| 2 Bytes      |
+
+- **PutErr** (`put_err` Packet ID: 0x0E)
+
+| Flags   |
+|---------|
+| 1 Bytes |
+
+Flags: `error_kind` (not_found/internal)
 
 - **RecvAck** (`receive_ack`, Packet ID: 0x04)
 
@@ -41,24 +56,35 @@ Flags: `is_last` (true/false)
 |----------|
 | 4 Bytes  |
 
+- **Delete** (`delete_chunk`, Packet ID: 0x05)
+
+| Chunk ID |
+|----------|
+| 16 Bytes |
 
 ## Reserve
 
-- **Reserve** (`reserve` Packet ID: 0x05)
+- **Reserve** (`reserve` Packet ID: 0x06)
 
 | Flags  | Desired Size |
 |--------|--------------|
 | 1 Byte | 8 Bytes      |
 
-Flags: `Auto-start` (yes/no), `Durable` (yes\no)
+Flags: `Auto-start` (yes/no), `Durable` (yes\no), `Overwrite` (yes/no)
 
-- **Reserve success** (`reserve_ok` Packet ID: 0x06)
+- **Reserve Cancel** (`reserve_cancel` Packet ID: 0x07)
+
+| Chunk ID |
+|----------|
+| 16 Bytes |
+
+- **Reserve success** (`reserve_ok` Packet ID: 0x08)
 
 | Chunk ID | Chunk Buffer |
 |----------|--------------|
 | 16 Bytes | 2 Bytes      |
 
-- **Reserve error** (`reserve_err` Packet ID: 0x07)
+- **Reserve error** (`reserve_err` Packet ID: 0x09)
 
 | Max space |
 |-----------|
@@ -66,7 +92,7 @@ Flags: `Auto-start` (yes/no), `Durable` (yes\no)
 
 ## Locks
 
-- **Lock request** (`lock_req` Packet ID: 0x08)
+- **Lock request** (`lock_req` Packet ID: 0x0A)
 
 | Flags   | Chunk ID |
 |---------|----------|
@@ -74,7 +100,7 @@ Flags: `Auto-start` (yes/no), `Durable` (yes\no)
 
 Flags: `kind` (read/write)
 
-- **Lock acquire** (`lock_acquire` Packet ID: 0x09)
+- **Lock acquire** (`lock_acquire` Packet ID: 0x0B)
 
 | Flags   | Chunk ID |
 |---------|----------|
@@ -82,7 +108,7 @@ Flags: `kind` (read/write)
 
 Flags: `kind` (read/write)
 
-- **Lock Error** (`lock_err` Packet ID: 0x0A)
+- **Lock Error** (`lock_err` Packet ID: 0x0C)
 
 | Flags   | Chunk ID |
 |---------|----------|

@@ -1,5 +1,5 @@
-use crate::file_transfer::net::packet_type::MDSFTPPacketType;
-use crate::file_transfer::net::wire::{
+use crate::mdsftp::net::packet_type::MDSFTPPacketType;
+use crate::mdsftp::net::wire::{
     write_header, MDSFTPHeader, MDSFTPRawPacket, HEADER_SIZE, PAYLOAD_SIZE,
 };
 use tokio::io::{AsyncWriteExt, WriteHalf};
@@ -29,7 +29,7 @@ impl PacketWriter {
 
         write_header(
             &MDSFTPHeader {
-                packet_id: (&data.packet_type).into(),
+                packet_id: data.packet_type.into(),
                 stream_id: data.stream_id,
                 payload_size: data.payload.len() as u32,
             },
@@ -50,7 +50,7 @@ impl PacketWriter {
     ) -> std::io::Result<()> {
         write_header(
             &MDSFTPHeader {
-                packet_id: (&MDSFTPPacketType::FileChunk).into(),
+                packet_id: MDSFTPPacketType::FileChunk.into(),
                 stream_id,
                 payload_size: (payload_header.len() + payload.len()) as u32,
             },

@@ -1,9 +1,10 @@
+use charybdis::operations::Insert;
 use charybdis::stream::CharybdisModelStream;
-use scylla::CachingSession;
+use scylla::{CachingSession, QueryResult};
 use uuid::Uuid;
 
 use crate::error::MeowithDataError;
-use crate::model::file_model::File;
+use crate::model::file_model::{Bucket, File};
 
 pub async fn get_files_from_bucket(
     bucket_id: Uuid,
@@ -36,4 +37,22 @@ pub async fn get_file(
         .execute(session)
         .await
         .map_err(|e| e.into())
+}
+
+pub async fn get_bucket(
+    app_id: Uuid,
+    name: String,
+    session: &CachingSession,
+) -> Result<Bucket, MeowithDataError> {
+    Bucket::find_first_by_app_id_and_name(app_id, name)
+        .execute(session)
+        .await
+        .map_err(|e| e.into())
+}
+
+pub async fn insert_file(
+    file: &File,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    file.insert().execute(session).await.map_err(|e| e.into())
 }
