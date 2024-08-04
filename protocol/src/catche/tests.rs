@@ -17,7 +17,7 @@ mod tests {
     use crate::catche::catche_server::CatcheServer;
     use crate::catche::handler::CatcheHandler;
     use crate::catche::reader::CatchePacketHandler;
-    use crate::file_transfer::authenticator::ConnectionAuthContext;
+    use crate::mdsftp::authenticator::ConnectionAuthContext;
 
     #[async_trait]
     impl CatcheHandler for TestCatcheHandler {
@@ -49,6 +49,7 @@ mod tests {
             root_certificate: ca.clone(),
             authenticator: None,
             port: 7810,
+            own_id: Uuid::new_v4(),
         });
 
         let mut server = CatcheServer::new(connection_auth_context.clone());

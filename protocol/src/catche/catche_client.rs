@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::catche::connection::CatcheConnection;
 use crate::catche::error::CatcheError;
 use crate::catche::reader::CatchePacketHandler;
-use crate::file_transfer::authenticator::ConnectionAuthContext;
+use crate::mdsftp::authenticator::ConnectionAuthContext;
 
 pub struct CatcheClient {
     connection: CatcheConnection,

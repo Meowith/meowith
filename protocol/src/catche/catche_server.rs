@@ -1,7 +1,5 @@
 use std::any::Any;
 use crate::catche::error::CatcheError;
-use crate::file_transfer::authenticator::ConnectionAuthContext;
-use crate::file_transfer::server::ZERO_UUID;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
@@ -19,6 +17,8 @@ use tokio_rustls::{rustls, TlsAcceptor, TlsStream};
 use uuid::{Bytes, Uuid};
 use crate::catche::connection::CatcheConnection;
 use crate::catche::handler::CatcheHandler;
+use crate::mdsftp::authenticator::ConnectionAuthContext;
+use crate::mdsftp::server::ZERO_UUID;
 
 #[allow(unused)]
 pub struct CatcheServer {
