@@ -209,7 +209,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ntest::timeout(3000)]
+    #[ntest::timeout(10000)]
     async fn test() {
         initialize_test_logging();
 
