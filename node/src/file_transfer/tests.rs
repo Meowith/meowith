@@ -194,7 +194,10 @@ mod tests {
             handle.await;
             uploaded_id = reserve.chunk_id;
             let channel = client_pool.channel(&id1).await.unwrap();
-            channel.commit(uploaded_id, CommitFlags::r#final()).await.unwrap();
+            channel
+                .commit(uploaded_id, CommitFlags::r#final())
+                .await
+                .unwrap();
             debug!("Took {:?}", start.elapsed());
 
             let recv_meta = server_ledger

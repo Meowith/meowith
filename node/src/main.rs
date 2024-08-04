@@ -2,6 +2,7 @@ use crate::config::node_config::{NodeConfig, NodeConfigInstance};
 use crate::init_procedure::{fetch_storage_nodes, initialize_io, register_node};
 use logging::initialize_logging;
 
+use crate::caching::catche::connect_catche;
 use crate::io::fragment_ledger::FragmentLedger;
 use crate::public::service::durable_transfer_session_manager::DurableTransferSessionManager;
 use actix_cors::Cors;
@@ -75,6 +76,15 @@ async fn main() -> std::io::Result<()> {
         .initialize()
         .await
         .expect("Ledger init failed");
+
+    let _ = connect_catche(
+        config.cnc_addr.as_str(),
+        global_conf.clone(),
+        req_ctx.id.clone(),
+        req_ctx.security_context.root_x509.clone(),
+        req_ctx.security_context.access_token.clone(),
+    )
+    .await;
 
     let mut external_ssl: Option<SslAcceptorBuilder> = None;
 

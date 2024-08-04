@@ -1,3 +1,4 @@
+use openssl::x509::X509;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -11,26 +12,23 @@ use uuid::Uuid;
 use crate::catche::connection::CatcheConnection;
 use crate::catche::error::CatcheError;
 use crate::catche::reader::CatchePacketHandler;
-use crate::mdsftp::authenticator::ConnectionAuthContext;
 
 pub struct CatcheClient {
     connection: CatcheConnection,
 }
 
-#[allow(unused)]
 impl CatcheClient {
     pub async fn connect(
         addr: &SocketAddr,
         microservice_id: Uuid,
-        authenticator: Arc<ConnectionAuthContext>,
+        root_certificate: X509,
         handler: CatchePacketHandler,
         token: Option<String>,
     ) -> Result<Self, Box<dyn Error>> {
         let mut root_cert_store = RootCertStore::empty();
         root_cert_store
             .add(CertificateDer::from(
-                authenticator
-                    .root_certificate
+                root_certificate
                     .to_der()
                     .map_err(|_| CatcheError::SSLError(None))?,
             ))

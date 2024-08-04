@@ -27,7 +27,6 @@ mod tests {
     #[async_trait]
     impl CatcheHandler for TestCatcheHandler {
         async fn handle_invalidate(&mut self, cache_id: u32, _cache: String) {
-            log::debug!("Niggeria");
             if CACHE_ID == cache_id as usize {
                 self.received.store(true, Ordering::SeqCst);
             }
@@ -74,7 +73,7 @@ mod tests {
             let client = CatcheClient::connect(
                 &SocketAddr::new(IpAddr::from_str("127.0.0.1").unwrap(), 7810),
                 id,
-                connection_auth_context.clone(),
+                ca.clone(),
                 handler.clone(),
                 None,
             )
