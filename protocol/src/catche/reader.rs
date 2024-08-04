@@ -14,6 +14,8 @@ use crate::catche::writer::PACKET_SIZE;
 
 pub type CatchePacketHandler = Arc<Mutex<Box<dyn CatcheHandler>>>;
 
+
+#[derive(Debug)]
 pub(crate) struct PacketReader {
     pub(crate) stream: Arc<Mutex<ReadHalf<TlsStream<TcpStream>>>>,
     pub(crate) running: Arc<AtomicBool>,
@@ -50,7 +52,6 @@ impl PacketReader {
                     debug!("Packet read failed");
                     break;
                 };
-
                 if packet_buf[0] != 1 {
                     debug!("Invalid packet received");
                     break;
@@ -64,6 +65,7 @@ impl PacketReader {
     }
 
 
+    #[allow(unused)]
     pub(crate) fn close(&self) {
         self.running.store(false, Ordering::SeqCst);
     }

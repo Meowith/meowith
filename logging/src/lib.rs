@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use log::LevelFilter;
+use log::{debug, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
@@ -34,5 +34,5 @@ fn initialize_default(level: LevelFilter) {
         .build(Root::builder().appender("stdout").build(level))
         .unwrap();
 
-    log4rs::init_config(config).unwrap();
+    let _ = log4rs::init_config(config);
 }

@@ -8,7 +8,7 @@ use crate::catche::error::CatcheError;
 use crate::catche::reader::{CatchePacketHandler, PacketReader};
 use crate::catche::writer::PacketWriter;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CatcheConnection {
     _internal_connection: Arc<InternalCatcheConnection>,
 }
@@ -29,6 +29,7 @@ impl CatcheConnection {
 }
 
 #[allow(unused)]
+#[derive(Debug)]
 struct InternalCatcheConnection {
     writer: Arc<Mutex<PacketWriter>>,
     reader: Arc<PacketReader>,

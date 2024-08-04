@@ -6,6 +6,7 @@ use tokio_rustls::TlsStream;
 pub const PACKET_SIZE: usize = 1;
 pub const INVALIDATE_PAYLOAD: [u8; 1] = [1];
 
+#[derive(Debug)]
 pub(crate) struct PacketWriter {
     pub(crate) stream: WriteHalf<TlsStream<TcpStream>>,
     last_write: Instant,
@@ -32,9 +33,11 @@ impl PacketWriter {
         Ok(())
     }
 
+    #[allow(unused)]
     pub(crate) async fn last_write(&self) -> Instant {
         self.last_write
     }
 
+    #[allow(unused)]
     pub(crate) fn close(&mut self) {}
 }

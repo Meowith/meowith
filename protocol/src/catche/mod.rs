@@ -5,3 +5,4 @@ mod handler;
 mod writer;
 mod reader;
 mod catche_client;
+mod tests;
