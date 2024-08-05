@@ -26,13 +26,13 @@ impl CatcheConnection {
     pub async fn write_invalidate_packet(
         &self,
         cache_id: u32,
-        cache_key_size: String,
+        cache_key: &[u8],
     ) -> std::io::Result<()> {
         self._internal_connection
             .writer
             .lock()
             .await
-            .write_invalidate_packet(cache_id, cache_key_size)
+            .write_invalidate_packet(cache_id, cache_key)
             .await
     }
 

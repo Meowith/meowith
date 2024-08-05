@@ -37,13 +37,11 @@ pub struct CatcheServerHandler {
 #[async_trait]
 impl CatcheHandler for CatcheServerHandler {
     #[allow(clippy::unnecessary_to_owned)]
-    async fn handle_invalidate(&mut self, cache_id: u32, cache: String) {
+    async fn handle_invalidate(&mut self, cache_id: u32, cache: &[u8]) {
         let conns = self.connections.lock().await;
 
         for connection in conns.to_vec() {
-            let _ = connection
-                .write_invalidate_packet(cache_id, cache.clone())
-                .await;
+            let _ = connection.write_invalidate_packet(cache_id, cache).await;
         }
     }
 

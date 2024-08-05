@@ -23,11 +23,12 @@ mod tests {
     use crate::mdsftp::authenticator::ConnectionAuthContext;
 
     const CACHE_ID: usize = 5;
+    const FIRST_BYTE: u8 = 32;
 
     #[async_trait]
     impl CatcheHandler for TestCatcheHandler {
-        async fn handle_invalidate(&mut self, cache_id: u32, _cache: String) {
-            if CACHE_ID == cache_id as usize {
+        async fn handle_invalidate(&mut self, cache_id: u32, cache: &[u8]) {
+            if CACHE_ID == cache_id as usize && cache[0] == FIRST_BYTE {
                 self.received.store(true, Ordering::SeqCst);
             }
         }
@@ -83,7 +84,7 @@ mod tests {
             let client = client.unwrap();
 
             assert!(client
-                .write_invalidate_packet(5, "test".to_string())
+                .write_invalidate_packet(5, vec![32].as_slice())
                 .await
                 .is_ok());
 

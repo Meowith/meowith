@@ -21,6 +21,7 @@ use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 use crate::io::error::{MeowithIoError, MeowithIoResult};
 use crate::io::get_space;
 use crate::locking::file_lock_table::FileLockTable;
+use crate::public::service::durable_transfer_session_manager::DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS;
 
 pub type LockTable = FileLockTable<Uuid>;
 
@@ -36,9 +37,12 @@ const ORDERING_MAX_LOAD: Ordering = Ordering::Relaxed;
 const ORDERING_DISK_LOAD: Ordering = Ordering::Relaxed;
 const ORDERING_DISK_STORE: Ordering = Ordering::SeqCst;
 
+const HOUSEKEEPER_TASK_INTERVAL: usize = 5 * 60;
+
 const AVAILABLE_BUFFER: u64 = 65535;
 
 // TODO: verify the fragments should exist with database.
+// TODO save upload sessions locally
 
 #[allow(unused)]
 impl FragmentLedger {
@@ -63,7 +67,8 @@ impl FragmentLedger {
         let binding = internal_arc.clone();
         let mut guard = binding.housekeeper_handle.lock().unwrap();
         *guard = Some(tokio::spawn(async move {
-            let mut interval = time::interval(Duration::from_secs(5 * 60));
+            let mut interval =
+                time::interval(Duration::from_secs(HOUSEKEEPER_TASK_INTERVAL as u64));
 
             loop {
                 interval.tick().await;
@@ -437,7 +442,7 @@ impl InternalLedger {
         let mut broken = self.broken_map.write().await;
         let mut uncommitted = self.uncommited_map.write().await;
         let mut mark = vec![];
-        let max = Duration::from_secs(3600);
+        let max = Duration::from_secs(DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS as u64);
 
         for (id, reservation) in &*broken {
             if reservation.last_update.elapsed() > max {
@@ -445,7 +450,10 @@ impl InternalLedger {
             }
         }
 
-        debug!("Sweeping {} broken chunks", mark.len());
+        if !mark.is_empty() {
+            debug!("Sweeping {} broken chunks", mark.len());
+        }
+
         for sweep in mark {
             let uncommited = uncommitted.remove(&sweep).is_some();
             let path = &self.get_path(&sweep, uncommited);
@@ -462,7 +470,7 @@ impl InternalLedger {
 
     async fn clean_uncommitted(&self) -> MeowithIoResult<()> {
         let mut mark = vec![];
-        let max = Duration::from_secs(3600);
+        let max = Duration::from_secs(DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS as u64);
 
         {
             let uncommitted = self.uncommited_map.read().await;
@@ -473,7 +481,9 @@ impl InternalLedger {
             }
         }
 
-        debug!("Sweeping {} uncommitted chunks", mark.len());
+        if !mark.is_empty() {
+            debug!("Sweeping {} uncommitted chunks", mark.len());
+        }
 
         for sweep in mark {
             self.delete_chunk(&sweep).await?

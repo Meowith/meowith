@@ -22,18 +22,18 @@ impl PacketWriter {
     pub(crate) async fn write_invalidate_packet(
         &mut self,
         cache_id: u32,
-        cache_key: String,
+        cache_key: &[u8],
     ) -> std::io::Result<()> {
         let _ = self.write(&cache_id.to_be_bytes()).await;
-        let _ = self.write(&cache_key.len().to_be_bytes()).await;
-        let _ = self.write(cache_key.as_bytes()).await;
+        let _ = self.write(&(cache_key.len() as u32).to_be_bytes()).await;
+        let _ = self.write(cache_key).await;
         Ok(())
     }
 
     pub(crate) async fn write(&mut self, slice: &[u8]) -> std::io::Result<()> {
         self.last_write = Instant::now();
 
-        let _ = self.stream.write(slice).await?;
+        self.stream.write_all(slice).await?;
 
         Ok(())
     }

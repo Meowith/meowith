@@ -96,9 +96,9 @@ pub async fn start_upload_durable(
     start_upload_session(path.0, path.1, accessor, req.0, data).await
 }
 
-#[put("/upload/put/{session_id}")]
+#[put("/upload/put/{app_id}/{bucket_id}/{session_id}")]
 pub async fn upload_durable(
-    path: web::Path<Uuid>,
+    path: web::Path<(Uuid, Uuid, Uuid)>,
     accessor: BucketAccessor,
     mut payload: web::Payload,
     data: web::Data<AppState>,
@@ -107,10 +107,9 @@ pub async fn upload_durable(
 
     let abstract_reader: AbstractReadStream =
         Arc::new(Mutex::new(Box::pin(BufReader::new(receiver))));
-    let channel_handle =
-        tokio::spawn(
-            async move { handle_upload_durable(*path, accessor, abstract_reader, data).await },
-        );
+    let channel_handle = tokio::spawn(async move {
+        handle_upload_durable(path.2, path.0, path.1, accessor, abstract_reader, data).await
+    });
 
     while let Some(item) = payload.next().await {
         let item = item.map_err(|_| NodeClientError::BadRequest)?;

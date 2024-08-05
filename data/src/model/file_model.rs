@@ -65,3 +65,42 @@ impl Default for Bucket {
         }
     }
 }
+
+#[charybdis_model(
+    table_name = bucket_upload_session,
+    partition_keys = [app_id],
+    clustering_keys = [bucket, id],
+    global_secondary_indexes = [],
+    local_secondary_indexes = [],
+    static_columns = []
+)]
+#[derive(Eq, PartialEq, Clone)]
+pub struct BucketUploadSession {
+    pub app_id: Uuid,
+    pub bucket: Uuid,
+    pub id: Uuid,
+    pub path: Text,
+    pub size: BigInt,
+    pub completed: BigInt,
+    pub durable: Boolean,
+    pub fragments: Set<Frozen<FileChunk>>,
+    pub last_access: Timestamp,
+}
+
+partial_bucket_upload_session!(UpdateBucketUploadSession, app_id, bucket, id, last_access);
+
+impl Default for BucketUploadSession {
+    fn default() -> Self {
+        BucketUploadSession {
+            app_id: Default::default(),
+            bucket: Default::default(),
+            id: Default::default(),
+            path: "".to_string(),
+            size: 0,
+            completed: 0,
+            durable: false,
+            fragments: Default::default(),
+            last_access: Default::default(),
+        }
+    }
+}

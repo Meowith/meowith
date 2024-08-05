@@ -66,7 +66,7 @@ impl CatcheClient {
     pub async fn write_invalidate_packet(
         &self,
         cache_id: u32,
-        cache_key: String,
+        cache_key: &[u8],
     ) -> std::io::Result<()> {
         self.connection
             .write_invalidate_packet(cache_id, cache_key)

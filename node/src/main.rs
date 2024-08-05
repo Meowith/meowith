@@ -119,6 +119,7 @@ async fn main() -> std::io::Result<()> {
         )),
         req_ctx,
     });
+    app_data.upload_manager.init_session(app_data.clone()).await;
 
     let external_server = HttpServer::new(move || {
         let cors = Cors::permissive();

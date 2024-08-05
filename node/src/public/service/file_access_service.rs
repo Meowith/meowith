@@ -16,9 +16,12 @@ use uuid::Uuid;
 
 use commons::context::microservice_request_context::NodeStorageMap;
 use commons::permission::PermissionList;
-use data::access::file_access::{delete_file, get_bucket, get_file, insert_file};
-use data::model::file_model::{Bucket, File, FileChunk};
+use data::access::file_access::{
+    delete_file, get_bucket, get_file, insert_file, update_upload_session_last_access,
+};
+use data::model::file_model::{Bucket, BucketUploadSession, File, FileChunk};
 use data::model::permission_model::UserPermission;
+use logging::log_err;
 use protocol::mdsftp::channel::MDSFTPChannel;
 use protocol::mdsftp::data::{CommitFlags, PutFlags, ReserveFlags};
 use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
@@ -29,7 +32,6 @@ use crate::io::error::MeowithIoError;
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::{NodeClientError, NodeClientResponse};
 use crate::public::routes::file_transfer::{UploadSessionRequest, UploadSessionStartResponse};
-use crate::public::service::durable_transfer_session_manager::DurableReserveSession;
 use crate::AppState;
 
 lazy_static! {
@@ -62,15 +64,15 @@ pub async fn handle_upload_oneshot(
 ) -> NodeClientResponse<()> {
     // quit early if the user cannot upload at all.
     accessor.has_permission(&bucket_id, &app_id, *UPLOAD_ALLOWANCE)?;
-    let path = split_path(path);
+    let split_path = split_path(path.clone());
 
     let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
 
     // check if the file will be overwritten and if the user can do that.
     let file = get_file(
         bucket_id,
-        path.0.clone(),
-        path.1.clone(),
+        split_path.0.clone(),
+        split_path.1.clone(),
         &app_state.session,
     )
     .await;
@@ -86,7 +88,11 @@ pub async fn handle_upload_oneshot(
         false
     };
 
-    if bucket.space_taken.0 + size as i64 > bucket.quota {
+    let reserved = app_state
+        .upload_manager
+        .get_reserved_space(app_id, bucket_id)
+        .await?;
+    if bucket.space_taken.0 + size as i64 + reserved > bucket.quota {
         return Err(NodeClientError::InsufficientStorage);
     }
 
@@ -103,12 +109,28 @@ pub async fn handle_upload_oneshot(
     )
     .await?;
 
+    let session_id = app_state
+        .upload_manager
+        .start_session(BucketUploadSession {
+            app_id,
+            bucket: bucket_id,
+            id: Uuid::new_v4(),
+            path,
+            size: size as i64,
+            completed: 0,
+            durable: false,
+            fragments: reserve_info_to_file_chunks(&reservation),
+            last_access: Utc::now(),
+        })
+        .await?;
+
     let data = app_state.clone();
     let chunks: Arc<Mutex<HashSet<FileChunk>>> = Default::default();
     let chunks_clone = chunks.clone();
+    let session_clone = app_state.clone();
 
     let notifier = tokio::spawn(async move {
-        let mut interval = time::interval(Duration::from_secs(10 * 60));
+        let mut interval = time::interval(Duration::from_secs(60));
         loop {
             interval.tick().await;
             let mut futures = vec![];
@@ -121,6 +143,14 @@ pub async fn handle_upload_oneshot(
                 ));
             }
             let _ = try_join_all(futures).await;
+            let _ = update_upload_session_last_access(
+                app_id,
+                bucket_id,
+                session_id,
+                Utc::now(),
+                &session_clone.session,
+            )
+            .await;
         }
     });
 
@@ -165,6 +195,10 @@ pub async fn handle_upload_oneshot(
             ));
         }
         try_join_all(futures).await?;
+        app_state
+            .upload_manager
+            .end_session(app_id, bucket_id, session_id)
+            .await;
 
         return Err(err);
     }
@@ -187,8 +221,8 @@ pub async fn handle_upload_oneshot(
 
     let file = File {
         bucket_id,
-        directory: path.0,
-        name: path.1,
+        directory: split_path.0,
+        name: split_path.1,
         size: size as i64,
         chunk_ids: chunks,
         created: now,
@@ -196,6 +230,10 @@ pub async fn handle_upload_oneshot(
     };
 
     insert_file(&file, &bucket, &app_state.session).await?;
+    app_state
+        .upload_manager
+        .end_session(app_id, bucket_id, session_id)
+        .await;
 
     if bucket.atomic_upload && old_file.is_some() {
         do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
@@ -206,26 +244,39 @@ pub async fn handle_upload_oneshot(
 
 pub async fn start_upload_session(
     app_id: Uuid,
-    bucket: Uuid,
+    bucket_id: Uuid,
     accessor: BucketAccessor,
     req: UploadSessionRequest,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<web::Json<UploadSessionStartResponse>> {
     accessor
-        .has_permission(&bucket, &app_id, *UPLOAD_ALLOWANCE)
+        .has_permission(&bucket_id, &app_id, *UPLOAD_ALLOWANCE)
         .map_err(|_| NodeClientError::BadRequest)?;
 
     let path = split_path(req.path.clone());
 
+    let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
+
     // check if the file will be overwritten and if the user can do that.
-    let file = get_file(bucket, path.0, path.1, &app_state.session).await;
+    let file = get_file(bucket_id, path.0, path.1, &app_state.session).await;
     let overwrite = if file.is_ok() {
-        accessor.has_permission(&bucket, &app_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
+        accessor.has_permission(&bucket_id, &app_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
+        let file = file.unwrap();
+        if !bucket.atomic_upload {
+            do_delete_file(&file, &bucket, &app_state).await?;
+        }
         true
-        // TODO config
     } else {
         false
     };
+
+    let reserved = app_state
+        .upload_manager
+        .get_reserved_space(app_id, bucket_id)
+        .await?;
+    if bucket.space_taken.0 + req.size as i64 + reserved > bucket.quota {
+        return Err(NodeClientError::InsufficientStorage);
+    }
 
     let reservation = reserve_chunks(
         req.size,
@@ -242,12 +293,16 @@ pub async fn start_upload_session(
 
     let session_id = app_state
         .upload_manager
-        .start_session(DurableReserveSession {
+        .start_session(BucketUploadSession {
             app_id,
-            bucket,
+            bucket: bucket_id,
+            id: Uuid::new_v4(),
             path: req.path,
-            size: req.size,
-            fragments: reservation.into(),
+            size: req.size as i64,
+            completed: 0,
+            durable: true,
+            fragments: reserve_info_to_file_chunks(&reservation),
+            last_access: Utc::now(),
         })
         .await?;
     Ok(web::Json(UploadSessionStartResponse {
@@ -258,11 +313,16 @@ pub async fn start_upload_session(
 
 pub async fn handle_upload_durable(
     session_id: Uuid,
+    app_id: Uuid,
+    bucket_id: Uuid,
     _accessor: BucketAccessor,
     _reader: AbstractReadStream,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {
-    let _session = app_state.upload_manager.get_session(&session_id).await?;
+    let _session = app_state
+        .upload_manager
+        .get_session(app_id, bucket_id, session_id)
+        .await?;
 
     todo!()
 }
@@ -349,7 +409,6 @@ pub struct ChunkInfo {
     pub append: bool,
 }
 
-// TODO err handling
 async fn do_delete_file(
     file: &File,
     bucket: &Bucket,
@@ -357,9 +416,15 @@ async fn do_delete_file(
 ) -> NodeClientResponse<()> {
     for chunk in &file.chunk_ids {
         if chunk.server_id == state.req_ctx.id {
-            let _ = state.fragment_ledger.delete_chunk(&chunk.chunk_id).await;
+            log_err(
+                "file delete error",
+                state.fragment_ledger.delete_chunk(&chunk.chunk_id).await,
+            );
         } else if let Ok(channel) = state.mdsftp_server.pool().channel(&chunk.server_id).await {
-            let _ = channel.delete_chunk(chunk.chunk_id).await;
+            log_err(
+                "file delete error",
+                channel.delete_chunk(chunk.chunk_id).await,
+            );
         }
     }
 
@@ -475,10 +540,21 @@ pub struct ReservedFragment {
     pub chunk_buffer: u16,
 }
 
-#[allow(unused)]
 pub struct ReserveInfo {
     // Channel, none if local, node_id, chunk_id, size, chunk_buffer
     pub fragments: Vec<ReservedFragment>,
+}
+
+pub fn reserve_info_to_file_chunks(reserve_info: &ReserveInfo) -> HashSet<FileChunk> {
+    (0_i8..)
+        .zip(reserve_info.fragments.iter())
+        .map(|chunk| FileChunk {
+            server_id: chunk.1.node_id,
+            chunk_id: chunk.1.chunk_id,
+            chunk_size: chunk.1.size as i64,
+            chunk_order: chunk.0,
+        })
+        .collect()
 }
 
 #[allow(unused)]

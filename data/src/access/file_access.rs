@@ -1,11 +1,12 @@
-use charybdis::operations::{Delete, Insert};
+use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
+use charybdis::types::Timestamp;
 use futures::try_join;
 use scylla::{CachingSession, QueryResult};
 use uuid::Uuid;
 
 use crate::error::MeowithDataError;
-use crate::model::file_model::{Bucket, File};
+use crate::model::file_model::{Bucket, BucketUploadSession, File, UpdateBucketUploadSession};
 
 pub async fn get_files_from_bucket(
     bucket_id: Uuid,
@@ -108,4 +109,82 @@ pub async fn insert_file(
     .map_err(MeowithDataError::from)?;
 
     Ok(())
+}
+
+pub async fn insert_upload_session(
+    bucket_upload_session: &BucketUploadSession,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    bucket_upload_session
+        .insert()
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
+pub async fn get_upload_session(
+    app_id: Uuid,
+    bucket: Uuid,
+    id: Uuid,
+    session: &CachingSession,
+) -> Result<BucketUploadSession, MeowithDataError> {
+    BucketUploadSession::find_first_by_app_id_and_bucket_and_id(app_id, bucket, id)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
+pub async fn get_upload_sessions(
+    app_id: Uuid,
+    bucket: Uuid,
+    session: &CachingSession,
+) -> Result<CharybdisModelStream<BucketUploadSession>, MeowithDataError> {
+    BucketUploadSession::find_by_app_id_and_bucket(app_id, bucket)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
+pub async fn delete_upload_session(
+    update_bucket_upload_session: &UpdateBucketUploadSession,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    update_bucket_upload_session
+        .delete()
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
+pub async fn delete_upload_session_by(
+    app_id: Uuid,
+    bucket_id: Uuid,
+    id: Uuid,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    BucketUploadSession::delete_by_app_id_and_bucket_and_id(app_id, bucket_id, id)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
+pub async fn update_upload_session_last_access(
+    app_id: Uuid,
+    bucket: Uuid,
+    id: Uuid,
+    last_access: Timestamp,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    let upload_session_update = UpdateBucketUploadSession {
+        app_id,
+        bucket,
+        id,
+        last_access,
+    };
+
+    upload_session_update
+        .update()
+        .execute(session)
+        .await
+        .map_err(|e| e.into())
 }

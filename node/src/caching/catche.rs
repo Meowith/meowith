@@ -1,23 +1,43 @@
-use crate::public::response::NodeClientError;
-use async_trait::async_trait;
-use data::dto::config::GeneralConfiguration;
-use openssl::x509::X509;
-use protocol::catche::catche_client::CatcheClient;
-use protocol::catche::handler::CatcheHandler;
 use std::any::Any;
+use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
+
+use async_trait::async_trait;
+use openssl::x509::X509;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+use data::dto::config::GeneralConfiguration;
+use protocol::catche::catche_client::CatcheClient;
+use protocol::catche::handler::CatcheHandler;
+
+use crate::caching::invalidator::{insert_invalidator_map, CacheInvalidator};
+use crate::public::response::NodeClientError;
+
 #[derive(Debug)]
-pub struct CacheInvalidationHandler;
+pub struct CacheInvalidationHandler {
+    invalidators: HashMap<u8, Box<dyn CacheInvalidator>>,
+}
+
+impl CacheInvalidationHandler {
+    pub fn new() -> Self {
+        let mut map = HashMap::new();
+
+        insert_invalidator_map(&mut map);
+
+        CacheInvalidationHandler { invalidators: map }
+    }
+}
 
 #[async_trait]
 impl CatcheHandler for CacheInvalidationHandler {
-    async fn handle_invalidate(&mut self, _cache_id: u32, _cache_key: String) {
-        todo!();
+    async fn handle_invalidate(&mut self, cache_id: u32, cache_key: &[u8]) {
+        let invalidator = self.invalidators.get(&(cache_id as u8));
+        if let Some(invalidator) = invalidator {
+            invalidator.invalidate(cache_key).await;
+        }
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -39,7 +59,7 @@ pub async fn connect_catche(
         ),
         microservice_id,
         certificate,
-        Arc::new(Mutex::new(Box::new(CacheInvalidationHandler {}))),
+        Arc::new(Mutex::new(Box::new(CacheInvalidationHandler::new()))),
         Some(token),
     )
     .await

@@ -62,7 +62,7 @@ impl PacketReader {
                     break;
                 };
 
-                let cache_key = String::from_utf8_lossy(cache_key.as_slice()).to_string();
+                let cache_key = cache_key.as_slice();
 
                 let _ = handler
                     .lock()
