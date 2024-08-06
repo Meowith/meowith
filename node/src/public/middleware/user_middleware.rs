@@ -94,7 +94,7 @@ where
     }
 }
 
-#[allow(unused)]
+
 pub struct BucketAccessor {
     pub permits: Vec<AppTokenPermit>,
     pub app_id: Uuid,

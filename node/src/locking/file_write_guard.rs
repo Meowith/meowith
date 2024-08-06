@@ -5,10 +5,11 @@ use tokio::sync::{OwnedSemaphorePermit, TryAcquireError};
 use crate::locking::error::FileLockError;
 use crate::locking::file_lock_table::{KeyBounds, Locker, TryLockResult};
 
-#[allow(unused)]
+
 #[derive(Debug)]
 pub struct FileWriteGuard<K: KeyBounds> {
     pub(super) locker: Weak<Locker<K>>,
+    #[allow(unused)] // this is necessary
     pub(super) permit: OwnedSemaphorePermit,
 }
 
@@ -29,7 +30,6 @@ impl<K: KeyBounds> FileWriteGuard<K> {
 }
 
 impl<K: KeyBounds> Drop for FileWriteGuard<K> {
-    #[allow(dead_code)]
     fn drop(&mut self) {
         if let Some(locker) = self.locker.upgrade() {
             locker.release_write()

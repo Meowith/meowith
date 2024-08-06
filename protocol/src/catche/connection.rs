@@ -36,7 +36,7 @@ impl CatcheConnection {
             .await
     }
 
-    #[allow(unused)]
+
     pub async fn write_auth_header(&self, uuid: Uuid) -> std::io::Result<()> {
         self._internal_connection
             .writer
@@ -46,7 +46,7 @@ impl CatcheConnection {
             .await
     }
 
-    #[allow(unused)]
+
     pub async fn write_token(&self, token: String) -> std::io::Result<()> {
         self._internal_connection
             .writer
@@ -57,8 +57,9 @@ impl CatcheConnection {
     }
 }
 
-#[allow(unused)]
+
 #[derive(Debug)]
+#[allow(unused)]
 struct InternalCatcheConnection {
     writer: Arc<Mutex<PacketWriter>>,
     reader: Arc<PacketReader>,

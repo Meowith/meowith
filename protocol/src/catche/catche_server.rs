@@ -172,7 +172,7 @@ impl CatcheServer {
         Ok(())
     }
 
-    #[allow(unused)]
+
     pub async fn shutdown(self) {
         let sender = self.shutdown_sender.clone();
         if let Some(sender) = sender {

@@ -128,7 +128,7 @@ impl Drop for MDSFTPChannel {
 macro_rules! internal_sender_method {
     ($buffer:ident $self:ident $passed:ident $name:ident($packet_type:expr, $($param:ident: $ptype:ty),*) -> $ret:ty { $channel_method:block $finish:block }) => {
 
-        #[allow(unused)]
+        #[allow(unused)] // this is nessecary
         pub(crate) async fn $name(&self, $($param: $ptype),*) -> $ret {
             let writer = self
                 .writer_ref

@@ -33,7 +33,7 @@ impl<K: KeyBounds> Default for FileLockTable<K> {
     }
 }
 
-#[allow(unused)]
+
 impl<K: KeyBounds> FileLockTable<K> {
     fn default() -> Self {
         FileLockTable {
@@ -106,7 +106,7 @@ pub(crate) struct Locker<K: KeyBounds> {
     lock_table: Weak<LockTable<K>>,
 }
 
-#[allow(unused)]
+
 impl<K: KeyBounds> Locker<K> {
     pub(crate) fn release_read(&self) {
         if let Some(lock_table) = self.lock_table.upgrade() {

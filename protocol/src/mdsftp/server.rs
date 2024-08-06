@@ -24,7 +24,7 @@ use crate::mdsftp::pool::{MDSFTPPool, MDSFTPPoolConfigHolder, PacketHandlerRef};
 
 pub const ZERO_UUID: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-#[allow(unused)]
+
 pub struct MDSFTPServer {
     pool: Option<MDSFTPPool>,
     running: Arc<AtomicBool>,
@@ -53,7 +53,7 @@ impl MDSFTPServer {
         srv
     }
 
-    #[allow(unused)]
+
     pub async fn start(&mut self, cert: &X509, key: &PKey<Private>) -> Result<(), Box<dyn Error>> {
         let config = rustls::ServerConfig::builder()
             .with_no_client_auth()
@@ -82,7 +82,7 @@ impl MDSFTPServer {
         let (startup_tx, startup_rx) = oneshot::channel();
 
         tokio::spawn(async move {
-            startup_tx.send(());
+            let _ = startup_tx.send(());
             while running.load(Ordering::Relaxed) {
                 let res: Result<(), MDSFTPError> = async {
                     let stream: TcpStream;
@@ -99,7 +99,7 @@ impl MDSFTPServer {
                     }
 
                     tokio::select! {
-                        val = rx.recv() => {
+                        _val = rx.recv() => {
                             return Err(MDSFTPError::ShuttingDown);
                         }
                         val = listener.accept() => {
@@ -133,9 +133,9 @@ impl MDSFTPServer {
 
                     if let Some(auth) = &auth_ctx.authenticator {
                         debug!("Validating new MDSFTP remote connection...");
-                        if (!auth
+                        if !auth
                             .authenticate_incoming(&mut stream, microservice_id)
-                            .await?)
+                            .await?
                         {
                             debug!("Validation unsuccessful");
                             stream

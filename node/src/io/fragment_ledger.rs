@@ -44,7 +44,7 @@ const AVAILABLE_BUFFER: u64 = 65535;
 // TODO: verify the fragments should exist with database.
 // TODO save upload sessions locally
 
-#[allow(unused)]
+
 impl FragmentLedger {
     pub fn new(root_path: String, max_space: u64, file_lock_table: LockTable) -> Self {
         let internal = InternalLedger {
@@ -108,7 +108,7 @@ impl FragmentLedger {
         let chunk_dir = Path::new(&self._internal.root_path);
         let dir_scan = fs::read_dir(chunk_dir).map_err(MeowithIoError::from)?;
         let mut chunk_map = self._internal.chunk_set.write().await;
-        let mut last_notify = Instant::now();
+        let last_notify = Instant::now();
 
         for entry in dir_scan {
             let entry = entry.map_err(MeowithIoError::from)?;
@@ -287,7 +287,7 @@ impl FragmentLedger {
         if reservation.is_none() {
             return Err(MeowithIoError::NotFound);
         }
-        let mut reservation = reservation.unwrap();
+        let reservation = reservation.unwrap();
 
         let transfer_completed = size_actual == reservation.file_space;
         let expected = reservation.file_space;
@@ -377,7 +377,7 @@ impl FragmentLedger {
     }
 }
 
-#[allow(unused)]
+
 #[derive(Clone, Debug)]
 pub struct Reservation {
     pub file_space: u64,
@@ -405,7 +405,7 @@ impl CommitInfo {
     }
 }
 
-#[allow(unused)]
+
 struct InternalLedger {
     root_path: PathBuf,
     file_lock_table: LockTable,

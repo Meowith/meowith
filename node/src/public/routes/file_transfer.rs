@@ -21,7 +21,7 @@ use crate::AppState;
 const USER_TRANSFER_BUFFER: usize = 1024;
 
 #[derive(Serialize)]
-#[allow(unused)]
+
 pub struct UploadSessionStartResponse {
     /// To be used in the X-UploadCode header
     pub code: String,
@@ -30,7 +30,7 @@ pub struct UploadSessionStartResponse {
 }
 
 #[derive(Deserialize)]
-#[allow(unused)]
+
 pub struct UploadSessionRequest {
     /// Entry size in bytes
     pub size: u64,

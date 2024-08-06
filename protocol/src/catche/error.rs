@@ -2,11 +2,11 @@ use openssl::error::ErrorStack;
 use std::array::TryFromSliceError;
 use std::error::Error;
 
-#[allow(unused)]
+
 pub type CatcheResult<T> = Result<T, CatcheError>;
 
 #[derive(Debug, derive_more::Display)]
-#[allow(unused)]
+
 pub enum CatcheError {
     ConnectionError,
     #[display(fmt = "SSLError {_0:?}")]

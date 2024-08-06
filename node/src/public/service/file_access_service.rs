@@ -1,26 +1,24 @@
+use std::collections::HashSet;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
+
 use actix_web::http::header::ContentType;
 use actix_web::web;
 use actix_web::web::Data;
 use chrono::Utc;
 use futures_util::future::try_join_all;
-use lazy_static::lazy_static;
 use log::debug;
 use mime_guess::mime;
-use std::collections::HashSet;
-use std::path::Path;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::{io, time};
 use uuid::Uuid;
 
 use commons::context::microservice_request_context::NodeStorageMap;
-use commons::permission::PermissionList;
 use data::access::file_access::{
     delete_file, get_bucket, get_file, insert_file, update_upload_session_last_access,
 };
 use data::model::file_model::{Bucket, BucketUploadSession, File, FileChunk};
-use data::model::permission_model::UserPermission;
 use logging::log_err;
 use protocol::mdsftp::channel::MDSFTPChannel;
 use protocol::mdsftp::data::{CommitFlags, PutFlags, ReserveFlags};
@@ -32,14 +30,8 @@ use crate::io::error::MeowithIoError;
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::{NodeClientError, NodeClientResponse};
 use crate::public::routes::file_transfer::{UploadSessionRequest, UploadSessionStartResponse};
+use crate::public::service::{DOWNLOAD_ALLOWANCE, UPLOAD_ALLOWANCE, UPLOAD_OVERWRITE_ALLOWANCE};
 use crate::AppState;
-
-lazy_static! {
-    static ref UPLOAD_ALLOWANCE: u64 = PermissionList(vec![UserPermission::Write]).into();
-    static ref UPLOAD_OVERWRITE_ALLOWANCE: u64 =
-        PermissionList(vec![UserPermission::Write, UserPermission::Overwrite]).into();
-    static ref DOWNLOAD_ALLOWANCE: u64 = PermissionList(vec![UserPermission::Read]).into();
-}
 
 #[allow(unused)]
 pub enum ReservationMode {
@@ -381,35 +373,13 @@ async fn commit_chunk(
     }
 }
 
-#[allow(unused)]
-async fn delete_chunk(
-    node_id: Uuid,
-    chunk_id: Uuid,
-    state: &Data<AppState>,
-) -> NodeClientResponse<()> {
-    if node_id == state.req_ctx.id {
-        state
-            .fragment_ledger
-            .delete_chunk(&chunk_id)
-            .await
-            .map_err(|_| NodeClientError::InternalError)
-    } else {
-        let pool = state.mdsftp_server.pool();
-        let channel = pool.channel(&node_id).await?;
-        channel
-            .delete_chunk(chunk_id)
-            .await
-            .map_err(NodeClientError::from)
-    }
-}
-
 pub struct ChunkInfo {
     pub chunk_buffer: u16,
     pub size: u64,
     pub append: bool,
 }
 
-async fn do_delete_file(
+pub async fn do_delete_file(
     file: &File,
     bucket: &Bucket,
     state: &Data<AppState>,
@@ -557,7 +527,7 @@ pub fn reserve_info_to_file_chunks(reserve_info: &ReserveInfo) -> HashSet<FileCh
         .collect()
 }
 
-#[allow(unused)]
+
 async fn reserve_chunks(
     size: u64,
     flags: ReserveFlags,
@@ -695,7 +665,7 @@ async fn push_most_used(
 /// "a\\path\\to/a.txt" => ("a/path/to", "a.txt")
 /// "a.txt"             => ("", "a.txt")
 /// ```
-fn split_path(file_path: String) -> (String, String) {
+pub fn split_path(file_path: String) -> (String, String) {
     let normalized_path = file_path.replace('\\', "/");
 
     let path = Path::new(&normalized_path);

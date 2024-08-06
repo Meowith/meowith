@@ -132,11 +132,12 @@ impl MDSFTPConnection {
     }
 }
 
-#[allow(unused)]
+
 struct InternalMDSFTPConnection {
     writer: Arc<Mutex<PacketWriter>>,
     reader: Arc<PacketReader>,
     channel_factory: Arc<ChannelFactory>,
+    #[allow(unused)]
     node_id: Uuid,
     local: bool,
     is_closing: AtomicBool,

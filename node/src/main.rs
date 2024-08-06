@@ -28,7 +28,7 @@ mod io;
 mod locking;
 mod public;
 
-#[allow(unused)]
+
 pub struct AppState {
     session: CachingSession,
     mdsftp_server: MDSFTPServer,

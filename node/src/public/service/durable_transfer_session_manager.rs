@@ -19,13 +19,13 @@ use crate::AppState;
 
 pub const DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS: usize = 3600;
 
-#[allow(unused)]
+
 pub struct DurableTransferSessionManager {
     session_map: Arc<RwLock<HashMap<Uuid, BucketUploadSession>>>,
     session: Arc<RwLock<Option<Weak<AppState>>>>,
 }
 
-#[allow(unused)]
+
 impl DurableTransferSessionManager {
     pub(crate) fn new() -> Self {
         DurableTransferSessionManager {

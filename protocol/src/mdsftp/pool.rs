@@ -87,7 +87,7 @@ pub(crate) struct InternalMDSFTPPool {
     stale_conn_watcher: Option<JoinHandle<()>>,
 }
 
-#[allow(unused)]
+
 impl InternalMDSFTPPool {
     fn new(
         connection_auth_context: Arc<ConnectionAuthContext>,
@@ -118,13 +118,13 @@ impl InternalMDSFTPPool {
                         if conn.last_access().await.elapsed() > STALE_TIMEOUT
                             && conn.safe_to_close()
                         {
-                            conn.close();
+                            conn.close().await;
                             mark.insert(*id, conn.local_id())
                         }
                     }
 
                     for (id, sweep) in mark {
-                        let mut vec = map.remove(&id);
+                        let vec = map.remove(&id);
                         if let Some(mut vec) = vec {
                             vec.retain(|c| !sweep.contains(&c.local_id()));
                             if !vec.is_empty() {

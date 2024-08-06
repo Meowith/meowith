@@ -3,7 +3,7 @@ use std::error::Error;
 pub type MeowithIoResult<T> = Result<T, MeowithIoError>;
 
 #[derive(Debug, derive_more::Display)]
-#[allow(unused)]
+
 pub enum MeowithIoError {
     NotFound,
     #[display(fmt = "NotFound err = {_0:?}")]

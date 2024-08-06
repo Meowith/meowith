@@ -18,6 +18,7 @@ pub struct FileChunk {
     local_secondary_indexes = [],
     static_columns = []
 )]
+#[derive(Clone)]
 pub struct File {
     pub bucket_id: Uuid,
     pub directory: Text,

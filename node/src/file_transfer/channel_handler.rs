@@ -116,11 +116,12 @@ impl MeowithMDSFTPChannelPacketHandler {
     }
 }
 
-#[allow(unused)]
+
 #[derive(Clone, Debug)]
 struct ReservationDetails {
     id: Uuid,
     size: u64,
+    #[allow(unused)]
     durable: bool,
 }
 
