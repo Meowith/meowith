@@ -30,6 +30,7 @@ use crate::io::error::MeowithIoError;
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::{NodeClientError, NodeClientResponse};
 use crate::public::routes::file_transfer::{UploadSessionRequest, UploadSessionStartResponse};
+use crate::public::service::durable_transfer_session_manager::DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS;
 use crate::public::service::{DOWNLOAD_ALLOWANCE, UPLOAD_ALLOWANCE, UPLOAD_OVERWRITE_ALLOWANCE};
 use crate::AppState;
 
@@ -109,7 +110,6 @@ pub async fn handle_upload_oneshot(
             id: Uuid::new_v4(),
             path,
             size: size as i64,
-            completed: 0,
             durable: false,
             fragments: reserve_info_to_file_chunks(&reservation),
             last_access: Utc::now(),
@@ -253,7 +253,7 @@ pub async fn start_upload_session(
     let file = get_file(bucket_id, path.0, path.1, &app_state.session).await;
     let overwrite = if file.is_ok() {
         accessor.has_permission(&bucket_id, &app_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
-        let file = file.unwrap();
+        let file = file?;
         if !bucket.atomic_upload {
             do_delete_file(&file, &bucket, &app_state).await?;
         }
@@ -291,7 +291,6 @@ pub async fn start_upload_session(
             id: Uuid::new_v4(),
             path: req.path,
             size: req.size as i64,
-            completed: 0,
             durable: true,
             fragments: reserve_info_to_file_chunks(&reservation),
             last_access: Utc::now(),
@@ -299,7 +298,8 @@ pub async fn start_upload_session(
         .await?;
     Ok(web::Json(UploadSessionStartResponse {
         code: session_id.to_string(),
-        validity: 0,
+        validity: DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS as u32,
+        uploaded: 0,
     }))
 }
 
@@ -308,15 +308,114 @@ pub async fn handle_upload_durable(
     app_id: Uuid,
     bucket_id: Uuid,
     _accessor: BucketAccessor,
-    _reader: AbstractReadStream,
+    reader: AbstractReadStream,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {
-    let _session = app_state
+    let session = app_state
         .upload_manager
         .get_session(app_id, bucket_id, session_id)
         .await?;
+    let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
 
-    todo!()
+    let mut sorted_chunks: Vec<FileChunk> = session.fragments.into_iter().collect();
+    sorted_chunks.sort_by_key(|c| c.chunk_id);
+
+    let mut futures = vec![];
+    for chunk in &sorted_chunks {
+        futures.push(query_chunk(chunk.chunk_id, chunk.server_id, &app_state));
+    }
+    let already_uploaded = try_join_all(futures)
+        .await?
+        .iter()
+        .map(|item| item.unwrap_or(0) as i64)
+        .sum();
+
+    if already_uploaded == session.size {
+        // TODO, already done, no need to continue.
+    }
+
+    // TODO commit management.
+    // TODO reservation management.
+
+    let mut curr = 0i64;
+    let mut i: i32 = -1;
+    for (frag, idx) in sorted_chunks.iter().zip(0..) {
+        curr += frag.chunk_size;
+        if curr > already_uploaded {
+            i = idx;
+        }
+    }
+
+    if i == -1 {
+        todo!("sth went very wrong")
+    }
+
+    let transfer_result: NodeClientResponse<()> = async {
+        let mut first = already_uploaded > 0; // todo handle user vs internal error. same for oneshot.
+        for chunk in sorted_chunks.iter().skip(i.try_into().unwrap()) {
+            inbound_transfer(
+                reader.clone(),
+                chunk.server_id,
+                chunk.chunk_id,
+                None,
+                ChunkInfo {
+                    chunk_buffer: 0,
+                    size: chunk.chunk_size as u64,
+                    append: first,
+                },
+                &app_state,
+            )
+            .await?;
+            first = false;
+        }
+        Ok(())
+    }
+    .await;
+
+    if transfer_result.is_err() {
+        app_state
+            .upload_manager
+            .update_session(session.app_id, session.bucket, session.id)
+            .await?;
+
+        return Err(NodeClientError::BadRequest);
+    }
+
+    let mut futures = vec![];
+    for chunk in &sorted_chunks {
+        futures.push(commit_chunk(
+            CommitFlags::r#final(),
+            chunk.server_id,
+            chunk.server_id,
+            &app_state,
+        ))
+    }
+    try_join_all(futures).await?;
+
+    let now = Utc::now();
+    let split_path = split_path(session.path);
+    let file = File {
+        bucket_id,
+        directory: split_path.0,
+        name: split_path.1,
+        size: session.size,
+        chunk_ids: sorted_chunks.into_iter().collect(),
+        created: now,
+        last_modified: now,
+    };
+
+    insert_file(&file, &bucket, &app_state.session).await?;
+    app_state
+        .upload_manager
+        .end_session(app_id, bucket_id, session_id)
+        .await;
+
+    // TODO
+    // if bucket.atomic_upload && old_file.is_some() {
+    //     do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
+    // }
+
+    Ok(())
 }
 
 pub async fn handle_download(
@@ -379,6 +478,35 @@ pub struct ChunkInfo {
     pub append: bool,
 }
 
+///
+/// Fetches chunk size
+/// To avoid unnecessary network calls if chunk is on the current node it just returns size right away
+/// otherwise it queries the origin node for this value using MDSFTP
+///
+/// Returns the chunk size
+///
+pub async fn query_chunk(
+    chunk_id: Uuid,
+    node_id: Uuid,
+    state: &Data<AppState>,
+) -> NodeClientResponse<Option<u64>> {
+    if node_id == state.req_ctx.id {
+        Ok(state
+            .fragment_ledger
+            .fragment_meta_ex(&chunk_id)
+            .await
+            .map(|c| c.disk_content_size))
+    } else {
+        let pool = state.mdsftp_server.pool();
+        let channel = pool.channel(&node_id).await?;
+        match channel.query_chunk(chunk_id).await {
+            Ok(res) => Ok(Some(res.size)),
+            Err(MDSFTPError::NoSuchChunkId) => Ok(None),
+            Err(e) => Err(e)?,
+        }
+    }
+}
+
 pub async fn do_delete_file(
     file: &File,
     bucket: &Bucket,
@@ -412,6 +540,8 @@ async fn inbound_transfer(
     state: &Data<AppState>,
 ) -> NodeClientResponse<()> {
     if node_id == state.req_ctx.id {
+        // TODO, make sure no more data than size is written,
+        // TODO same deal for the channel handler. Note: tokio take
         let writer = if chunk.append {
             state.fragment_ledger.fragment_write_stream(&chunk_id).await
         } else {
@@ -429,11 +559,12 @@ async fn inbound_transfer(
         Ok(())
     } else {
         let eff_channel: MDSFTPChannel;
+        let mut eff_chunk_buf: u16 = chunk.chunk_buffer;
         let pool = state.mdsftp_server.pool();
         match channel {
             None => {
                 let channel = pool.channel(&node_id).await?;
-                channel
+                let res = channel
                     .request_put(
                         PutFlags {
                             append: chunk.append,
@@ -442,6 +573,7 @@ async fn inbound_transfer(
                         chunk.size,
                     )
                     .await?;
+                eff_chunk_buf = res.chunk_buffer;
                 eff_channel = channel;
             }
             Some(c) => eff_channel = c,
@@ -453,7 +585,7 @@ async fn inbound_transfer(
             pool.cfg.fragment_size,
         ));
         let handle = eff_channel
-            .send_content(reader, chunk.size, chunk.chunk_buffer, handler)
+            .send_content(reader, chunk.size, eff_chunk_buf, handler)
             .await?;
 
         handle.await.map_or(Ok(()), |e| e)?;
@@ -526,7 +658,6 @@ pub fn reserve_info_to_file_chunks(reserve_info: &ReserveInfo) -> HashSet<FileCh
         })
         .collect()
 }
-
 
 async fn reserve_chunks(
     size: u64,

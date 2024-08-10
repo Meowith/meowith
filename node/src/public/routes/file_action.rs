@@ -2,7 +2,7 @@ use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::NodeClientResponse;
 use crate::public::service::file_action_service::{delete_file_srv, rename_file_srv};
 use crate::AppState;
-use actix_web::{delete, web, HttpResponse, post};
+use actix_web::{delete, post, web, HttpResponse};
 use serde::Deserialize;
 use uuid::Uuid;
 

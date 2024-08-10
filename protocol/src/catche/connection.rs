@@ -36,7 +36,6 @@ impl CatcheConnection {
             .await
     }
 
-
     pub async fn write_auth_header(&self, uuid: Uuid) -> std::io::Result<()> {
         self._internal_connection
             .writer
@@ -45,7 +44,6 @@ impl CatcheConnection {
             .write(uuid.as_bytes())
             .await
     }
-
 
     pub async fn write_token(&self, token: String) -> std::io::Result<()> {
         self._internal_connection
@@ -56,7 +54,6 @@ impl CatcheConnection {
             .await
     }
 }
-
 
 #[derive(Debug)]
 #[allow(unused)]

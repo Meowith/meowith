@@ -116,7 +116,6 @@ impl MeowithMDSFTPChannelPacketHandler {
     }
 }
 
-
 #[derive(Clone, Debug)]
 struct ReservationDetails {
     id: Uuid,
@@ -363,6 +362,16 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
             let _ = self.fragment_ledger.delete_chunk(&chunk_id).await;
         }
 
+        channel.close(Ok(())).await;
+        Ok(())
+    }
+
+    async fn handle_query(&mut self, channel: Channel, chunk_id: Uuid) -> MDSFTPResult<()> {
+        if let Some(data) = self.fragment_ledger.fragment_meta_ex(&chunk_id).await {
+            channel.respond_query(data.disk_content_size, true).await?
+        } else {
+            channel.respond_query(0, false).await?
+        }
         channel.close(Ok(())).await;
         Ok(())
     }

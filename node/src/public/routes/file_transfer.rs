@@ -23,10 +23,13 @@ const USER_TRANSFER_BUFFER: usize = 1024;
 #[derive(Serialize)]
 
 pub struct UploadSessionStartResponse {
-    /// To be used in the X-UploadCode header
+    /// To be used in the path
     pub code: String,
     /// Seconds till the unfinished chunk is dropped when the upload is not reinitialized
     pub validity: u32,
+    /// The amount already uploaded to meowith.
+    /// The client should resume uploading from there.
+    pub uploaded: u64,
 }
 
 #[derive(Deserialize)]

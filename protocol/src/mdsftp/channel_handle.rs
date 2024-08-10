@@ -78,6 +78,10 @@ impl MDSFTPHandlerChannel {
         respond_put_err(err)
     });
 
+    define_respond_method!(respond_query(size: u64, exists: bool) -> MDSFTPResult<()> {
+        respond_query(size, exists)
+    });
+
     define_respond_method!(close(result: MDSFTPResult<()>) -> () {
         mark_handler_closed(result)
     });

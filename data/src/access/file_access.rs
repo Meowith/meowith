@@ -54,7 +54,12 @@ pub async fn maybe_get_file(
         .map_err(MeowithDataError::from)
 }
 
-pub async fn update_file_path(file: &File, directory: String, name: String, session: &CachingSession) -> Result<File, MeowithDataError> {
+pub async fn update_file_path(
+    file: &File,
+    directory: String,
+    name: String,
+    session: &CachingSession,
+) -> Result<File, MeowithDataError> {
     let mut new_file = file.clone();
     new_file.directory = directory;
     new_file.name = name;
@@ -66,7 +71,9 @@ pub async fn update_file_path(file: &File, directory: String, name: String, sess
     File::batch()
         .append_delete(file)
         .append_insert(&new_file)
-        .execute(session).await.map_err(MeowithDataError::from)?;
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)?;
     Ok(new_file)
 }
 
@@ -80,7 +87,7 @@ pub async fn delete_file(
         bucket.decrement_space_taken(file.size).execute(session),
         bucket.decrement_file_count(1).execute(session),
     )
-        .map_err(MeowithDataError::from)?;
+    .map_err(MeowithDataError::from)?;
     Ok(())
 }
 
@@ -135,7 +142,7 @@ pub async fn insert_file(
         bucket.increment_space_taken(file.size).execute(session),
         bucket.increment_file_count(1).execute(session),
     )
-        .map_err(MeowithDataError::from)?;
+    .map_err(MeowithDataError::from)?;
 
     Ok(())
 }

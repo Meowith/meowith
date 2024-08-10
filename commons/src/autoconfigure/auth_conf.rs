@@ -21,7 +21,6 @@ pub struct TokenReadError {}
 
 impl Error for TokenReadError {}
 
-
 pub struct RegistrationResult {
     pub internal_cert: X509,
     pub internal_key: PKey<Private>,

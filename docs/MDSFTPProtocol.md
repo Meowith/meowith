@@ -126,6 +126,22 @@ Flags: `lock_kind` (read/write) `error_kind` (not_found/internal)
 
 Flags: `reject` (yes/no) `keep-alive` (yes/no) `final` (yes/no)
 
+## Query
+
+- **Query** (`query` Packet ID: 0x10)
+
+| Chunk ID |
+|----------|
+| 16 Bytes |
+
+- **QueryResponse** (`query` Packet ID: 0x11)
+
+| Flags  | ChunkSize |
+|--------|-----------|
+| 1 Byte | 8 Bytes   |
+
+Flags: `exists` (yes/no)
+
 ## Channels
 
 - **Channel open** (`channel_open` Packet ID: 0x80)

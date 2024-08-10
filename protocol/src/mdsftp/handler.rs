@@ -66,6 +66,8 @@ pub trait ChannelPacketHandler: Send {
         flags: CommitFlags,
     ) -> MDSFTPResult<()>;
 
+    async fn handle_query(&mut self, channel: Channel, chunk_id: Uuid) -> MDSFTPResult<()>;
+
     async fn handle_interrupt(&mut self) -> MDSFTPResult<()>;
 }
 

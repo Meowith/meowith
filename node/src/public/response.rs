@@ -17,7 +17,6 @@ struct ErrorResponse {
     message: String,
 }
 
-
 #[derive(Debug, Display)]
 pub enum NodeClientError {
     InternalError,

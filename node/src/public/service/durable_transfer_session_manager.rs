@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, Weak};
 
@@ -19,17 +18,26 @@ use crate::AppState;
 
 pub const DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS: usize = 3600;
 
+pub type SessionWeakRef = Arc<RwLock<Option<Weak<AppState>>>>;
 
 pub struct DurableTransferSessionManager {
-    session_map: Arc<RwLock<HashMap<Uuid, BucketUploadSession>>>,
-    session: Arc<RwLock<Option<Weak<AppState>>>>,
+    session: SessionWeakRef,
 }
 
+pub async fn obtain_session(session_weak_ref: &SessionWeakRef) -> Arc<AppState> {
+    session_weak_ref
+        .clone()
+        .read()
+        .await
+        .as_ref()
+        .unwrap()
+        .upgrade()
+        .unwrap()
+}
 
 impl DurableTransferSessionManager {
     pub(crate) fn new() -> Self {
         DurableTransferSessionManager {
-            session_map: Arc::new(Default::default()),
             session: Default::default(),
         }
     }
@@ -40,36 +48,26 @@ impl DurableTransferSessionManager {
 
     pub async fn start_session(&self, session: BucketUploadSession) -> NodeClientResponse<Uuid> {
         let id = session.id;
-        let mut map = self.session_map.write().await;
-        map.insert(id, session);
-
-        insert_upload_session(
-            map.get(&id).unwrap(),
-            &self
-                .session
-                .read()
-                .await
-                .as_ref()
-                .unwrap()
-                .upgrade()
-                .unwrap()
-                .session,
-        )
-        .await?;
+        insert_upload_session(&session, &obtain_session(&self.session).await.session).await?;
 
         Ok(id)
     }
 
-    pub async fn get_local_session(&self, id: &Uuid) -> NodeClientResponse<BucketUploadSession> {
-        let mut map = self.session_map.write().await;
-
-        match map.get_mut(id) {
-            None => Err(NodeClientError::NoSuchSession),
-            Some(entry) => {
-                entry.last_access = Utc::now();
-                Ok(entry.clone())
-            }
-        }
+    pub async fn update_session(
+        &self,
+        app_id: Uuid,
+        bucket_id: Uuid,
+        id: Uuid,
+    ) -> NodeClientResponse<()> {
+        let _ = update_upload_session_last_access(
+            app_id,
+            bucket_id,
+            id,
+            Utc::now(),
+            &obtain_session(&self.session).await.session,
+        )
+        .await?;
+        Ok(())
     }
 
     pub async fn get_session(
@@ -78,69 +76,26 @@ impl DurableTransferSessionManager {
         bucket_id: Uuid,
         id: Uuid,
     ) -> NodeClientResponse<BucketUploadSession> {
-        match self.get_local_session(&id).await {
-            Ok(session) => Ok(session),
-            Err(NodeClientError::NoSuchSession) => {
-                let remote = get_upload_session(
-                    app_id,
-                    bucket_id,
-                    id,
-                    &self
-                        .session
-                        .read()
-                        .await
-                        .as_ref()
-                        .unwrap()
-                        .upgrade()
-                        .unwrap()
-                        .session,
-                )
-                .await
-                .map_err(|_| NodeClientError::NoSuchSession)?;
+        let remote = get_upload_session(
+            app_id,
+            bucket_id,
+            id,
+            &obtain_session(&self.session).await.session,
+        )
+        .await
+        .map_err(|_| NodeClientError::NoSuchSession)?;
 
-                let _ = update_upload_session_last_access(
-                    app_id,
-                    bucket_id,
-                    id,
-                    Utc::now(),
-                    &self
-                        .session
-                        .read()
-                        .await
-                        .as_ref()
-                        .unwrap()
-                        .upgrade()
-                        .unwrap()
-                        .session,
-                )
-                .await;
+        self.update_session(app_id, bucket_id, id).await?;
 
-                Ok(remote)
-            }
-            Err(_) => Err(NodeClientError::InternalError),
-        }
-    }
-
-    pub async fn end_local_session(&self, id: &Uuid) -> Option<BucketUploadSession> {
-        let mut map = self.session_map.write().await;
-        map.remove(id)
+        Ok(remote)
     }
 
     pub async fn end_session(&self, app_id: Uuid, bucket_id: Uuid, id: Uuid) {
-        let _ = self.end_local_session(&id).await;
         let _ = delete_upload_session_by(
             app_id,
             bucket_id,
             id,
-            &self
-                .session
-                .read()
-                .await
-                .as_ref()
-                .unwrap()
-                .upgrade()
-                .unwrap()
-                .session,
+            &obtain_session(&self.session).await.session,
         )
         .await;
     }
@@ -171,15 +126,7 @@ impl DurableTransferSessionManager {
         while let Some(session) = get_upload_sessions(
             app_id,
             bucket_id,
-            &self
-                .session
-                .read()
-                .await
-                .as_ref()
-                .unwrap()
-                .upgrade()
-                .unwrap()
-                .session,
+            &obtain_session(&self.session).await.session,
         )
         .await?
         .next()

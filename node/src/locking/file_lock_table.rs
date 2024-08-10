@@ -33,7 +33,6 @@ impl<K: KeyBounds> Default for FileLockTable<K> {
     }
 }
 
-
 impl<K: KeyBounds> FileLockTable<K> {
     fn default() -> Self {
         FileLockTable {
@@ -105,7 +104,6 @@ pub(crate) struct Locker<K: KeyBounds> {
     key: K,
     lock_table: Weak<LockTable<K>>,
 }
-
 
 impl<K: KeyBounds> Locker<K> {
     pub(crate) fn release_read(&self) {

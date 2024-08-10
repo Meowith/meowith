@@ -2,13 +2,13 @@ use actix_web::web;
 use tokio::try_join;
 use uuid::Uuid;
 
-use data::access::file_access::{get_bucket, get_file, maybe_get_file, update_file_path};
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::NodeClientResponse;
+use crate::public::routes::file_action::RenameFileRequest;
 use crate::public::service::file_access_service::{do_delete_file, split_path};
 use crate::public::service::DELETE_ALLOWANCE;
 use crate::AppState;
-use crate::public::routes::file_action::RenameFileRequest;
+use data::access::file_access::{get_bucket, get_file, maybe_get_file, update_file_path};
 
 pub async fn delete_file_srv(
     app_id: Uuid,
@@ -60,14 +60,26 @@ pub async fn rename_file_srv(
     match new_file {
         None => {
             // update the path
-            let _new_file = update_file_path(&old_file, split_new_path.0, split_new_path.1, &app_state.session).await?;
+            let _new_file = update_file_path(
+                &old_file,
+                split_new_path.0,
+                split_new_path.1,
+                &app_state.session,
+            )
+            .await?;
         }
         Some(new_file) => {
             // if a file already exists in the new destination, and the user possesses the required allowance, delete it
             bucket_accessor.has_permission(&bucket_id, &app_id, *DELETE_ALLOWANCE)?;
             let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
             do_delete_file(&new_file, &bucket, &app_state).await?;
-            let _new_file = update_file_path(&old_file, split_new_path.0, split_new_path.1, &app_state.session).await?;
+            let _new_file = update_file_path(
+                &old_file,
+                split_new_path.0,
+                split_new_path.1,
+                &app_state.session,
+            )
+            .await?;
         }
     }
 

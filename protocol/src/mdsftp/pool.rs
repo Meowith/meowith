@@ -87,7 +87,6 @@ pub(crate) struct InternalMDSFTPPool {
     stale_conn_watcher: Option<JoinHandle<()>>,
 }
 
-
 impl InternalMDSFTPPool {
     fn new(
         connection_auth_context: Arc<ConnectionAuthContext>,

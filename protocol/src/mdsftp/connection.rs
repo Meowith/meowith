@@ -132,7 +132,6 @@ impl MDSFTPConnection {
     }
 }
 
-
 struct InternalMDSFTPConnection {
     writer: Arc<Mutex<PacketWriter>>,
     reader: Arc<PacketReader>,

@@ -42,8 +42,6 @@ const HOUSEKEEPER_TASK_INTERVAL: usize = 5 * 60;
 const AVAILABLE_BUFFER: u64 = 65535;
 
 // TODO: verify the fragments should exist with database.
-// TODO save upload sessions locally
-
 
 impl FragmentLedger {
     pub fn new(root_path: String, max_space: u64, file_lock_table: LockTable) -> Self {
@@ -150,6 +148,17 @@ impl FragmentLedger {
 
     pub async fn fragment_exists(&self, chunk_id: &Uuid) -> bool {
         self._internal.chunk_set.read().await.contains_key(chunk_id)
+    }
+
+    pub async fn fragment_meta_ex(&self, chunk_id: &Uuid) -> Option<FragmentMeta> {
+        if let Some(reserved) = self._internal.reservation_map.read().await.get(chunk_id) {
+            return Some(FragmentMeta {
+                disk_content_size: reserved.completed,
+                disk_physical_size: 0,
+            });
+        }
+
+        self.fragment_meta(chunk_id).await
     }
 
     pub async fn fragment_meta(&self, chunk_id: &Uuid) -> Option<FragmentMeta> {
@@ -377,7 +386,6 @@ impl FragmentLedger {
     }
 }
 
-
 #[derive(Clone, Debug)]
 pub struct Reservation {
     pub file_space: u64,
@@ -404,7 +412,6 @@ impl CommitInfo {
         }
     }
 }
-
 
 struct InternalLedger {
     root_path: PathBuf,

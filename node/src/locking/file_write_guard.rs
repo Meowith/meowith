@@ -5,7 +5,6 @@ use tokio::sync::{OwnedSemaphorePermit, TryAcquireError};
 use crate::locking::error::FileLockError;
 use crate::locking::file_lock_table::{KeyBounds, Locker, TryLockResult};
 
-
 #[derive(Debug)]
 pub struct FileWriteGuard<K: KeyBounds> {
     pub(super) locker: Weak<Locker<K>>,

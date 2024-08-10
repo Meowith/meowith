@@ -24,7 +24,6 @@ use crate::mdsftp::pool::{MDSFTPPool, MDSFTPPoolConfigHolder, PacketHandlerRef};
 
 pub const ZERO_UUID: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-
 pub struct MDSFTPServer {
     pool: Option<MDSFTPPool>,
     running: Arc<AtomicBool>,
@@ -52,7 +51,6 @@ impl MDSFTPServer {
         srv.create_pool(incoming_handler).await;
         srv
     }
-
 
     pub async fn start(&mut self, cert: &X509, key: &PKey<Private>) -> Result<(), Box<dyn Error>> {
         let config = rustls::ServerConfig::builder()

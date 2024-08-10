@@ -18,6 +18,8 @@ pub(crate) enum MDSFTPPacketType {
     PutOk = 13u8,
     PutErr = 14u8,
     Commit = 15u8,
+    Query = 16u8,
+    QueryResponse = 17u8,
     ChannelOpen = 128u8,
     ChannelClose = 129u8,
     ChannelErr = 130u8,
@@ -49,6 +51,8 @@ impl MDSFTPPacketType {
             MDSFTPPacketType::PutOk => 2,
             MDSFTPPacketType::PutErr => 1,
             MDSFTPPacketType::Commit => 17,
+            MDSFTPPacketType::Query => 16,
+            MDSFTPPacketType::QueryResponse => 9,
         }
     }
 }

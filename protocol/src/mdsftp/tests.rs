@@ -203,6 +203,12 @@ mod tests {
             Ok(())
         }
 
+        async fn handle_query(&mut self, channel: Channel, _chunk_id: Uuid) -> MDSFTPResult<()> {
+            channel.respond_query(123456789, true).await?;
+            channel.close(Ok(())).await;
+            Ok(())
+        }
+
         async fn handle_interrupt(&mut self) -> MDSFTPResult<()> {
             Ok(())
         }
@@ -317,6 +323,13 @@ mod tests {
             let put_req = channel
                 .request_put(PutFlags { append: false }, Uuid::new_v4(), 1024)
                 .await;
+            assert!(put_req.is_ok());
+        }
+
+        {
+            debug!("Test Query");
+            let channel = client_pool.channel(&id1).await.unwrap();
+            let put_req = channel.query_chunk(Uuid::new_v4()).await;
             assert!(put_req.is_ok());
         }
 

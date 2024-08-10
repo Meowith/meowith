@@ -28,7 +28,6 @@ mod io;
 mod locking;
 mod public;
 
-
 pub struct AppState {
     session: CachingSession,
     mdsftp_server: MDSFTPServer,

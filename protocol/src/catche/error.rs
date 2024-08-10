@@ -2,7 +2,6 @@ use openssl::error::ErrorStack;
 use std::array::TryFromSliceError;
 use std::error::Error;
 
-
 pub type CatcheResult<T> = Result<T, CatcheError>;
 
 #[derive(Debug, derive_more::Display)]

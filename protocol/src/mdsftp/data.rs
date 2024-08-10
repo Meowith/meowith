@@ -147,7 +147,7 @@ impl CommitFlags {
 
 impl From<CommitFlags> for u8 {
     fn from(value: CommitFlags) -> Self {
-        value.reject as u8 + ((value.keep_alive as u8) << 1) + ((value.r#final as u8) << 2)
+        value.reject as u8 | ((value.keep_alive as u8) << 1) | ((value.r#final as u8) << 2)
     }
 }
 
@@ -176,4 +176,9 @@ pub struct LockAcquireResult {
 #[derive(Debug, Eq, PartialEq)]
 pub struct PutResult {
     pub chunk_buffer: u16,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct QueryResult {
+    pub size: u64,
 }
