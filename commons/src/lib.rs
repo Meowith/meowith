@@ -3,5 +3,6 @@ pub mod autoconfigure;
 pub mod cache;
 pub mod context;
 pub mod middleware_actions;
+pub mod pathlib;
 pub mod permission;
 pub mod ssl_acceptor;

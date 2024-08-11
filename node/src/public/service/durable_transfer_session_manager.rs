@@ -46,9 +46,9 @@ impl DurableTransferSessionManager {
         *self.session.write().await = Some(Arc::downgrade(app_data.deref()));
     }
 
-    pub async fn start_session(&self, session: BucketUploadSession) -> NodeClientResponse<Uuid> {
+    pub async fn start_session(&self, session: &BucketUploadSession) -> NodeClientResponse<Uuid> {
         let id = session.id;
-        insert_upload_session(&session, &obtain_session(&self.session).await.session).await?;
+        insert_upload_session(session, &obtain_session(&self.session).await.session).await?;
 
         Ok(id)
     }

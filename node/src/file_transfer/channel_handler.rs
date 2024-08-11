@@ -260,7 +260,7 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
                 });
 
                 if flags.auto_start {
-                    // Only case is when an upload is non-durable, which would be non-append anyway.
+                    // The only case is when an upload is non-durable which would be non-append anyway.
                     self.start_receiving(id, false).await?;
                 }
                 channel.respond_reserve_ok(id, self.chunk_buffer).await?;

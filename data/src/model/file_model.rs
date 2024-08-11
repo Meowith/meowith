@@ -2,7 +2,7 @@ use charybdis::macros::{charybdis_model, charybdis_udt_model};
 use charybdis::types::{BigInt, Boolean, Counter, Frozen, Set, Text, Timestamp, TinyInt, Uuid};
 
 #[charybdis_udt_model(type_name = file_chunk)]
-#[derive(Hash, Eq, PartialEq, Clone)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct FileChunk {
     pub server_id: Uuid,
     pub chunk_id: Uuid,
@@ -75,7 +75,7 @@ impl Default for Bucket {
     local_secondary_indexes = [],
     static_columns = []
 )]
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct BucketUploadSession {
     pub app_id: Uuid,
     pub bucket: Uuid,

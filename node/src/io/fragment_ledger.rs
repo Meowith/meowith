@@ -53,7 +53,6 @@ impl FragmentLedger {
             disk_physical_size: Default::default(),
             disk_content_size: Default::default(),
             reservation_map: Default::default(),
-            broken_map: Default::default(),
             uncommited_map: Default::default(),
             housekeeper_handle: std::sync::Mutex::new(None),
             disk_reserved_size: Default::default(),
@@ -261,25 +260,20 @@ impl FragmentLedger {
 
     /// Notifies the ledger that upload has been resumed, moving the chunk out of the broken queue.
     pub async fn resume_reservation(&self, id: &Uuid) -> MeowithIoResult<Reservation> {
-        let mut reservations = self._internal.reservation_map.write().await;
-        let mut broken = self._internal.broken_map.write().await;
-
-        let reservation = broken.remove(id).ok_or(MeowithIoError::NotFound)?;
-        reservations.insert(*id, reservation.clone());
-        Ok(reservation)
+        self.refresh_reservation(id).await
     }
 
     /// Moves the reservation into the idle 1H timeout state.
     pub async fn pause_reservation(&self, id: &Uuid) -> MeowithIoResult<()> {
+        self.refresh_reservation(id).await.map(|_| ())
+    }
+
+    pub async fn refresh_reservation(&self, id: &Uuid) -> MeowithIoResult<Reservation> {
         let mut reservations = self._internal.reservation_map.write().await;
-        let mut reservation = reservations.remove(id).ok_or(MeowithIoError::NotFound)?;
+        let reservation = reservations.get_mut(id).ok_or(MeowithIoError::NotFound)?;
         reservation.last_update = Instant::now();
-        self._internal
-            .broken_map
-            .write()
-            .await
-            .insert(*id, reservation);
-        Ok(())
+
+        Ok(reservation.clone())
     }
 
     /// Drops the reservation.
@@ -332,11 +326,6 @@ impl FragmentLedger {
             let mut reservation = reservations.remove(id).unwrap();
             reservation.completed += size_actual;
             reservation.last_update = Instant::now();
-            self._internal
-                .broken_map
-                .write()
-                .await
-                .insert(*id, reservation);
         } else if !transfer_completed && !reservation.durable {
             reservations.remove(id);
             uncommited.remove(id);
@@ -364,12 +353,19 @@ impl FragmentLedger {
 
     /// Update the timeout on the chunk.
     pub(crate) async fn commit_alive(&self, chunk_id: &Uuid) -> MeowithIoResult<()> {
-        match self._internal.uncommited_map.write().await.entry(*chunk_id) {
+        let reservation = self.refresh_reservation(chunk_id).await;
+        let uncommitted = match self._internal.uncommited_map.write().await.entry(*chunk_id) {
             Entry::Occupied(mut entry) => {
                 entry.insert(CommitInfo::new());
                 Ok(())
             }
             Entry::Vacant(_) => Err(MeowithIoError::NotFound),
+        };
+
+        if reservation.is_err() && uncommitted.is_err() {
+            Err(MeowithIoError::NotFound)
+        } else {
+            Ok(())
         }
     }
 
@@ -418,7 +414,6 @@ struct InternalLedger {
     file_lock_table: LockTable,
     chunk_set: RwLock<HashMap<Uuid, FragmentMeta>>,
     reservation_map: RwLock<HashMap<Uuid, Reservation>>,
-    broken_map: RwLock<HashMap<Uuid, Reservation>>,
     uncommited_map: RwLock<HashMap<Uuid, CommitInfo>>,
 
     housekeeper_handle: std::sync::Mutex<Option<JoinHandle<()>>>,
@@ -446,7 +441,7 @@ impl InternalLedger {
     }
 
     async fn clean_broken_chunks(&self) -> MeowithIoResult<()> {
-        let mut broken = self.broken_map.write().await;
+        let mut broken = self.reservation_map.write().await;
         let mut uncommitted = self.uncommited_map.write().await;
         let mut mark = vec![];
         let max = Duration::from_secs(DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS as u64);
@@ -512,7 +507,7 @@ impl InternalLedger {
                 .fetch_sub(chunk.disk_content_size, ORDERING_DISK_STORE);
             self.disk_physical_size
                 .fetch_sub(chunk.disk_physical_size, ORDERING_DISK_STORE);
-        } else if let Some(broken) = self.broken_map.write().await.remove(chunk_id) {
+        } else if let Some(broken) = self.reservation_map.write().await.remove(chunk_id) {
             self.disk_reserved_size
                 .fetch_sub(broken.file_space, ORDERING_DISK_STORE);
         }

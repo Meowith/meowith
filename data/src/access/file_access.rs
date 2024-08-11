@@ -2,12 +2,16 @@ use charybdis::batch::ModelBatch;
 use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
 use charybdis::types::Timestamp;
-use futures::try_join;
+use futures::stream::Skip;
+use futures::stream::Take;
+use futures::{try_join, StreamExt};
 use scylla::{CachingSession, QueryResult};
 use uuid::Uuid;
 
 use crate::error::MeowithDataError;
 use crate::model::file_model::{Bucket, BucketUploadSession, File, UpdateBucketUploadSession};
+
+pub type FileItem = Result<File, charybdis::errors::CharybdisError>;
 
 pub async fn get_files_from_bucket(
     bucket_id: Uuid,
@@ -19,6 +23,22 @@ pub async fn get_files_from_bucket(
         .map_err(MeowithDataError::from)
 }
 
+// Note: rewrite this when the driver will support proper paging.
+
+pub async fn get_files_from_bucket_paginated(
+    bucket_id: Uuid,
+    session: &CachingSession,
+    start: u64,
+    end: u64,
+) -> Result<Take<Skip<CharybdisModelStream<File>>>, MeowithDataError> {
+    Ok(File::find_by_bucket_id(bucket_id)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)?
+        .skip(start as usize)
+        .take((end - start) as usize))
+}
+
 pub async fn get_files_from_bucket_and_directory(
     bucket_id: Uuid,
     directory: String,
@@ -28,6 +48,21 @@ pub async fn get_files_from_bucket_and_directory(
         .execute(session)
         .await
         .map_err(MeowithDataError::from)
+}
+
+pub async fn get_files_from_bucket_and_directory_paginated(
+    bucket_id: Uuid,
+    directory: String,
+    session: &CachingSession,
+    start: u64,
+    end: u64,
+) -> Result<Take<Skip<CharybdisModelStream<File>>>, MeowithDataError> {
+    Ok(File::find_by_bucket_id_and_directory(bucket_id, directory)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)?
+        .skip(start as usize)
+        .take((end - start) as usize))
 }
 
 pub async fn get_file(

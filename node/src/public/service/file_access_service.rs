@@ -1,6 +1,4 @@
 use std::collections::HashSet;
-use std::path::Path;
-use std::sync::Arc;
 use std::time::Duration;
 
 use actix_web::http::header::ContentType;
@@ -8,37 +6,32 @@ use actix_web::web;
 use actix_web::web::Data;
 use chrono::Utc;
 use futures_util::future::try_join_all;
-use log::debug;
+use log::{debug, error};
 use mime_guess::mime;
-use tokio::sync::Mutex;
-use tokio::{io, time};
+use tokio::task::JoinHandle;
+use tokio::time;
 use uuid::Uuid;
 
-use commons::context::microservice_request_context::NodeStorageMap;
 use data::access::file_access::{
-    delete_file, get_bucket, get_file, insert_file, update_upload_session_last_access,
+    get_bucket, get_file, insert_file, update_upload_session_last_access,
 };
 use data::model::file_model::{Bucket, BucketUploadSession, File, FileChunk};
-use logging::log_err;
-use protocol::mdsftp::channel::MDSFTPChannel;
-use protocol::mdsftp::data::{CommitFlags, PutFlags, ReserveFlags};
-use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
+use protocol::mdsftp::data::{CommitFlags, ReserveFlags};
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 
-use crate::file_transfer::channel_handler::MeowithMDSFTPChannelPacketHandler;
-use crate::io::error::MeowithIoError;
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::{NodeClientError, NodeClientResponse};
 use crate::public::routes::file_transfer::{UploadSessionRequest, UploadSessionStartResponse};
+use crate::public::service::chunk_service::{commit_chunk, query_chunk, ChunkInfo};
 use crate::public::service::durable_transfer_session_manager::DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS;
+use crate::public::service::file_action_service::do_delete_file;
+use crate::public::service::file_io_service::{inbound_transfer, outbound_transfer};
+use crate::public::service::reservation_service::{
+    reserve_chunks, reserve_info_to_file_chunks, ReservationMode,
+};
 use crate::public::service::{DOWNLOAD_ALLOWANCE, UPLOAD_ALLOWANCE, UPLOAD_OVERWRITE_ALLOWANCE};
 use crate::AppState;
-
-#[allow(unused)]
-pub enum ReservationMode {
-    PreferSelfThenMostFree,
-    PreferMostFree,
-}
+use commons::pathlib::split_path;
 
 pub struct DlInfo {
     pub size: u64,
@@ -57,7 +50,7 @@ pub async fn handle_upload_oneshot(
 ) -> NodeClientResponse<()> {
     // quit early if the user cannot upload at all.
     accessor.has_permission(&bucket_id, &app_id, *UPLOAD_ALLOWANCE)?;
-    let split_path = split_path(path.clone());
+    let split_path = split_path(&path);
 
     let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
 
@@ -72,7 +65,7 @@ pub async fn handle_upload_oneshot(
     let mut old_file: Option<File> = None;
     let overwrite = if file.is_ok() {
         accessor.has_permission(&bucket_id, &app_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
-        old_file = Some(file.unwrap());
+        old_file = Some(file?);
         if !bucket.atomic_upload {
             do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
         }
@@ -102,61 +95,33 @@ pub async fn handle_upload_oneshot(
     )
     .await?;
 
+    let bucket_upload_session = BucketUploadSession {
+        app_id,
+        bucket: bucket_id,
+        id: Uuid::new_v4(),
+        path,
+        size: size as i64,
+        durable: false,
+        fragments: reserve_info_to_file_chunks(&reservation),
+        last_access: Utc::now(),
+    };
+
     let session_id = app_state
         .upload_manager
-        .start_session(BucketUploadSession {
-            app_id,
-            bucket: bucket_id,
-            id: Uuid::new_v4(),
-            path,
-            size: size as i64,
-            durable: false,
-            fragments: reserve_info_to_file_chunks(&reservation),
-            last_access: Utc::now(),
-        })
+        .start_session(&bucket_upload_session)
         .await?;
 
-    let data = app_state.clone();
-    let chunks: Arc<Mutex<HashSet<FileChunk>>> = Default::default();
-    let chunks_clone = chunks.clone();
+    let chunks_clone = bucket_upload_session.fragments.clone();
     let session_clone = app_state.clone();
 
-    let notifier = tokio::spawn(async move {
-        let mut interval = time::interval(Duration::from_secs(60));
-        loop {
-            interval.tick().await;
-            let mut futures = vec![];
-            for chunk in &*chunks_clone.lock().await {
-                futures.push(commit_chunk(
-                    CommitFlags::keep_alive(),
-                    chunk.server_id,
-                    chunk.chunk_id,
-                    &data,
-                ));
-            }
-            let _ = try_join_all(futures).await;
-            let _ = update_upload_session_last_access(
-                app_id,
-                bucket_id,
-                session_id,
-                Utc::now(),
-                &session_clone.session,
-            )
-            .await;
-        }
-    });
+    let notifier =
+        create_commit_notifier(app_id, bucket_id, session_id, chunks_clone, session_clone);
 
     let transfer_result: NodeClientResponse<()> = async {
-        for (i, space) in (0_i8..).zip(reservation.fragments.into_iter()) {
-            chunks.lock().await.insert(FileChunk {
-                server_id: space.node_id,
-                chunk_id: space.chunk_id,
-                chunk_size: space.size as i64,
-                chunk_order: i,
-            });
-
+        for space in reservation.fragments.into_iter() {
             inbound_transfer(
                 reader.clone(),
+                0,
                 space.node_id,
                 space.chunk_id,
                 space.channel,
@@ -173,12 +138,14 @@ pub async fn handle_upload_oneshot(
     }
     .await;
 
+    notifier.abort();
+
     if transfer_result.is_err() {
         let err = transfer_result.unwrap_err();
         debug!("Oneshot upload failure, deleting. {}", &err);
 
         let mut futures = vec![];
-        for chunk in &*chunks.lock().await {
+        for chunk in &bucket_upload_session.fragments {
             futures.push(commit_chunk(
                 CommitFlags::reject(),
                 chunk.server_id,
@@ -195,43 +162,17 @@ pub async fn handle_upload_oneshot(
         return Err(err);
     }
 
-    notifier.abort();
-
-    let mut futures = vec![];
-    for chunk in &*chunks.lock().await {
-        futures.push(commit_chunk(
-            CommitFlags::r#final(),
-            chunk.server_id,
-            chunk.server_id,
-            &app_state,
-        ))
-    }
-    try_join_all(futures).await?;
-
-    let now = Utc::now();
-    let chunks = chunks.lock().await.clone();
-
-    let file = File {
-        bucket_id,
-        directory: split_path.0,
-        name: split_path.1,
-        size: size as i64,
-        chunk_ids: chunks,
-        created: now,
-        last_modified: now,
-    };
-
-    insert_file(&file, &bucket, &app_state.session).await?;
-    app_state
-        .upload_manager
-        .end_session(app_id, bucket_id, session_id)
-        .await;
-
-    if bucket.atomic_upload && old_file.is_some() {
-        do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
-    }
-
-    Ok(())
+    let chunks = bucket_upload_session.fragments;
+    end_session(
+        app_state,
+        split_path,
+        size as i64,
+        chunks,
+        bucket,
+        (app_id, session_id),
+        Some(old_file),
+    )
+    .await
 }
 
 pub async fn start_upload_session(
@@ -245,7 +186,7 @@ pub async fn start_upload_session(
         .has_permission(&bucket_id, &app_id, *UPLOAD_ALLOWANCE)
         .map_err(|_| NodeClientError::BadRequest)?;
 
-    let path = split_path(req.path.clone());
+    let path = split_path(&req.path);
 
     let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
 
@@ -283,18 +224,20 @@ pub async fn start_upload_session(
     )
     .await?;
 
+    let bucket_upload_session = BucketUploadSession {
+        app_id,
+        bucket: bucket_id,
+        id: Uuid::new_v4(),
+        path: req.path,
+        size: req.size as i64,
+        durable: true,
+        fragments: reserve_info_to_file_chunks(&reservation),
+        last_access: Utc::now(),
+    };
+
     let session_id = app_state
         .upload_manager
-        .start_session(BucketUploadSession {
-            app_id,
-            bucket: bucket_id,
-            id: Uuid::new_v4(),
-            path: req.path,
-            size: req.size as i64,
-            durable: true,
-            fragments: reserve_info_to_file_chunks(&reservation),
-            last_access: Utc::now(),
-        })
+        .start_session(&bucket_upload_session)
         .await?;
     Ok(web::Json(UploadSessionStartResponse {
         code: session_id.to_string(),
@@ -317,7 +260,7 @@ pub async fn handle_upload_durable(
         .await?;
     let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
 
-    let mut sorted_chunks: Vec<FileChunk> = session.fragments.into_iter().collect();
+    let mut sorted_chunks: Vec<FileChunk> = session.fragments.clone().into_iter().collect();
     sorted_chunks.sort_by_key(|c| c.chunk_id);
 
     let mut futures = vec![];
@@ -330,31 +273,54 @@ pub async fn handle_upload_durable(
         .map(|item| item.unwrap_or(0) as i64)
         .sum();
 
-    if already_uploaded == session.size {
-        // TODO, already done, no need to continue.
-    }
+    let split_path = split_path(&session.path);
+    let chunks = sorted_chunks.clone().into_iter().collect();
 
-    // TODO commit management.
-    // TODO reservation management.
+    if already_uploaded == session.size {
+        return end_session(
+            app_state,
+            split_path,
+            session.size,
+            chunks,
+            bucket,
+            (app_id, session_id),
+            None,
+        )
+        .await;
+    }
 
     let mut curr = 0i64;
     let mut i: i32 = -1;
+    let mut skip = 0;
     for (frag, idx) in sorted_chunks.iter().zip(0..) {
         curr += frag.chunk_size;
         if curr > already_uploaded {
             i = idx;
+            let uploaded_chunk_current = curr - already_uploaded;
+            skip = frag.chunk_size - uploaded_chunk_current;
         }
     }
 
     if i == -1 {
-        todo!("sth went very wrong")
+        error!("FATAL: Something went very wrong with the durable file upload. curr={curr} already_uploaded={already_uploaded} session={session:?} chunks={sorted_chunks:?}");
+        return Err(NodeClientError::InternalError);
     }
 
+    let notifier = create_commit_notifier(
+        app_id,
+        bucket_id,
+        session_id,
+        session.fragments,
+        app_state.clone(),
+    );
+
     let transfer_result: NodeClientResponse<()> = async {
-        let mut first = already_uploaded > 0; // todo handle user vs internal error. same for oneshot.
+        let mut first = already_uploaded > 0; // TODO handle user vs internal error. same for oneshot.
+        let skip = if first { skip as u64 } else { 0 };
         for chunk in sorted_chunks.iter().skip(i.try_into().unwrap()) {
             inbound_transfer(
                 reader.clone(),
+                skip,
                 chunk.server_id,
                 chunk.chunk_id,
                 None,
@@ -372,6 +338,8 @@ pub async fn handle_upload_durable(
     }
     .await;
 
+    notifier.abort();
+
     if transfer_result.is_err() {
         app_state
             .upload_manager
@@ -381,8 +349,55 @@ pub async fn handle_upload_durable(
         return Err(NodeClientError::BadRequest);
     }
 
+    end_session(
+        app_state,
+        split_path,
+        session.size,
+        chunks,
+        bucket,
+        (app_id, session_id),
+        None,
+    )
+    .await
+}
+
+pub async fn resume_upload_session(
+    app_id: Uuid,
+    bucket_id: Uuid,
+    session_id: Uuid,
+    app_state: Data<AppState>,
+) -> NodeClientResponse<i64> {
+    let session = app_state
+        .upload_manager
+        .get_session(app_id, bucket_id, session_id)
+        .await?;
+
+    let mut sorted_chunks: Vec<FileChunk> = session.fragments.clone().into_iter().collect();
+    sorted_chunks.sort_by_key(|c| c.chunk_id);
+
     let mut futures = vec![];
     for chunk in &sorted_chunks {
+        futures.push(query_chunk(chunk.chunk_id, chunk.server_id, &app_state));
+    }
+
+    Ok(try_join_all(futures)
+        .await?
+        .iter()
+        .map(|item| item.unwrap_or(0) as i64)
+        .sum())
+}
+
+pub async fn end_session(
+    app_state: Data<AppState>,
+    split_path: (String, String),
+    size: i64,
+    chunks: HashSet<FileChunk>,
+    bucket: Bucket,
+    app_session_ids: (Uuid, Uuid),
+    old_file: Option<Option<File>>,
+) -> NodeClientResponse<()> {
+    let mut futures = vec![];
+    for chunk in &chunks {
         futures.push(commit_chunk(
             CommitFlags::r#final(),
             chunk.server_id,
@@ -393,29 +408,66 @@ pub async fn handle_upload_durable(
     try_join_all(futures).await?;
 
     let now = Utc::now();
-    let split_path = split_path(session.path);
+
     let file = File {
-        bucket_id,
-        directory: split_path.0,
-        name: split_path.1,
-        size: session.size,
-        chunk_ids: sorted_chunks.into_iter().collect(),
+        bucket_id: bucket.id,
+        directory: split_path.0.clone(),
+        name: split_path.1.clone(),
+        size,
+        chunk_ids: chunks,
         created: now,
         last_modified: now,
     };
+    let old_file = old_file.unwrap_or(
+        get_file(bucket.id, split_path.0, split_path.1, &app_state.session)
+            .await
+            .ok(),
+    );
 
     insert_file(&file, &bucket, &app_state.session).await?;
     app_state
         .upload_manager
-        .end_session(app_id, bucket_id, session_id)
+        .end_session(app_session_ids.0, bucket.id, app_session_ids.1)
         .await;
 
-    // TODO
-    // if bucket.atomic_upload && old_file.is_some() {
-    //     do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
-    // }
+    if old_file.is_some() {
+        do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
+    }
 
     Ok(())
+}
+
+pub fn create_commit_notifier(
+    app_id: Uuid,
+    bucket_id: Uuid,
+    session_id: Uuid,
+    chunks_clone: HashSet<FileChunk>,
+    data: Data<AppState>,
+) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut interval = time::interval(Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            let mut futures = vec![];
+            for chunk in &chunks_clone {
+                futures.push(commit_chunk(
+                    CommitFlags::keep_alive(),
+                    chunk.server_id,
+                    chunk.chunk_id,
+                    &data,
+                ));
+            }
+            let _ = try_join_all(futures).await;
+            let _ = update_upload_session_last_access(
+                app_id,
+                bucket_id,
+                session_id,
+                Utc::now(),
+                &data.session,
+            )
+            .await;
+        }
+    })
 }
 
 pub async fn handle_download(
@@ -427,7 +479,7 @@ pub async fn handle_download(
     app_state: Data<AppState>,
 ) -> NodeClientResponse<DlInfo> {
     accessor.has_permission(&bucket, &app_id, *DOWNLOAD_ALLOWANCE)?;
-    let path = split_path(path);
+    let path = split_path(&path);
     let attachment_name = path.1.clone();
     let file = get_file(bucket, path.0, path.1, &app_state.session).await?;
 
@@ -445,394 +497,4 @@ pub async fn handle_download(
         ),
         attachment_name,
     })
-}
-
-async fn commit_chunk(
-    flags: CommitFlags,
-    node_id: Uuid,
-    chunk_id: Uuid,
-    state: &Data<AppState>,
-) -> NodeClientResponse<()> {
-    if node_id == state.req_ctx.id {
-        if flags.r#final {
-            let _ = state.fragment_ledger.commit_chunk(&chunk_id).await;
-        } else if flags.keep_alive {
-            let _ = state.fragment_ledger.commit_alive(&chunk_id).await;
-        } else if flags.reject {
-            let _ = state.fragment_ledger.delete_chunk(&chunk_id).await;
-        }
-        Ok(())
-    } else {
-        let pool = state.mdsftp_server.pool();
-        let channel = pool.channel(&node_id).await?;
-        channel
-            .commit(chunk_id, flags)
-            .await
-            .map_err(NodeClientError::from)
-    }
-}
-
-pub struct ChunkInfo {
-    pub chunk_buffer: u16,
-    pub size: u64,
-    pub append: bool,
-}
-
-///
-/// Fetches chunk size
-/// To avoid unnecessary network calls if chunk is on the current node it just returns size right away
-/// otherwise it queries the origin node for this value using MDSFTP
-///
-/// Returns the chunk size
-///
-pub async fn query_chunk(
-    chunk_id: Uuid,
-    node_id: Uuid,
-    state: &Data<AppState>,
-) -> NodeClientResponse<Option<u64>> {
-    if node_id == state.req_ctx.id {
-        Ok(state
-            .fragment_ledger
-            .fragment_meta_ex(&chunk_id)
-            .await
-            .map(|c| c.disk_content_size))
-    } else {
-        let pool = state.mdsftp_server.pool();
-        let channel = pool.channel(&node_id).await?;
-        match channel.query_chunk(chunk_id).await {
-            Ok(res) => Ok(Some(res.size)),
-            Err(MDSFTPError::NoSuchChunkId) => Ok(None),
-            Err(e) => Err(e)?,
-        }
-    }
-}
-
-pub async fn do_delete_file(
-    file: &File,
-    bucket: &Bucket,
-    state: &Data<AppState>,
-) -> NodeClientResponse<()> {
-    for chunk in &file.chunk_ids {
-        if chunk.server_id == state.req_ctx.id {
-            log_err(
-                "file delete error",
-                state.fragment_ledger.delete_chunk(&chunk.chunk_id).await,
-            );
-        } else if let Ok(channel) = state.mdsftp_server.pool().channel(&chunk.server_id).await {
-            log_err(
-                "file delete error",
-                channel.delete_chunk(chunk.chunk_id).await,
-            );
-        }
-    }
-
-    delete_file(file, bucket, &state.session).await?;
-
-    Ok(())
-}
-
-async fn inbound_transfer(
-    reader: AbstractReadStream,
-    node_id: Uuid,
-    chunk_id: Uuid,
-    channel: Option<MDSFTPChannel>,
-    chunk: ChunkInfo,
-    state: &Data<AppState>,
-) -> NodeClientResponse<()> {
-    if node_id == state.req_ctx.id {
-        // TODO, make sure no more data than size is written,
-        // TODO same deal for the channel handler. Note: tokio take
-        let writer = if chunk.append {
-            state.fragment_ledger.fragment_write_stream(&chunk_id).await
-        } else {
-            state
-                .fragment_ledger
-                .fragment_append_stream(&chunk_id)
-                .await
-        }
-        .map_err(|_| NodeClientError::InternalError)?;
-        let mut writer = writer.lock().await;
-        let mut reader = reader.lock().await;
-        io::copy(&mut *reader, &mut *writer)
-            .await
-            .map_err(|_| NodeClientError::InternalError)?;
-        Ok(())
-    } else {
-        let eff_channel: MDSFTPChannel;
-        let mut eff_chunk_buf: u16 = chunk.chunk_buffer;
-        let pool = state.mdsftp_server.pool();
-        match channel {
-            None => {
-                let channel = pool.channel(&node_id).await?;
-                let res = channel
-                    .request_put(
-                        PutFlags {
-                            append: chunk.append,
-                        },
-                        chunk_id,
-                        chunk.size,
-                    )
-                    .await?;
-                eff_chunk_buf = res.chunk_buffer;
-                eff_channel = channel;
-            }
-            Some(c) => eff_channel = c,
-        }
-
-        let handler = Box::new(MeowithMDSFTPChannelPacketHandler::new(
-            state.fragment_ledger.clone(),
-            pool.cfg.buffer_size,
-            pool.cfg.fragment_size,
-        ));
-        let handle = eff_channel
-            .send_content(reader, chunk.size, eff_chunk_buf, handler)
-            .await?;
-
-        handle.await.map_or(Ok(()), |e| e)?;
-        Ok(())
-    }
-}
-
-async fn outbound_transfer(
-    writer: AbstractWriteStream,
-    node_id: Uuid,
-    chunk_id: Uuid,
-    state: &Data<AppState>,
-) -> NodeClientResponse<()> {
-    if node_id == state.req_ctx.id {
-        // send local chunk, no need for net io
-        let reader = state
-            .fragment_ledger
-            .fragment_read_stream(&chunk_id)
-            .await
-            .map_err(|_| NodeClientError::NotFound)?;
-        let mut writer = writer.lock().await;
-        let mut reader = reader.lock().await;
-        io::copy(&mut *reader, &mut *writer)
-            .await
-            .map_err(|_| NodeClientError::InternalError)?;
-        Ok(())
-    } else {
-        let pool = state.mdsftp_server.pool();
-        // send remote chunk
-        let channel = pool.channel(&node_id).await?;
-        let handler = Box::new(MeowithMDSFTPChannelPacketHandler::new(
-            state.fragment_ledger.clone(),
-            pool.cfg.buffer_size,
-            pool.cfg.fragment_size,
-        ));
-
-        let handle = channel
-            .retrieve_content(writer, handler, false) // there might be more chunks to send!
-            .await?;
-
-        channel.retrieve_req(chunk_id, 16).await?;
-
-        handle
-            .await
-            .map_or(Ok(()), |e| e.map_err(NodeClientError::from))
-    }
-}
-
-pub struct ReservedFragment {
-    pub channel: Option<MDSFTPChannel>,
-    pub node_id: Uuid,
-    pub chunk_id: Uuid,
-    pub size: u64,
-    pub chunk_buffer: u16,
-}
-
-pub struct ReserveInfo {
-    // Channel, none if local, node_id, chunk_id, size, chunk_buffer
-    pub fragments: Vec<ReservedFragment>,
-}
-
-pub fn reserve_info_to_file_chunks(reserve_info: &ReserveInfo) -> HashSet<FileChunk> {
-    (0_i8..)
-        .zip(reserve_info.fragments.iter())
-        .map(|chunk| FileChunk {
-            server_id: chunk.1.node_id,
-            chunk_id: chunk.1.chunk_id,
-            chunk_size: chunk.1.size as i64,
-            chunk_order: chunk.0,
-        })
-        .collect()
-}
-
-async fn reserve_chunks(
-    size: u64,
-    flags: ReserveFlags,
-    mode: ReservationMode,
-    state: &Data<AppState>,
-) -> NodeClientResponse<ReserveInfo> {
-    let mut target_list: Vec<(Uuid, u64)> = vec![];
-    let self_free = state.fragment_ledger.get_available_space();
-    let rem: u64;
-
-    // Figure out targets
-    match mode {
-        ReservationMode::PreferSelfThenMostFree => {
-            if self_free >= size {
-                target_list.push((state.req_ctx.id, size));
-                rem = 0;
-            } else {
-                rem = push_most_used(&state.node_storage_map, &mut target_list, size).await;
-            }
-        }
-        ReservationMode::PreferMostFree => {
-            rem = push_most_used(&state.node_storage_map, &mut target_list, size).await;
-        }
-    }
-
-    if rem > 0 {
-        return Err(NodeClientError::InsufficientStorage);
-    }
-
-    // Try reserve
-    let mut fragments: Vec<ReservedFragment> = vec![];
-    let res: MDSFTPResult<()> = async {
-        let pool = state.mdsftp_server.pool();
-        for frag in target_list {
-            if frag.0 == state.req_ctx.id {
-                let uuid = match state
-                    .fragment_ledger
-                    .try_reserve(frag.1, flags.durable)
-                    .await
-                {
-                    Ok(id) => Ok(id),
-                    Err(MeowithIoError::InsufficientDiskSpace) => {
-                        Err(MDSFTPError::ReservationError)
-                    }
-                    Err(_) => Err(MDSFTPError::Internal),
-                }?;
-
-                fragments.push(ReservedFragment {
-                    channel: None,
-                    node_id: frag.0,
-                    chunk_id: uuid,
-                    size: frag.1,
-                    chunk_buffer: 0,
-                });
-            } else {
-                let channel = pool.channel(&frag.0).await?;
-                let res = channel.try_reserve(frag.1, flags).await;
-                match res {
-                    Ok(res) => {
-                        fragments.push(ReservedFragment {
-                            channel: Some(channel),
-                            node_id: frag.0,
-                            chunk_id: res.chunk_id,
-                            size: frag.1,
-                            chunk_buffer: res.chunk_buffer,
-                        });
-                        Ok(())
-                    }
-                    Err(MDSFTPError::ReserveError(free_space)) => {
-                        let mut write = state.node_storage_map.write().await;
-                        write.insert(frag.0, free_space);
-                        Err(MDSFTPError::ReservationError)
-                    }
-                    Err(e) => Err(e),
-                }?;
-            }
-        }
-        Ok(())
-    }
-    .await;
-
-    match res {
-        Ok(_) => Ok(ReserveInfo { fragments }),
-        Err(_) => {
-            // If any reservation fails, release the ones currently acquired
-            for frag in fragments {
-                if let Some(channel) = frag.channel {
-                    let _ = channel.cancel_reserve(frag.chunk_id).await;
-                } else {
-                    let _ = state
-                        .fragment_ledger
-                        .cancel_reservation(&frag.chunk_id)
-                        .await;
-                }
-            }
-
-            Err(NodeClientError::InsufficientStorage)
-        }
-    }
-}
-
-async fn push_most_used(
-    node_map: &NodeStorageMap,
-    target_list: &mut Vec<(Uuid, u64)>,
-    mut size: u64,
-) -> u64 {
-    let node_map_read = node_map.read().await;
-
-    let mut nodes: Vec<(&Uuid, &u64)> = node_map_read.iter().collect();
-    nodes.sort_by(|a, b| b.1.cmp(a.1));
-
-    for (uuid, &node_size) in nodes {
-        if size == 0 {
-            break;
-        }
-
-        if size >= node_size {
-            size -= node_size;
-            target_list.push((*uuid, node_size));
-        } else {
-            target_list.push((*uuid, size));
-            size = 0;
-        }
-    }
-
-    size
-}
-
-/// Split the given file path into a format friendly to the database
-///
-/// ```
-/// // path                (dir, name)
-/// "/a/path/to/a.txt"  => ("a/path/to", "a.txt")
-/// "a/path/to/a.txt"   => ("a/path/to", "a.txt")
-/// "a\\path\\to/a.txt" => ("a/path/to", "a.txt")
-/// "a.txt"             => ("", "a.txt")
-/// ```
-pub fn split_path(file_path: String) -> (String, String) {
-    let normalized_path = file_path.replace('\\', "/");
-
-    let path = Path::new(&normalized_path);
-    let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
-    let file_name = path
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .into_owned();
-
-    let mut parent_str = parent.to_string_lossy().into_owned();
-
-    // Strip leading and trailing slashes
-    parent_str = parent_str.trim_matches('/').to_string();
-
-    (parent_str, file_name)
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::public::service::file_access_service::split_path;
-
-    #[test]
-    fn test_split_path() {
-        let cases = vec![
-            ("/a/path/to/a.txt", "a/path/to", "a.txt"),
-            ("a/path/to/a.txt", "a/path/to", "a.txt"),
-            ("a\\path\\to/a.txt", "a/path/to", "a.txt"),
-            ("a.txt", "", "a.txt"),
-        ];
-
-        for case in cases {
-            assert_eq!(
-                split_path(case.0.to_owned()),
-                (case.1.to_string(), case.2.to_string())
-            );
-        }
-    }
 }

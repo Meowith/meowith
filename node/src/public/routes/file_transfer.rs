@@ -14,11 +14,12 @@ use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::{NodeClientError, NodeClientResponse};
 use crate::public::service::file_access_service::{
-    handle_download, handle_upload_durable, handle_upload_oneshot, start_upload_session,
+    handle_download, handle_upload_durable, handle_upload_oneshot, resume_upload_session,
+    start_upload_session,
 };
 use crate::AppState;
 
-const USER_TRANSFER_BUFFER: usize = 1024;
+const USER_TRANSFER_BUFFER: usize = 8 * 1024;
 
 #[derive(Serialize)]
 
@@ -33,12 +34,22 @@ pub struct UploadSessionStartResponse {
 }
 
 #[derive(Deserialize)]
-
 pub struct UploadSessionRequest {
     /// Entry size in bytes
     pub size: u64,
     /// Entry full path
     pub path: String,
+}
+
+#[derive(Serialize)]
+pub struct UploadSessionResumeResponse {
+    /// The number of bytes already uploaded to the meowith store.
+    pub uploaded_size: u64,
+}
+
+#[derive(Deserialize)]
+pub struct UploadSessionResumeRequest {
+    pub session_id: Uuid,
 }
 
 #[post("/upload/oneshot/{app_id}/{bucket_id}/{path}")]
@@ -97,6 +108,21 @@ pub async fn start_upload_durable(
     data: web::Data<AppState>,
 ) -> NodeClientResponse<web::Json<UploadSessionStartResponse>> {
     start_upload_session(path.0, path.1, accessor, req.0, data).await
+}
+
+#[post("/upload/resume/{app_id}/{bucket_id}")]
+pub async fn resume_durable_upload(
+    path: web::Path<(Uuid, Uuid)>,
+    req: web::Json<UploadSessionResumeRequest>,
+    data: web::Data<AppState>,
+) -> NodeClientResponse<web::Json<UploadSessionResumeResponse>> {
+    resume_upload_session(path.0, path.1, req.session_id, data)
+        .await
+        .map(|size| {
+            web::Json(UploadSessionResumeResponse {
+                uploaded_size: size as u64,
+            })
+        })
 }
 
 #[put("/upload/put/{app_id}/{bucket_id}/{session_id}")]
