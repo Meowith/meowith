@@ -63,7 +63,8 @@ pub async fn rename_file_srv(
     bucket_accessor: BucketAccessor,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {
-    if path.path() == req.path() { // The paths equal, no work needs to be done
+    if path.path() == req.path() {
+        // The paths equal, no work needs to be done
         return Ok(());
     }
 
@@ -93,7 +94,7 @@ pub async fn rename_file_srv(
                 split_new_path.1,
                 &app_state.session,
             )
-                .await?;
+            .await?;
         }
         Some(new_file_file) => {
             // if a file already exists in the new destination, and the user possesses the required allowance, delete it
@@ -106,7 +107,7 @@ pub async fn rename_file_srv(
                 split_new_path.1,
                 &app_state.session,
             )
-                .await?;
+            .await?;
         }
     }
 
