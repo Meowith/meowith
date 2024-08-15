@@ -13,3 +13,7 @@ actix-web = { version = "4.7.0" }
 futures = { version = "0.3.30", features = [] }
 derive_more = "0.99.18"
 chrono = "0.4.38"
+num_enum = "0.7.3"
+regex = "1.10.5"
+lazy_static = "1.5.0"
+async-stream = "0.3.5"

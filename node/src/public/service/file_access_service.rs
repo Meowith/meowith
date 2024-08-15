@@ -8,20 +8,23 @@ use chrono::Utc;
 use futures_util::future::try_join_all;
 use log::{debug, error};
 use mime_guess::mime;
+use scylla::CachingSession;
 use tokio::task::JoinHandle;
 use tokio::time;
 use uuid::Uuid;
 
 use data::access::file_access::{
-    get_bucket, get_file, insert_file, update_upload_session_last_access,
+    get_bucket, get_directory, get_file, get_file_dir, insert_directory, insert_file,
+    update_upload_session_last_access, ROOT_DIR,
 };
-use data::model::file_model::{Bucket, BucketUploadSession, File, FileChunk};
+use data::model::file_model::{Bucket, BucketUploadSession, Directory, File, FileChunk};
 use protocol::mdsftp::data::{CommitFlags, ReserveFlags};
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::{NodeClientError, NodeClientResponse};
 use crate::public::routes::file_transfer::{UploadSessionRequest, UploadSessionStartResponse};
+use crate::public::routes::EntryPath;
 use crate::public::service::chunk_service::{commit_chunk, query_chunk, ChunkInfo};
 use crate::public::service::durable_transfer_session_manager::DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS;
 use crate::public::service::file_action_service::do_delete_file;
@@ -31,7 +34,7 @@ use crate::public::service::reservation_service::{
 };
 use crate::public::service::{DOWNLOAD_ALLOWANCE, UPLOAD_ALLOWANCE, UPLOAD_OVERWRITE_ALLOWANCE};
 use crate::AppState;
-use commons::pathlib::split_path;
+use data::pathlib::split_path;
 
 pub struct DlInfo {
     pub size: u64,
@@ -40,23 +43,21 @@ pub struct DlInfo {
 }
 
 pub async fn handle_upload_oneshot(
-    app_id: Uuid,
-    bucket_id: Uuid,
-    path: String,
+    mut path: EntryPath,
     size: u64,
     app_state: Data<AppState>,
     accessor: BucketAccessor,
     reader: AbstractReadStream,
 ) -> NodeClientResponse<()> {
     // quit early if the user cannot upload at all.
-    accessor.has_permission(&bucket_id, &app_id, *UPLOAD_ALLOWANCE)?;
-    let split_path = split_path(&path);
+    accessor.has_permission(&path.bucket_id, &path.app_id, *UPLOAD_ALLOWANCE)?;
+    let split_path = split_path(&path.path());
 
-    let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
+    let bucket = get_bucket(path.app_id, path.bucket_id, &app_state.session).await?;
 
     // check if the file will be overwritten and if the user can do that.
-    let file = get_file(
-        bucket_id,
+    let file = get_file_dir(
+        path.bucket_id,
         split_path.0.clone(),
         split_path.1.clone(),
         &app_state.session,
@@ -64,8 +65,8 @@ pub async fn handle_upload_oneshot(
     .await;
     let mut old_file: Option<File> = None;
     let overwrite = if file.is_ok() {
-        accessor.has_permission(&bucket_id, &app_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
-        old_file = Some(file?);
+        accessor.has_permission(&path.bucket_id, &path.app_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
+        old_file = Some(file?.0);
         if !bucket.atomic_upload {
             do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
         }
@@ -76,7 +77,7 @@ pub async fn handle_upload_oneshot(
 
     let reserved = app_state
         .upload_manager
-        .get_reserved_space(app_id, bucket_id)
+        .get_reserved_space(path.app_id, path.bucket_id)
         .await?;
     if bucket.space_taken.0 + size as i64 + reserved > bucket.quota {
         return Err(NodeClientError::InsufficientStorage);
@@ -96,10 +97,10 @@ pub async fn handle_upload_oneshot(
     .await?;
 
     let bucket_upload_session = BucketUploadSession {
-        app_id,
-        bucket: bucket_id,
+        app_id: path.app_id,
+        bucket: path.bucket_id,
         id: Uuid::new_v4(),
-        path,
+        path: path.path(),
         size: size as i64,
         durable: false,
         fragments: reserve_info_to_file_chunks(&reservation),
@@ -114,8 +115,13 @@ pub async fn handle_upload_oneshot(
     let chunks_clone = bucket_upload_session.fragments.clone();
     let session_clone = app_state.clone();
 
-    let notifier =
-        create_commit_notifier(app_id, bucket_id, session_id, chunks_clone, session_clone);
+    let notifier = create_commit_notifier(
+        path.app_id,
+        path.bucket_id,
+        session_id,
+        chunks_clone,
+        session_clone,
+    );
 
     let transfer_result: NodeClientResponse<()> = async {
         for space in reservation.fragments.into_iter() {
@@ -156,7 +162,7 @@ pub async fn handle_upload_oneshot(
         try_join_all(futures).await?;
         app_state
             .upload_manager
-            .end_session(app_id, bucket_id, session_id)
+            .end_session(path.app_id, path.bucket_id, session_id)
             .await;
 
         return Err(err);
@@ -169,34 +175,37 @@ pub async fn handle_upload_oneshot(
         size as i64,
         chunks,
         bucket,
-        (app_id, session_id),
+        (path.app_id, session_id),
         Some(old_file),
     )
     .await
 }
 
 pub async fn start_upload_session(
-    app_id: Uuid,
-    bucket_id: Uuid,
+    mut e_path: EntryPath,
     accessor: BucketAccessor,
     req: UploadSessionRequest,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<web::Json<UploadSessionStartResponse>> {
     accessor
-        .has_permission(&bucket_id, &app_id, *UPLOAD_ALLOWANCE)
+        .has_permission(&e_path.bucket_id, &e_path.app_id, *UPLOAD_ALLOWANCE)
         .map_err(|_| NodeClientError::BadRequest)?;
 
-    let path = split_path(&req.path);
+    let path = split_path(&e_path.path());
 
-    let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
+    let bucket = get_bucket(e_path.app_id, e_path.bucket_id, &app_state.session).await?;
 
     // check if the file will be overwritten and if the user can do that.
-    let file = get_file(bucket_id, path.0, path.1, &app_state.session).await;
+    let file = get_file_dir(e_path.bucket_id, path.0, path.1, &app_state.session).await;
     let overwrite = if file.is_ok() {
-        accessor.has_permission(&bucket_id, &app_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
+        accessor.has_permission(
+            &e_path.bucket_id,
+            &e_path.app_id,
+            *UPLOAD_OVERWRITE_ALLOWANCE,
+        )?;
         let file = file?;
         if !bucket.atomic_upload {
-            do_delete_file(&file, &bucket, &app_state).await?;
+            do_delete_file(&file.0, &bucket, &app_state).await?;
         }
         true
     } else {
@@ -205,7 +214,7 @@ pub async fn start_upload_session(
 
     let reserved = app_state
         .upload_manager
-        .get_reserved_space(app_id, bucket_id)
+        .get_reserved_space(e_path.app_id, e_path.bucket_id)
         .await?;
     if bucket.space_taken.0 + req.size as i64 + reserved > bucket.quota {
         return Err(NodeClientError::InsufficientStorage);
@@ -225,10 +234,10 @@ pub async fn start_upload_session(
     .await?;
 
     let bucket_upload_session = BucketUploadSession {
-        app_id,
-        bucket: bucket_id,
+        app_id: e_path.app_id,
+        bucket: e_path.bucket_id,
         id: Uuid::new_v4(),
-        path: req.path,
+        path: e_path.path(),
         size: req.size as i64,
         durable: true,
         fragments: reserve_info_to_file_chunks(&reservation),
@@ -389,7 +398,7 @@ pub async fn resume_upload_session(
 
 pub async fn end_session(
     app_state: Data<AppState>,
-    split_path: (String, String),
+    split_path: (Option<String>, String),
     size: i64,
     chunks: HashSet<FileChunk>,
     bucket: Bucket,
@@ -408,10 +417,21 @@ pub async fn end_session(
     try_join_all(futures).await?;
 
     let now = Utc::now();
+    let directory = if let Some(directory) = split_path.0 {
+        try_mkdir(bucket.id, directory, &app_state.session)
+            .await?
+            .map(|dir| dir.id)
+    } else {
+        Some(ROOT_DIR)
+    };
 
     let file = File {
         bucket_id: bucket.id,
-        directory: split_path.0.clone(),
+        directory: if let Some(directory) = directory {
+            directory
+        } else {
+            ROOT_DIR
+        },
         name: split_path.1.clone(),
         size,
         chunk_ids: chunks,
@@ -419,7 +439,7 @@ pub async fn end_session(
         last_modified: now,
     };
     let old_file = old_file.unwrap_or(
-        get_file(bucket.id, split_path.0, split_path.1, &app_state.session)
+        get_file(bucket.id, directory, split_path.1, &app_state.session)
             .await
             .ok(),
     );
@@ -435,6 +455,57 @@ pub async fn end_session(
     }
 
     Ok(())
+}
+
+pub async fn try_mkdir(
+    bucket_id: Uuid,
+    path: String,
+    session: &CachingSession,
+) -> NodeClientResponse<Option<Directory>> {
+    if path.is_empty() {
+        return Ok(None);
+    }
+
+    let (parent_path, dir_name) = split_path(&path);
+
+    if let Ok(existing_dir) = get_directory(bucket_id, Some(path.clone()), session).await {
+        return Ok(existing_dir);
+    }
+
+    let mut directories_to_create = Vec::new();
+
+    let mut current_parent_path = (parent_path.clone(), String::new());
+    let mut parent_path_buf =
+        get_directory(bucket_id, current_parent_path.clone().0, session).await;
+
+    while parent_path_buf.is_err() {
+        current_parent_path = split_path(current_parent_path.clone().0.unwrap().as_str());
+        directories_to_create.push(current_parent_path.clone());
+        parent_path_buf = get_directory(bucket_id, current_parent_path.clone().0, session).await;
+    }
+
+    directories_to_create.push((parent_path, dir_name));
+
+    let directories_len = directories_to_create.len();
+
+    for (i, directory) in (0..).zip(directories_to_create) {
+        let new_dir = Directory {
+            bucket_id,
+            parent: directory.0.unwrap(),
+            name: directory.1,
+            id: Uuid::new_v4(),
+            created: Utc::now(),
+            last_modified: Utc::now(),
+        };
+
+        insert_directory(&new_dir, session).await?;
+
+        if i == directories_len - 1 {
+            return Ok(Some(new_dir));
+        }
+    }
+
+    unreachable!("Something went very wrong when creating the directory")
 }
 
 pub fn create_commit_notifier(
@@ -471,19 +542,17 @@ pub fn create_commit_notifier(
 }
 
 pub async fn handle_download(
-    app_id: Uuid,
-    bucket: Uuid,
-    path: String,
+    mut e_path: EntryPath,
     accessor: BucketAccessor,
     writer: AbstractWriteStream,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<DlInfo> {
-    accessor.has_permission(&bucket, &app_id, *DOWNLOAD_ALLOWANCE)?;
-    let path = split_path(&path);
+    accessor.has_permission(&e_path.bucket_id, &e_path.app_id, *DOWNLOAD_ALLOWANCE)?;
+    let path = split_path(&e_path.path());
     let attachment_name = path.1.clone();
-    let file = get_file(bucket, path.0, path.1, &app_state.session).await?;
+    let file = get_file_dir(e_path.bucket_id, path.0, path.1, &app_state.session).await?;
 
-    let mut chunk_ids: Vec<&FileChunk> = file.chunk_ids.iter().collect();
+    let mut chunk_ids: Vec<&FileChunk> = file.0.chunk_ids.iter().collect();
     chunk_ids.sort_by_key(|chunk| chunk.chunk_order);
 
     for chunk in chunk_ids {
@@ -491,7 +560,7 @@ pub async fn handle_download(
     }
 
     Ok(DlInfo {
-        size: file.size as u64,
+        size: file.0.size as u64,
         mime: ContentType(
             mime_guess::from_path(&attachment_name).first_or(mime::APPLICATION_OCTET_STREAM),
         ),

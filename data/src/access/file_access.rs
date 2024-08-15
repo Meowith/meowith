@@ -1,17 +1,132 @@
+use async_stream::stream;
 use charybdis::batch::ModelBatch;
+use charybdis::errors::CharybdisError;
 use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
 use charybdis::types::Timestamp;
 use futures::stream::Skip;
 use futures::stream::Take;
-use futures::{try_join, StreamExt};
+use futures::{try_join, Stream, StreamExt};
 use scylla::{CachingSession, QueryResult};
+use std::collections::VecDeque;
 use uuid::Uuid;
 
-use crate::error::MeowithDataError;
-use crate::model::file_model::{Bucket, BucketUploadSession, File, UpdateBucketUploadSession};
+pub const ROOT_DIR: Uuid = Uuid::from_u128(0);
 
-pub type FileItem = Result<File, charybdis::errors::CharybdisError>;
+use crate::error::MeowithDataError;
+use crate::model::file_model::{
+    Bucket, BucketUploadSession, Directory, File, UpdateBucketUploadSession,
+};
+use crate::pathlib::split_path;
+
+pub type FileItem = Result<File, CharybdisError>;
+pub type DirectoryItem = Result<Directory, MeowithDataError>;
+pub type FileDir = (File, Option<Directory>);
+pub type MaybeFileDir = (Option<File>, Option<Directory>);
+
+/// Mapper for directory ids
+/// DID::of(directory).0
+/// expr.into::<DID>()
+pub struct DID(pub Option<Uuid>);
+
+impl DID {
+    pub fn of(dir: Option<Directory>) -> Self {
+        DID(dir.map(|d| d.id))
+    }
+}
+
+impl From<Option<Directory>> for DID {
+    fn from(value: Option<Directory>) -> Self {
+        DID::of(value)
+    }
+}
+
+pub struct DirectoryIterator<'a> {
+    session: &'a CachingSession,
+    visit_queue: VecDeque<Directory>,
+    charybdis_model_stream: Option<CharybdisModelStream<Directory>>,
+}
+
+impl<'a> DirectoryIterator<'a> {
+    pub fn from_parent(parent: Directory, session: &'a CachingSession) -> impl Stream<Item=DirectoryItem> + 'a {
+        let mut queue = VecDeque::new();
+        queue.push_front(parent);
+        let mut iterator = DirectoryIterator {
+            session,
+            visit_queue: queue,
+            charybdis_model_stream: None,
+        };
+
+        stream! {
+            loop {
+                if let Some(stream) = iterator.charybdis_model_stream.as_mut() {
+                    match stream.next().await {
+                        None => {
+                            let _ = iterator.charybdis_model_stream.take();
+                            continue;
+                        },
+                        Some(Ok(dir)) => {
+                            iterator.visit_queue.push_back(dir.clone());
+                            yield Ok(dir);
+                        },
+                        Some(Err(err)) => {
+                            let _ = iterator.charybdis_model_stream.take();
+                            yield Err(MeowithDataError::from(err));
+                            return;
+                        }
+                    }
+                } else if let Some(next) = iterator.visit_queue.pop_front() {
+                    let stream = get_sub_dirs(next.bucket_id, next.full_path(), iterator.session).await;
+                    match stream {
+                        Ok(stream) => iterator.charybdis_model_stream = Some(stream),
+                        Err(err) => {
+                            yield Err(err);
+                            return;
+                        }
+                    }
+                } else {
+                    return;
+                }
+            }
+        }
+    }
+}
+
+pub async fn get_directory(
+    bucket_id: Uuid,
+    path: Option<String>,
+    session: &CachingSession,
+) -> Result<Option<Directory>, MeowithDataError> {
+    match path {
+        None => Ok(None),
+        Some(path) => {
+            let path = split_path(&path);
+
+            Directory::find_by_bucket_id_and_parent_and_name(
+                bucket_id,
+                path.0.unwrap_or("".to_string()),
+                path.1,
+            )
+                .execute(session)
+                .await
+                .map_err(MeowithDataError::from)
+                .map(Some)
+        }
+    }
+}
+
+pub async fn insert_directory(
+    directory: &Directory,
+    session: &CachingSession,
+) -> Result<(), MeowithDataError> {
+    let _ = directory
+        .insert()
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)?;
+
+    Ok(())
+}
 
 pub async fn get_files_from_bucket(
     bucket_id: Uuid,
@@ -24,7 +139,6 @@ pub async fn get_files_from_bucket(
 }
 
 // Note: rewrite this when the driver will support proper paging.
-
 pub async fn get_files_from_bucket_paginated(
     bucket_id: Uuid,
     session: &CachingSession,
@@ -41,10 +155,10 @@ pub async fn get_files_from_bucket_paginated(
 
 pub async fn get_files_from_bucket_and_directory(
     bucket_id: Uuid,
-    directory: String,
+    directory: Option<Uuid>,
     session: &CachingSession,
 ) -> Result<CharybdisModelStream<File>, MeowithDataError> {
-    File::find_by_bucket_id_and_directory(bucket_id, directory)
+    File::find_by_bucket_id_and_directory(bucket_id, directory.unwrap_or(ROOT_DIR))
         .execute(session)
         .await
         .map_err(MeowithDataError::from)
@@ -52,51 +166,96 @@ pub async fn get_files_from_bucket_and_directory(
 
 pub async fn get_files_from_bucket_and_directory_paginated(
     bucket_id: Uuid,
-    directory: String,
+    directory: Option<Uuid>,
     session: &CachingSession,
     start: u64,
     end: u64,
 ) -> Result<Take<Skip<CharybdisModelStream<File>>>, MeowithDataError> {
-    Ok(File::find_by_bucket_id_and_directory(bucket_id, directory)
+    Ok(
+        File::find_by_bucket_id_and_directory(bucket_id, directory.unwrap_or(ROOT_DIR))
+            .execute(session)
+            .await
+            .map_err(MeowithDataError::from)?
+            .skip(start as usize)
+            .take((end - start) as usize),
+    )
+}
+
+pub async fn get_sub_dirs(
+    bucket_id: Uuid,
+    path: String,
+    session: &CachingSession,
+) -> Result<CharybdisModelStream<Directory>, MeowithDataError> {
+    Directory::find_by_bucket_id_and_parent(bucket_id, path)
         .execute(session)
         .await
-        .map_err(MeowithDataError::from)?
-        .skip(start as usize)
-        .take((end - start) as usize))
+        .map_err(MeowithDataError::from)
 }
 
 pub async fn get_file(
     bucket_id: Uuid,
-    directory: String,
+    directory: Option<Uuid>,
     name: String,
     session: &CachingSession,
 ) -> Result<File, MeowithDataError> {
-    File::find_by_bucket_id_and_directory_and_name(bucket_id, directory, name)
+    File::find_by_bucket_id_and_directory_and_name(bucket_id, directory.unwrap_or(ROOT_DIR), name)
         .execute(session)
         .await
         .map_err(MeowithDataError::from)
 }
 
-pub async fn maybe_get_file(
+pub async fn get_file_dir(
     bucket_id: Uuid,
-    directory: String,
+    directory: Option<String>,
     name: String,
     session: &CachingSession,
-) -> Result<Option<File>, MeowithDataError> {
-    File::maybe_find_first_by_bucket_id_and_directory_and_name(bucket_id, directory, name)
+) -> Result<FileDir, MeowithDataError> {
+    let directory = get_directory(bucket_id, directory, session)
+        .await
+        .map_err(MeowithDataError::from)?;
+    let id: Uuid;
+    if let Some(directory) = &directory {
+        id = directory.id;
+    } else {
+        id = ROOT_DIR;
+    }
+    let file = File::find_by_bucket_id_and_directory_and_name(bucket_id, id, name)
         .execute(session)
         .await
-        .map_err(MeowithDataError::from)
+        .map_err(MeowithDataError::from)?;
+    Ok((file, directory))
+}
+
+pub async fn maybe_get_file_dir(
+    bucket_id: Uuid,
+    directory: Option<String>,
+    name: String,
+    session: &CachingSession,
+) -> Result<MaybeFileDir, MeowithDataError> {
+    let directory = get_directory(bucket_id, directory, session)
+        .await
+        .map_err(MeowithDataError::from)?;
+    let id: Uuid;
+    if let Some(directory) = &directory {
+        id = directory.id;
+    } else {
+        id = ROOT_DIR;
+    }
+    let file = File::maybe_find_first_by_bucket_id_and_directory_and_name(bucket_id, id, name)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)?;
+    Ok((file, directory))
 }
 
 pub async fn update_file_path(
     file: &File,
-    directory: String,
+    directory: Option<Uuid>,
     name: String,
     session: &CachingSession,
 ) -> Result<File, MeowithDataError> {
     let mut new_file = file.clone();
-    new_file.directory = directory;
+    new_file.directory = directory.unwrap_or(Uuid::from_u128(0));
     new_file.name = name;
     // There is no other way to do this as
     // the primary key ((bucket_id), directory, name) is immutable,
@@ -112,6 +271,25 @@ pub async fn update_file_path(
     Ok(new_file)
 }
 
+// Same deal here, as with the file path
+pub async fn update_directory_path(
+    directory: &Directory,
+    parent: Option<String>,
+    name: String,
+    session: &CachingSession,
+) -> Result<Directory, MeowithDataError> {
+    let mut new_dir = directory.clone();
+    new_dir.parent = parent.unwrap_or_default();
+    new_dir.name = name;
+    Directory::batch()
+        .append_delete(directory)
+        .append_insert(&new_dir)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)?;
+    Ok(new_dir)
+}
+
 pub async fn delete_file(
     file: &File,
     bucket: &Bucket,
@@ -122,7 +300,7 @@ pub async fn delete_file(
         bucket.decrement_space_taken(file.size).execute(session),
         bucket.decrement_file_count(1).execute(session),
     )
-    .map_err(MeowithDataError::from)?;
+        .map_err(MeowithDataError::from)?;
     Ok(())
 }
 
@@ -177,7 +355,7 @@ pub async fn insert_file(
         bucket.increment_space_taken(file.size).execute(session),
         bucket.increment_file_count(1).execute(session),
     )
-    .map_err(MeowithDataError::from)?;
+        .map_err(MeowithDataError::from)?;
 
     Ok(())
 }

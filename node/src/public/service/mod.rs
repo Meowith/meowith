@@ -3,6 +3,7 @@ use data::model::permission_model::UserPermission;
 use lazy_static::lazy_static;
 
 pub mod chunk_service;
+pub(crate) mod directory_action_service;
 pub mod durable_transfer_session_manager;
 pub mod file_access_service;
 pub mod file_action_service;
@@ -24,4 +25,7 @@ lazy_static! {
     static ref DOWNLOAD_ALLOWANCE: u64 = PermissionList(vec![UserPermission::Read]).into();
     static ref LIST_BUCKET_ALLOWANCE: u64 = PermissionList(vec![UserPermission::ListBucket]).into();
     static ref LIST_DIR_ALLOWANCE: u64 = PermissionList(vec![UserPermission::ListDirectory]).into();
+    static ref CREATE_DIRECTORY_ALLOWANCE: u64 = PermissionList(vec![UserPermission::Write]).into();
+    static ref RENAME_DIRECTORY_ALLOWANCE: u64 =
+        PermissionList(vec![UserPermission::Write, UserPermission::Rename]).into();
 }

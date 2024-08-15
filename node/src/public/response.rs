@@ -22,6 +22,7 @@ pub enum NodeClientError {
     InternalError,
     BadRequest,
     NotFound,
+    EntityExists,
     NoSuchSession,
     BadAuth,
     InsufficientStorage,
@@ -36,6 +37,7 @@ impl error::ResponseError for NodeClientError {
             NodeClientError::InsufficientStorage => StatusCode::IM_A_TEAPOT,
             NodeClientError::NotFound => StatusCode::NOT_FOUND,
             NodeClientError::NoSuchSession => StatusCode::NOT_FOUND,
+            NodeClientError::EntityExists => StatusCode::BAD_REQUEST,
         }
     }
 

@@ -1,5 +1,13 @@
 use charybdis::macros::{charybdis_model, charybdis_udt_model};
 use charybdis::types::{BigInt, Boolean, Counter, Frozen, Set, Text, Timestamp, TinyInt, Uuid};
+use crate::pathlib::join_parent_name;
+// partial_directory!(
+//     UpdateDirectory,
+//     id,
+//     microservice_type,
+//     used_space,
+//     max_space
+// );
 
 #[charybdis_udt_model(type_name = file_chunk)]
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
@@ -21,12 +29,36 @@ pub struct FileChunk {
 #[derive(Clone)]
 pub struct File {
     pub bucket_id: Uuid,
-    pub directory: Text,
+    pub directory: Uuid, // Uuid::from_u128(0) for root dir
     pub name: Text,
     pub size: BigInt,
     pub chunk_ids: Set<Frozen<FileChunk>>,
     pub created: Timestamp,
     pub last_modified: Timestamp,
+}
+
+#[charybdis_model(
+    table_name = directories,
+    partition_keys = [bucket_id],
+    clustering_keys = [parent, name],
+    global_secondary_indexes = [],
+    local_secondary_indexes = [id],
+    static_columns = []
+)]
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Directory {
+    pub bucket_id: Uuid,
+    pub parent: String,
+    pub name: String,
+    pub id: Uuid,
+    pub created: Timestamp,
+    pub last_modified: Timestamp,
+}
+
+impl Directory {
+    pub fn full_path(&self) -> String {
+        join_parent_name(&self.parent, &self.name)
+    }
 }
 
 #[charybdis_model(

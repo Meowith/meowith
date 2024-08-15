@@ -1,5 +1,6 @@
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::NodeClientResponse;
+use crate::public::routes::EntryPath;
 use crate::public::service::file_list_service::{do_list_bucket, do_list_dir, PaginationInfo};
 use crate::AppState;
 use actix_web::{get, web};
@@ -15,7 +16,12 @@ pub struct ListResponse {
 #[derive(Serialize)]
 pub struct Entity {
     pub name: String,
-    pub dir: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub dir: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub dir_id: Option<Uuid>,
     pub size: u64,
     pub is_dir: bool,
     pub created: DateTime<Utc>,
@@ -36,19 +42,12 @@ pub async fn list_bucket(
 
 #[get("/list/dir/{app_id}/{bucket_id}/{path}")]
 pub async fn list_dir(
-    path: web::Path<(Uuid, Uuid, String)>,
+    path: web::Path<EntryPath>,
     accessor: BucketAccessor,
     app_data: web::Data<AppState>,
     paginate: web::Query<PaginationInfo>,
 ) -> NodeClientResponse<web::Json<ListResponse>> {
-    do_list_dir(
-        path.0,
-        path.1,
-        path.2.clone(),
-        accessor,
-        app_data,
-        paginate.0,
-    )
-    .await
-    .map(web::Json)
+    do_list_dir(path.into_inner(), accessor, app_data, paginate.0)
+        .await
+        .map(web::Json)
 }

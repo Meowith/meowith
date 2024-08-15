@@ -13,6 +13,7 @@ use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::{NodeClientError, NodeClientResponse};
+use crate::public::routes::EntryPath;
 use crate::public::service::file_access_service::{
     handle_download, handle_upload_durable, handle_upload_oneshot, resume_upload_session,
     start_upload_session,
@@ -37,8 +38,6 @@ pub struct UploadSessionStartResponse {
 pub struct UploadSessionRequest {
     /// Entry size in bytes
     pub size: u64,
-    /// Entry full path
-    pub path: String,
 }
 
 #[derive(Serialize)]
@@ -54,7 +53,7 @@ pub struct UploadSessionResumeRequest {
 
 #[post("/upload/oneshot/{app_id}/{bucket_id}/{path}")]
 pub async fn upload_oneshot(
-    path: web::Path<(Uuid, Uuid, String)>,
+    path: web::Path<EntryPath>,
     accessor: BucketAccessor,
     req: HttpRequest,
     app_state: web::Data<AppState>,
@@ -74,9 +73,7 @@ pub async fn upload_oneshot(
         Arc::new(Mutex::new(Box::pin(BufReader::new(receiver))));
     let channel_handle = tokio::spawn(async move {
         handle_upload_oneshot(
-            path.0,
-            path.1,
-            path.2.clone(),
+            path.into_inner(),
             content_size,
             app_state,
             accessor,
@@ -100,14 +97,14 @@ pub async fn upload_oneshot(
     Ok(HttpResponse::Ok().finish())
 }
 
-#[post("/upload/durable/{app_id}/{bucket_id}")]
+#[post("/upload/durable/{app_id}/{bucket_id}/{path}")]
 pub async fn start_upload_durable(
-    path: web::Path<(Uuid, Uuid)>,
+    path: web::Path<EntryPath>,
     accessor: BucketAccessor,
     req: web::Json<UploadSessionRequest>,
     data: web::Data<AppState>,
 ) -> NodeClientResponse<web::Json<UploadSessionStartResponse>> {
-    start_upload_session(path.0, path.1, accessor, req.0, data).await
+    start_upload_session(path.into_inner(), accessor, req.0, data).await
 }
 
 #[post("/upload/resume/{app_id}/{bucket_id}")]
@@ -157,7 +154,7 @@ pub async fn upload_durable(
 
 #[get("/download/{app_id}/{bucket_id}/{path}")]
 pub async fn download(
-    path: web::Path<(Uuid, Uuid, String)>,
+    path: web::Path<EntryPath>,
     accessor: BucketAccessor,
     app_data: web::Data<AppState>,
 ) -> NodeClientResponse<HttpResponse> {
@@ -165,15 +162,7 @@ pub async fn download(
 
     let abstract_writer: AbstractWriteStream =
         Arc::new(Mutex::new(Box::pin(BufWriter::new(sender))));
-    let info = handle_download(
-        path.0,
-        path.1,
-        path.2.clone(),
-        accessor,
-        abstract_writer,
-        app_data,
-    )
-    .await?;
+    let info = handle_download(path.into_inner(), accessor, abstract_writer, app_data).await?;
 
     let response_stream = ReaderStream::new(receiver);
 

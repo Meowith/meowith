@@ -1,20 +1,27 @@
 use charybdis::scylla::CqlValue;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use scylla::_macro_internal::{
     CellWriter, ColumnType, FromCqlValError, SerializationError, SerializeCql, WrittenCellProof,
 };
 use scylla::cql_to_rust::FromCqlVal;
 use strum::EnumIter;
 
-#[derive(Debug, Hash, Eq, PartialEq, EnumIter)]
+#[derive(Debug, Hash, Eq, PartialEq, EnumIter, IntoPrimitive, TryFromPrimitive, Clone, Copy)]
+#[repr(i8)]
 pub enum UserPermission {
-    Read,
-    Write,
-    Overwrite,
-    ListDirectory,
-    ListBucket,
-    Rename,
-    Delete,
-    Move,
+    Read = 1i8,
+    Write = 2i8,
+    Overwrite = 3i8,
+    ListDirectory = 4i8,
+    ListBucket = 5i8,
+    Rename = 6i8,
+    Delete = 7i8,
+}
+
+impl From<&UserPermission> for i8 {
+    fn from(value: &UserPermission) -> i8 {
+        <UserPermission as Into<i8>>::into(*value)
+    }
 }
 
 impl SerializeCql for UserPermission {
@@ -43,38 +50,5 @@ impl UserPermission {
     pub fn bit(&self) -> u64 {
         let perm_i8: i8 = self.into();
         1u64 << (perm_i8 - 1)
-    }
-}
-
-impl From<&UserPermission> for i8 {
-    fn from(value: &UserPermission) -> Self {
-        match value {
-            UserPermission::Read => 1i8,
-            UserPermission::Write => 2i8,
-            UserPermission::Overwrite => 3i8,
-            UserPermission::ListDirectory => 4i8,
-            UserPermission::ListBucket => 5i8,
-            UserPermission::Rename => 6i8,
-            UserPermission::Delete => 7i8,
-            UserPermission::Move => 8i8,
-        }
-    }
-}
-
-impl TryFrom<i8> for UserPermission {
-    type Error = ();
-
-    fn try_from(value: i8) -> Result<Self, Self::Error> {
-        match value {
-            1i8 => Ok(UserPermission::Read),
-            2i8 => Ok(UserPermission::Write),
-            3i8 => Ok(UserPermission::Overwrite),
-            4i8 => Ok(UserPermission::ListDirectory),
-            5i8 => Ok(UserPermission::ListBucket),
-            6i8 => Ok(UserPermission::Rename),
-            7i8 => Ok(UserPermission::Delete),
-            8i8 => Ok(UserPermission::Move),
-            _ => Err(()),
-        }
     }
 }
