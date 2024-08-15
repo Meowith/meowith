@@ -48,7 +48,10 @@ pub struct DirectoryIterator<'a> {
 }
 
 impl<'a> DirectoryIterator<'a> {
-    pub fn from_parent(parent: Directory, session: &'a CachingSession) -> impl Stream<Item=DirectoryItem> + 'a {
+    pub fn from_parent(
+        parent: Directory,
+        session: &'a CachingSession,
+    ) -> impl Stream<Item = DirectoryItem> + 'a {
         let mut queue = VecDeque::new();
         queue.push_front(parent);
         let mut iterator = DirectoryIterator {
@@ -107,10 +110,10 @@ pub async fn get_directory(
                 path.0.unwrap_or("".to_string()),
                 path.1,
             )
-                .execute(session)
-                .await
-                .map_err(MeowithDataError::from)
-                .map(Some)
+            .execute(session)
+            .await
+            .map_err(MeowithDataError::from)
+            .map(Some)
         }
     }
 }
@@ -300,7 +303,7 @@ pub async fn delete_file(
         bucket.decrement_space_taken(file.size).execute(session),
         bucket.decrement_file_count(1).execute(session),
     )
-        .map_err(MeowithDataError::from)?;
+    .map_err(MeowithDataError::from)?;
     Ok(())
 }
 
@@ -355,7 +358,7 @@ pub async fn insert_file(
         bucket.increment_space_taken(file.size).execute(session),
         bucket.increment_file_count(1).execute(session),
     )
-        .map_err(MeowithDataError::from)?;
+    .map_err(MeowithDataError::from)?;
 
     Ok(())
 }

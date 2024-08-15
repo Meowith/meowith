@@ -1,6 +1,6 @@
-use std::path::Path;
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::path::Path;
 
 /// Split the given file path into a format friendly to the database
 ///
@@ -13,9 +13,7 @@ use regex::Regex;
 /// ```
 pub fn split_path(file_path: &str) -> (Option<String>, String) {
     let path = Path::new(file_path);
-    let mut parent = path
-        .parent()
-        .map(|path| normalize(&path.to_string_lossy()));
+    let mut parent = path.parent().map(|path| normalize(&path.to_string_lossy()));
     if parent.as_ref().is_some_and(|s| s.is_empty()) {
         parent = None
     }
@@ -53,5 +51,8 @@ lazy_static! {
 /// assert_eq!(normalize("a.txt"),                  "a.txt".to_string());
 /// ```
 pub fn normalize(path: &str) -> String {
-    PATH_REGEX.replace_all(path, "/").trim_matches('/').to_string()
+    PATH_REGEX
+        .replace_all(path, "/")
+        .trim_matches('/')
+        .to_string()
 }
