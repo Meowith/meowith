@@ -293,6 +293,18 @@ pub async fn update_directory_path(
     Ok(new_dir)
 }
 
+pub async fn delete_directory(
+    directory: &Directory,
+    session: &CachingSession,
+) -> Result<(), MeowithDataError> {
+    let _ = directory
+        .delete()
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)?;
+    Ok(())
+}
+
 pub async fn delete_file(
     file: &File,
     bucket: &Bucket,

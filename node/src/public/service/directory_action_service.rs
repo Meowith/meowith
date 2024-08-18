@@ -1,12 +1,17 @@
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::{NodeClientError, NodeClientResponse};
-use crate::public::routes::entity_action::RenameEntityRequest;
+use crate::public::routes::entity_action::{DeleteDirectoryRequest, RenameEntityRequest};
 use crate::public::routes::EntryPath;
 use crate::public::service::file_access_service::try_mkdir;
-use crate::public::service::{CREATE_DIRECTORY_ALLOWANCE, RENAME_DIRECTORY_ALLOWANCE};
+use crate::public::service::{
+    CREATE_DIRECTORY_ALLOWANCE, DELETE_ALLOWANCE, RENAME_DIRECTORY_ALLOWANCE,
+};
 use crate::AppState;
 use actix_web::web::Data;
-use data::access::file_access::{get_directory, update_directory_path, DirectoryIterator};
+use data::access::file_access::{
+    delete_directory, get_directory, get_files_from_bucket_and_directory, get_sub_dirs,
+    update_directory_path, DirectoryIterator,
+};
 use data::pathlib::{join_parent_name, normalize, split_path};
 use futures::pin_mut;
 use futures_util::StreamExt;
@@ -18,6 +23,59 @@ pub async fn do_create_directory(
 ) -> NodeClientResponse<()> {
     bucket_accessor.has_permission(&path.bucket_id, &path.app_id, *CREATE_DIRECTORY_ALLOWANCE)?;
     let _ = try_mkdir(path.bucket_id, path.path(), &app_state.session).await;
+    Ok(())
+}
+
+pub async fn do_delete_directory(
+    mut e_path: EntryPath,
+    req: DeleteDirectoryRequest,
+    bucket_accessor: BucketAccessor,
+    app_state: Data<AppState>,
+) -> NodeClientResponse<()> {
+    bucket_accessor.has_permission(&e_path.bucket_id, &e_path.app_id, *DELETE_ALLOWANCE)?;
+    let path = e_path.path();
+
+    if path.is_empty() {
+        return Err(NodeClientError::BadRequest);
+    }
+
+    let directory = get_directory(e_path.bucket_id, Some(path.clone()), &app_state.session)
+        .await?
+        .unwrap(); // will not be None as it will not be the root dir.
+
+    if req.recursive {
+        //TODO consider if you should delete files (or possibly fail the operation) that are found in those directories or in parent
+        let child_stream = DirectoryIterator::from_parent(directory.clone(), &app_state.session);
+        pin_mut!(child_stream);
+        while let Some(res) = child_stream.next().await {
+            delete_directory(&res?, &app_state.session).await?;
+        }
+    } else {
+        if get_sub_dirs(e_path.bucket_id, path, &app_state.session)
+            .await?
+            .count()
+            .await
+            > 0
+        {
+            return Err(NodeClientError::NotEmpty);
+        }
+
+        if get_files_from_bucket_and_directory(
+            e_path.bucket_id,
+            Some(directory.id),
+            &app_state.session,
+        )
+        .await?
+        .count()
+        .await
+            > 0
+        {
+            return Err(NodeClientError::NotEmpty);
+        }
+    }
+
+    delete_directory(&directory, &app_state.session).await?;
+
     Ok(())
 }
 

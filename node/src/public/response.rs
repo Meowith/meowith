@@ -26,6 +26,7 @@ pub enum NodeClientError {
     NoSuchSession,
     BadAuth,
     InsufficientStorage,
+    NotEmpty,
 }
 
 impl error::ResponseError for NodeClientError {
@@ -38,6 +39,7 @@ impl error::ResponseError for NodeClientError {
             NodeClientError::NotFound => StatusCode::NOT_FOUND,
             NodeClientError::NoSuchSession => StatusCode::NOT_FOUND,
             NodeClientError::EntityExists => StatusCode::BAD_REQUEST,
+            NodeClientError::NotEmpty => StatusCode::BAD_REQUEST,
         }
     }
 

@@ -1,7 +1,9 @@
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::response::NodeClientResponse;
 use crate::public::routes::EntryPath;
-use crate::public::service::directory_action_service::{do_create_directory, do_rename_directory};
+use crate::public::service::directory_action_service::{
+    do_create_directory, do_delete_directory, do_rename_directory,
+};
 use crate::public::service::file_action_service::{delete_file_srv, rename_file_srv};
 use crate::AppState;
 use actix_web::{delete, post, web, HttpResponse};
@@ -65,11 +67,15 @@ pub async fn create_directory(
 
 #[delete("/delete/directory/{app_id}/{bucket_id}/{path}")]
 pub async fn delete_directory(
-    _path: web::Path<EntryPath>,
-    _req: web::Path<DeleteDirectoryRequest>,
-    _accessor: BucketAccessor,
-    _app_data: web::Data<AppState>,
+    path: web::Path<EntryPath>,
+    req: web::Json<DeleteDirectoryRequest>,
+    accessor: BucketAccessor,
+    app_data: web::Data<AppState>,
 ) -> NodeClientResponse<HttpResponse> {
+    let path = path.into_inner();
+
+    do_delete_directory(path, req.0, accessor, app_data).await?;
+
     Ok(HttpResponse::Ok().finish())
 }
 
