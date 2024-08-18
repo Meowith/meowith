@@ -11,7 +11,8 @@ members = [
     "controller",
     "commons",
     "logging",
-    "protocol"
+    "protocol",
+    "tests"
 ]
 
 [dependencies]

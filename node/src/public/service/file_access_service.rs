@@ -79,7 +79,7 @@ pub async fn handle_upload_oneshot(
         .upload_manager
         .get_reserved_space(path.app_id, path.bucket_id)
         .await?;
-    if bucket.space_taken.0 + size as i64 + reserved > bucket.quota {
+    if bucket.space_taken + size as i64 + reserved > bucket.quota {
         return Err(NodeClientError::InsufficientStorage);
     }
 
@@ -216,7 +216,7 @@ pub async fn start_upload_session(
         .upload_manager
         .get_reserved_space(e_path.app_id, e_path.bucket_id)
         .await?;
-    if bucket.space_taken.0 + req.size as i64 + reserved > bucket.quota {
+    if bucket.space_taken + req.size as i64 + reserved > bucket.quota {
         return Err(NodeClientError::InsufficientStorage);
     }
 

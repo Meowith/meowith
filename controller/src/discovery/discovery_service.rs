@@ -46,7 +46,7 @@ pub async fn perform_register_node(
     let token = generate_renewal_token().to_string();
 
     let service = MicroserviceNode {
-        microservice_type: req.service_type,
+        microservice_type: req.service_type.into(),
         id: Uuid::new_v4(),
         max_space: None,
         used_space: None,

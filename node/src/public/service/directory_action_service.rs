@@ -9,9 +9,10 @@ use crate::public::service::{
 use crate::AppState;
 use actix_web::web::Data;
 use data::access::file_access::{
-    delete_directory, get_directory, get_files_from_bucket_and_directory, get_sub_dirs,
-    update_directory_path, DirectoryIterator,
+    delete_directory, get_directory, maybe_get_first_child_from_directory,
+    maybe_get_first_file_from_directory, update_directory_path, DirectoryIterator,
 };
+use data::model::file_model::Directory;
 use data::pathlib::{join_parent_name, normalize, split_path};
 use futures::pin_mut;
 use futures_util::StreamExt;
@@ -44,37 +45,50 @@ pub async fn do_delete_directory(
         .unwrap(); // will not be None as it will not be the root dir.
 
     if req.recursive {
-        //TODO consider if you should delete files (or possibly fail the operation) that are found in those directories or in parent
         let child_stream = DirectoryIterator::from_parent(directory.clone(), &app_state.session);
         pin_mut!(child_stream);
+        let mut children = Vec::new();
+
         while let Some(res) = child_stream.next().await {
-            delete_directory(&res?, &app_state.session).await?;
-        }
-    } else {
-        if get_sub_dirs(e_path.bucket_id, path, &app_state.session)
-            .await?
-            .count()
-            .await
-            > 0
-        {
-            return Err(NodeClientError::NotEmpty);
+            children.push(res?);
         }
 
-        if get_files_from_bucket_and_directory(
-            e_path.bucket_id,
-            Some(directory.id),
-            &app_state.session,
-        )
-        .await?
-        .count()
-        .await
-            > 0
-        {
-            return Err(NodeClientError::NotEmpty);
+        for dir in children {
+            dir_empty(&directory, &app_state).await?;
+
+            delete_directory(&dir, &app_state.session).await?;
         }
+    } else {
+        dir_empty(&directory, &app_state).await?;
     }
 
     delete_directory(&directory, &app_state.session).await?;
+
+    Ok(())
+}
+
+async fn dir_empty(directory: &Directory, app_state: &Data<AppState>) -> NodeClientResponse<()> {
+    if maybe_get_first_child_from_directory(
+        directory.bucket_id,
+        Some(directory.full_path()),
+        &app_state.session,
+    )
+    .await?
+    .is_some()
+    {
+        return Err(NodeClientError::NotEmpty);
+    }
+
+    if maybe_get_first_file_from_directory(
+        directory.bucket_id,
+        Some(directory.id),
+        &app_state.session,
+    )
+    .await?
+    .is_some()
+    {
+        return Err(NodeClientError::NotEmpty);
+    }
 
     Ok(())
 }

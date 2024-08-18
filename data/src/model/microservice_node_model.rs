@@ -3,7 +3,7 @@ use actix_web::dev::Payload;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use charybdis::macros::charybdis_model;
 use charybdis::scylla::CqlValue;
-use charybdis::types::{BigInt, Boolean, Inet, Text, Timestamp, Uuid};
+use charybdis::types::{BigInt, Boolean, Inet, Text, Timestamp, TinyInt, Uuid};
 use scylla::_macro_internal::{
     CellWriter, ColumnType, FromCqlValError, SerializationError, SerializeCql, WrittenCellProof,
 };
@@ -21,7 +21,7 @@ use std::str::FromStr;
 )]
 #[derive(Debug, Clone)]
 pub struct MicroserviceNode {
-    pub microservice_type: MicroserviceType,
+    pub microservice_type: TinyInt,
     pub id: Uuid,
     pub max_space: Option<BigInt>, // bytes
     pub used_space: Option<BigInt>,
@@ -56,7 +56,7 @@ pub enum MicroserviceType {
 impl Default for MicroserviceNode {
     fn default() -> Self {
         MicroserviceNode {
-            microservice_type: MicroserviceType::StorageNode,
+            microservice_type: MicroserviceType::StorageNode.into(),
             id: Default::default(),
             max_space: None,
             used_space: None,
@@ -73,11 +73,11 @@ impl Default for MicroserviceNode {
 impl SerializeCql for MicroserviceType {
     fn serialize<'b>(
         &self,
-        typ: &ColumnType,
+        _typ: &ColumnType,
         writer: CellWriter<'b>,
     ) -> Result<WrittenCellProof<'b>, SerializationError> {
         let as_i8: i8 = self.into();
-        SerializeCql::serialize(&as_i8, typ, writer)
+        SerializeCql::serialize(&as_i8, &ColumnType::TinyInt, writer)
     }
 }
 
@@ -94,6 +94,15 @@ impl FromCqlVal<CqlValue> for MicroserviceType {
 
 impl From<&MicroserviceType> for i8 {
     fn from(value: &MicroserviceType) -> Self {
+        match value {
+            MicroserviceType::StorageNode => 1i8,
+            MicroserviceType::PanelApi => 2i8,
+        }
+    }
+}
+
+impl From<MicroserviceType> for i8 {
+    fn from(value: MicroserviceType) -> Self {
         match value {
             MicroserviceType::StorageNode => 1i8,
             MicroserviceType::PanelApi => 2i8,
@@ -118,9 +127,9 @@ impl FromRequest for MicroserviceNode {
     type Future = futures::future::Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        return match req.extensions().get::<MicroserviceNode>() {
+        match req.extensions().get::<MicroserviceNode>() {
             Some(node) => futures::future::ok(node.clone()),
             None => futures::future::err(DataResponseError::BadAuth),
-        };
+        }
     }
 }

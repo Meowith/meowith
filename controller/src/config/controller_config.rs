@@ -6,7 +6,7 @@ use std::net::IpAddr;
 use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct ControllerConfig {
+pub struct ControllerConfig {
     pub discovery_addr: String,
     pub discovery_port: u16,
     pub controller_addr: String,
@@ -22,6 +22,7 @@ pub(crate) struct ControllerConfig {
 
     pub database_nodes: Vec<String>,
     pub db_username: String,
+    pub keyspace: String,
     pub db_password: String,
 
     pub general_configuration: GeneralConfiguration,
@@ -61,6 +62,7 @@ impl ControllerConfig {
             database_nodes: vec!["127.0.0.1".to_string()],
             db_username: "root".to_string(),
             db_password: "root".to_string(),
+            keyspace: "none".to_string(),
 
             general_configuration: Default::default(),
         };

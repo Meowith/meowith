@@ -4,7 +4,7 @@ use crate::model::microservice_node_model::{
 };
 use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
-use charybdis::types::{BigInt, Text, Timestamp, Uuid};
+use charybdis::types::{BigInt, Text, Timestamp, Uuid, TinyInt};
 use chrono::Utc;
 use scylla::transport::session::TypedRowIter;
 use scylla::{CachingSession, QueryResult};
@@ -42,7 +42,7 @@ pub async fn get_microservice_from_type<'a>(
     service_type: MicroserviceType,
     session: &CachingSession,
 ) -> Result<CharybdisModelStream<MicroserviceNode>, MeowithDataError> {
-    MicroserviceNode::find_by_microservice_type(service_type)
+    MicroserviceNode::find_by_microservice_type(service_type.into())
         .execute(session)
         .await
         .map_err(|e| e.into())

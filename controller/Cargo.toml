@@ -3,6 +3,15 @@ name = "controller"
 version = "0.1.0"
 edition = "2021"
 
+
+[lib]
+name = "controller_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "controller"
+path = "src/main.rs"
+
 [dependencies]
 rcgen = "0.13.1"
 actix-rt = "2.10.0"

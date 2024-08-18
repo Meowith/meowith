@@ -6,17 +6,17 @@ use charybdis::stream::CharybdisModelStream;
 use charybdis::types::Timestamp;
 use futures::stream::Skip;
 use futures::stream::Take;
-use futures::{try_join, Stream, StreamExt};
-use scylla::{CachingSession, QueryResult};
+use futures::{try_join, Stream, StreamExt, TryFutureExt};
+use scylla::{CachingSession, IntoTypedRows, QueryResult};
 use std::collections::VecDeque;
+use scylla::query::Query;
 use uuid::Uuid;
+use log::error;
 
 pub const ROOT_DIR: Uuid = Uuid::from_u128(0);
 
 use crate::error::MeowithDataError;
-use crate::model::file_model::{
-    Bucket, BucketUploadSession, Directory, File, UpdateBucketUploadSession,
-};
+use crate::model::file_model::{update_bucket_query, Bucket, BucketUploadSession, Directory, File, UpdateBucketUploadSession};
 use crate::pathlib::split_path;
 
 pub type FileItem = Result<File, CharybdisError>;
@@ -51,7 +51,7 @@ impl<'a> DirectoryIterator<'a> {
     pub fn from_parent(
         parent: Directory,
         session: &'a CachingSession,
-    ) -> impl Stream<Item = DirectoryItem> + 'a {
+    ) -> impl Stream<Item=DirectoryItem> + 'a {
         let mut queue = VecDeque::new();
         queue.push_front(parent);
         let mut iterator = DirectoryIterator {
@@ -110,10 +110,10 @@ pub async fn get_directory(
                 path.0.unwrap_or("".to_string()),
                 path.1,
             )
-            .execute(session)
-            .await
-            .map_err(MeowithDataError::from)
-            .map(Some)
+                .execute(session)
+                .await
+                .map_err(MeowithDataError::from)
+                .map(Some)
         }
     }
 }
@@ -174,14 +174,34 @@ pub async fn get_files_from_bucket_and_directory_paginated(
     start: u64,
     end: u64,
 ) -> Result<Take<Skip<CharybdisModelStream<File>>>, MeowithDataError> {
-    Ok(
-        File::find_by_bucket_id_and_directory(bucket_id, directory.unwrap_or(ROOT_DIR))
-            .execute(session)
-            .await
-            .map_err(MeowithDataError::from)?
-            .skip(start as usize)
-            .take((end - start) as usize),
-    )
+    Ok(File::find_by_bucket_id_and_directory(bucket_id, directory.unwrap_or(ROOT_DIR))
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)?
+        .skip(start as usize)
+        .take((end - start) as usize))
+}
+
+pub async fn maybe_get_first_file_from_directory(
+    bucket_id: Uuid,
+    directory: Option<Uuid>,
+    session: &CachingSession,
+) -> Result<Option<File>, MeowithDataError> {
+    File::maybe_find_first_by_bucket_id_and_directory(bucket_id, directory.unwrap_or(ROOT_DIR))
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
+pub async fn maybe_get_first_child_from_directory(
+    bucket_id: Uuid,
+    directory: Option<String>,
+    session: &CachingSession,
+) -> Result<Option<Directory>, MeowithDataError> {
+    Directory::maybe_find_first_by_bucket_id_and_parent(bucket_id, directory.unwrap_or_default())
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
 }
 
 pub async fn get_sub_dirs(
@@ -311,11 +331,10 @@ pub async fn delete_file(
     session: &CachingSession,
 ) -> Result<(), MeowithDataError> {
     let _ = try_join!(
-        file.delete().execute(session),
-        bucket.decrement_space_taken(file.size).execute(session),
-        bucket.decrement_file_count(1).execute(session),
-    )
-    .map_err(MeowithDataError::from)?;
+        file.delete().execute(session).map_err(MeowithDataError::from),
+        update_bucket_space(bucket.clone(), 1, file.size, session)
+    )?;
+
     Ok(())
 }
 
@@ -341,23 +360,36 @@ pub async fn get_bucket(
         .map_err(MeowithDataError::from)
 }
 
+const QUERY_ATTEMPTS: u16 = 2048;
+
 pub async fn update_bucket_space(
-    bucket: Bucket,
+    mut bucket: Bucket,
     file_count_delta: i64,
     space_taken_delta: i64,
     session: &CachingSession,
-) -> Result<QueryResult, MeowithDataError> {
-    bucket
-        .increment_space_taken(space_taken_delta)
-        .execute(session)
-        .await
-        .map_err(MeowithDataError::from)?;
+) -> Result<(), MeowithDataError> {
+    let update_query = format!("{} {}", update_bucket_query!("file_count = ?, space_taken = ?"), "IF file_count = ? and space_taken = ?");
 
-    bucket
-        .increment_file_count(file_count_delta)
-        .execute(session)
-        .await
-        .map_err(MeowithDataError::from)
+    for _ in 0..QUERY_ATTEMPTS {
+        let query = Query::new(&update_query);
+
+        let result = session.execute(query, (bucket.file_count + file_count_delta, bucket.space_taken + space_taken_delta, bucket.file_count, bucket.space_taken)).await?;
+
+        if let Some(rows) = result.rows {
+            if let Some(row) = rows.into_typed::<(bool, i64, i64,)>().next() {
+                let (applied, file_count, space_taken) = row.map_err(|_| MeowithDataError::UnknownFailure)?;
+                if applied {
+                    return Ok(());
+                } else {
+                    bucket.space_taken = space_taken;
+                    bucket.file_count = file_count;
+                }
+            }
+        }
+    }
+
+    error!("Update bucket query failed after {} attempts. {:?}", QUERY_ATTEMPTS, bucket);
+    Err(MeowithDataError::UnknownFailure)
 }
 
 pub async fn insert_file(
@@ -366,11 +398,9 @@ pub async fn insert_file(
     session: &CachingSession,
 ) -> Result<(), MeowithDataError> {
     let _ = try_join!(
-        file.insert().execute(session),
-        bucket.increment_space_taken(file.size).execute(session),
-        bucket.increment_file_count(1).execute(session),
-    )
-    .map_err(MeowithDataError::from)?;
+        file.insert().execute(session).map_err(MeowithDataError::from),
+        update_bucket_space(bucket.clone(), 1, file.size, session)
+    )?;
 
     Ok(())
 }

@@ -1,15 +1,8 @@
 use crate::pathlib::join_parent_name;
 use charybdis::macros::{charybdis_model, charybdis_udt_model};
-use charybdis::types::{BigInt, Boolean, Counter, Frozen, Set, Text, Timestamp, TinyInt, Uuid};
-// partial_directory!(
-//     UpdateDirectory,
-//     id,
-//     microservice_type,
-//     used_space,
-//     max_space
-// );
+use charybdis::types::{BigInt, Boolean, Frozen, Set, Text, Timestamp, TinyInt, Uuid};
 
-#[charybdis_udt_model(type_name = file_chunk)]
+#[charybdis_udt_model(type_name = filechunk)]
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct FileChunk {
     pub server_id: Uuid,
@@ -48,8 +41,8 @@ pub struct File {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Directory {
     pub bucket_id: Uuid,
-    pub parent: String,
-    pub name: String,
+    pub parent: Text,
+    pub name: Text,
     pub id: Uuid,
     pub created: Timestamp,
     pub last_modified: Timestamp,
@@ -69,6 +62,7 @@ impl Directory {
     local_secondary_indexes = [name],
     static_columns = []
 )]
+#[derive(Debug, Clone)]
 pub struct Bucket {
     pub app_id: Uuid,
     pub id: Uuid,
@@ -76,8 +70,8 @@ pub struct Bucket {
     pub encrypted: Boolean,
     pub atomic_upload: Boolean,
     pub quota: BigInt,        // in bytes
-    pub file_count: Counter,  // avoid querying count(*)
-    pub space_taken: Counter, // avoid querying sum(size)
+    pub file_count: BigInt,  // avoid querying count(*) TODO https://stackoverflow.com/questions/72223524/an-alternative-to-counter-columns-in-scylladb
+    pub space_taken: BigInt, // avoid querying sum(size)
     pub created: Timestamp,
     pub last_modified: Timestamp,
 }
@@ -91,8 +85,8 @@ impl Default for Bucket {
             encrypted: false,
             atomic_upload: false,
             quota: 0,
-            file_count: Counter::default(),
-            space_taken: Counter::default(),
+            file_count: 0,
+            space_taken: 0,
             created: Default::default(),
             last_modified: Default::default(),
         }
@@ -105,10 +99,11 @@ impl Default for Bucket {
     clustering_keys = [bucket, id],
     global_secondary_indexes = [],
     local_secondary_indexes = [],
-    static_columns = []
+    static_columns = [],
+    table_options = r#"default_time_to_live = 3600;"#
 )]
 #[derive(Eq, PartialEq, Clone, Debug)]
-pub struct BucketUploadSession {
+pub struct BucketUploadSession { // TODO https://opensource.docs.scylladb.com/stable/cql/time-to-live.html consider the code.
     pub app_id: Uuid,
     pub bucket: Uuid,
     pub id: Uuid,

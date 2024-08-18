@@ -31,6 +31,7 @@ pub(crate) struct NodeConfig {
     pub database_nodes: Vec<String>,
     pub db_username: String,
     pub db_password: String,
+    pub keyspace: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -48,6 +49,7 @@ pub(crate) struct NodeConfigInstance {
     pub database_nodes: Vec<String>,
     pub db_username: String,
     pub db_password: String,
+    pub keyspace: String,
 }
 
 impl NodeConfig {
@@ -81,6 +83,7 @@ impl NodeConfig {
             database_nodes: vec!["127.0.0.1".to_string()],
             db_username: "root".to_string(),
             db_password: "root".to_string(),
+            keyspace: "none".to_string(),
         };
         let mut new_file = OpenOptions::new()
             .write(true)
@@ -146,6 +149,7 @@ impl NodeConfig {
             database_nodes: self.database_nodes,
             db_username: self.db_username,
             db_password: self.db_password,
+            keyspace: self.keyspace,
         })
     }
 }

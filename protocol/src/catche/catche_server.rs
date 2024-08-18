@@ -172,7 +172,7 @@ impl CatcheServer {
         Ok(())
     }
 
-    pub async fn shutdown(self) {
+    pub async fn shutdown(&self) {
         let sender = self.shutdown_sender.clone();
         if let Some(sender) = sender {
             self.running.store(false, Ordering::SeqCst);

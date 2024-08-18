@@ -17,7 +17,7 @@ pub async fn start_server(
     root_certificate: X509,
     authenticator: ControllerAuthenticator,
     cert: (X509, PKey<Private>),
-) {
+) -> CatcheServer {
     let mut server = CatcheServer::new(Arc::new(ConnectionAuthContext {
         root_certificate,
         authenticator: Some(Box::new(authenticator)),
@@ -25,6 +25,7 @@ pub async fn start_server(
         own_id: Uuid::new_v4(),
     }));
     let _ = server.start_server(port, cert).await;
+    server
 }
 
 pub struct ControllerAuthenticator {

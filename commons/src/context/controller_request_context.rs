@@ -7,6 +7,7 @@ use reqwest::{Certificate, Client, ClientBuilder, Method, RequestBuilder};
 use tokio::sync::{RwLock, RwLockReadGuard};
 use uuid::Uuid;
 
+
 use data::model::microservice_node_model::MicroserviceNode;
 
 use crate::context::request_context::RequestContext;
@@ -47,7 +48,6 @@ impl ControllerRequestContext {
         root_certificate: Certificate,
     ) -> Self {
         let client = ClientBuilder::new()
-            .use_rustls_tls()
             .add_root_certificate(root_certificate.clone())
             .build()
             .unwrap();

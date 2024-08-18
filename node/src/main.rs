@@ -98,6 +98,7 @@ async fn main() -> std::io::Result<()> {
         &config.database_nodes,
         &config.db_username,
         &config.db_password,
+        Some(&config.keyspace),
         CACHE_SIZE,
     )
     .await
