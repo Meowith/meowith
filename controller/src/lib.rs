@@ -2,28 +2,6 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use actix_cors::Cors;
-use actix_web::dev::{Server, ServerHandle};
-use actix_web::web::Data;
-use actix_web::{web, App, HttpServer};
-use futures::future;
-use log::{debug, error, info};
-use openssl::pkey::{PKey, Private};
-use openssl::ssl::SslAcceptorBuilder;
-use openssl::x509::X509;
-use reqwest::Certificate;
-use scylla::CachingSession;
-use tokio::task;
-use tokio::task::JoinHandle;
-use commons::autoconfigure::ssl_conf::{generate_csr, generate_private_key, sign_csr, SigningData};
-use commons::context::controller_request_context::ControllerRequestContext;
-use commons::ssl_acceptor::{
-    build_autogen_ssl_acceptor_builder, build_provided_ssl_acceptor_builder,
-};
-use data::access::microservice_node_access::get_microservices;
-use data::database_session::{build_session, CACHE_SIZE};
-use data::model::microservice_node_model::MicroserviceNode;
-use protocol::catche::catche_server::CatcheServer;
 use crate::catche::catche::{start_server, ControllerAuthenticator};
 use crate::config::controller_config::ControllerConfig;
 use crate::discovery::routes::{
@@ -32,6 +10,28 @@ use crate::discovery::routes::{
 use crate::health::routes::{microservice_heart_beat, update_storage_node_properties};
 use crate::ioutils::read_file;
 use crate::middleware::node_internal::NodeVerify;
+use actix_cors::Cors;
+use actix_web::dev::{Server, ServerHandle};
+use actix_web::web::Data;
+use actix_web::{web, App, HttpServer};
+use commons::autoconfigure::ssl_conf::{generate_csr, generate_private_key, sign_csr, SigningData};
+use commons::context::controller_request_context::ControllerRequestContext;
+use commons::ssl_acceptor::{
+    build_autogen_ssl_acceptor_builder, build_provided_ssl_acceptor_builder,
+};
+use data::access::microservice_node_access::get_microservices;
+use data::database_session::{build_session, CACHE_SIZE};
+use data::model::microservice_node_model::MicroserviceNode;
+use futures::future;
+use log::{debug, error, info};
+use openssl::pkey::{PKey, Private};
+use openssl::ssl::SslAcceptorBuilder;
+use openssl::x509::X509;
+use protocol::catche::catche_server::CatcheServer;
+use reqwest::Certificate;
+use scylla::CachingSession;
+use tokio::task;
+use tokio::task::JoinHandle;
 
 pub mod catche;
 pub mod config;
@@ -54,7 +54,7 @@ pub struct ControllerHandle {
     internode_server_handle: ServerHandle,
     public_server_handle: ServerHandle,
     catche_server: CatcheServer,
-    pub join_handle: JoinHandle<()>
+    pub join_handle: JoinHandle<()>,
 }
 
 impl ControllerHandle {
@@ -85,15 +85,15 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
         Some(&config.keyspace),
         CACHE_SIZE,
     )
-        .await
-        .expect("Unable to connect to database");
+    .await
+    .expect("Unable to connect to database");
 
     let ca_cert = X509::from_pem(
         read_file(&config.ca_certificate)
             .expect("Unable to read ca cert file")
             .as_slice(),
     )
-        .expect("Invalid ca cert format");
+    .expect("Invalid ca cert format");
     let ca_private_key_file =
         read_file(&config.ca_private_key).expect("Unable to read ca private key file");
 
@@ -143,7 +143,8 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
     let init_app_data = app_data.clone();
     let internal_certs = create_internal_certs(&init_app_data, &clonfig);
 
-    let catche = start_server( // TODO A
+    let catche = start_server(
+        // TODO A
         config
             .clone()
             .general_configuration
@@ -155,8 +156,9 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
         },
         internal_certs.clone(),
     )
-        .await;
-    let internode_server = HttpServer::new(move || { // TODO B
+    .await;
+    let internode_server = HttpServer::new(move || {
+        // TODO B
         let internode_app_data = app_data.clone();
         let cors = Cors::permissive();
         let internal_scope = web::scope("/api/internal")
@@ -182,7 +184,8 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
             .wrap(cors)
     });
 
-    let controller_server = HttpServer::new(|| { // TODO C
+    let controller_server = HttpServer::new(|| {
+        // TODO C
         let cors = Cors::permissive();
 
         App::new().wrap(cors)
@@ -230,7 +233,8 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
     let public_server_handle = controller_server_future.handle();
 
     let join_handle = task::spawn(async move {
-        if let Err(err) = future::try_join(internode_server_future, controller_server_future).await {
+        if let Err(err) = future::try_join(internode_server_future, controller_server_future).await
+        {
             error!("Server error {err:?}");
         }
     });
@@ -259,7 +263,7 @@ fn create_internal_certs(
             validity_days: 3560, // Note: consider auto-renewal
         },
     )
-        .expect("CRS sign failed");
+    .expect("CRS sign failed");
 
     debug!("Created internode SSL certificates");
 

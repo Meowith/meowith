@@ -69,8 +69,8 @@ pub struct Bucket {
     pub name: Text,
     pub encrypted: Boolean,
     pub atomic_upload: Boolean,
-    pub quota: BigInt,        // in bytes
-    pub file_count: BigInt,  // avoid querying count(*) TODO https://stackoverflow.com/questions/72223524/an-alternative-to-counter-columns-in-scylladb
+    pub quota: BigInt,       // in bytes
+    pub file_count: BigInt, // avoid querying count(*) TODO https://stackoverflow.com/questions/72223524/an-alternative-to-counter-columns-in-scylladb
     pub space_taken: BigInt, // avoid querying sum(size)
     pub created: Timestamp,
     pub last_modified: Timestamp,
@@ -103,7 +103,8 @@ impl Default for Bucket {
     table_options = r#"default_time_to_live = 3600;"#
 )]
 #[derive(Eq, PartialEq, Clone, Debug)]
-pub struct BucketUploadSession { // TODO https://opensource.docs.scylladb.com/stable/cql/time-to-live.html consider the code.
+pub struct BucketUploadSession {
+    // TODO https://opensource.docs.scylladb.com/stable/cql/time-to-live.html consider the code.
     pub app_id: Uuid,
     pub bucket: Uuid,
     pub id: Uuid,

@@ -4,7 +4,7 @@ use crate::model::microservice_node_model::{
 };
 use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
-use charybdis::types::{BigInt, Text, Timestamp, Uuid, TinyInt};
+use charybdis::types::{BigInt, Text, Timestamp, TinyInt, Uuid};
 use chrono::Utc;
 use scylla::transport::session::TypedRowIter;
 use scylla::{CachingSession, QueryResult};
