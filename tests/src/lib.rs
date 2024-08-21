@@ -41,10 +41,10 @@ mod tests {
     use controller_lib::start_controller;
     use data::database_session::build_raw_session;
     use log::info;
+    use migrate::MigrationBuilder;
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::time::Duration;
-    use migrate::MigrationBuilder;
     use tokio::time::sleep;
 
     async fn initialize_database() {
@@ -69,7 +69,6 @@ mod tests {
             .await
             .expect("Failed to create test data");
 
-
         let mut data_path = PathBuf::new();
         data_path.push(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap());
         data_path.push("data");
@@ -78,7 +77,8 @@ mod tests {
             .keyspace(cfg.keyspace)
             .verbose(true)
             .drop_and_replace(true)
-            .build(&conn).await;
+            .build(&conn)
+            .await;
 
         migration.run().await;
     }
