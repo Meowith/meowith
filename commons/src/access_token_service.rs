@@ -69,8 +69,8 @@ impl JwtService {
         Ok(JwtService {
             validation: Validation::new(Algorithm::HS384),
             token_validity: config.token_validity,
-            encoding_key: EncodingKey::from_base64_secret(config.secret.as_str())?,
-            decoding_key: DecodingKey::from_base64_secret(config.secret.as_str())?,
+            encoding_key: EncodingKey::from_secret(config.secret.as_bytes()),
+            decoding_key: DecodingKey::from_secret(config.secret.as_bytes()),
             header,
         })
     }

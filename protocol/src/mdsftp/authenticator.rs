@@ -1,10 +1,9 @@
 use async_trait::async_trait;
+use commons::error::mdsftp_error::MDSFTPResult;
 use openssl::x509::X509;
 use tokio::net::TcpStream;
 use tokio_rustls::TlsStream;
 use uuid::Uuid;
-
-use crate::mdsftp::error::MDSFTPResult;
 
 #[async_trait]
 pub trait MeowithConnectionAuthenticator: Send + Sync {

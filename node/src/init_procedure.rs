@@ -43,7 +43,7 @@ pub async fn register_node(
     };
 
     let mut ctx = MicroserviceRequestContext::new(
-        config.cnc_addr.clone(),
+        format!("{}:{}", config.cnc_addr.clone(), config.cnc_port.clone()),
         HashMap::new(),
         security_ctx,
         MicroserviceType::StorageNode,

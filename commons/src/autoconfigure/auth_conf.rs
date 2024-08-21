@@ -33,7 +33,7 @@ pub struct RegistrationResult {
 /// Afterward, a new set of SSL certificates is obtained.
 /// Lastly, if everything succeeded, the node sends out a health report
 ///
-/// If an error occurs, a panic is issued.
+/// If an mdsftp_error occurs, a panic is issued.
 pub async fn register_procedure(ctx: &mut MicroserviceRequestContext) -> RegistrationResult {
     let token = read_renewal_token();
     if let Ok(token) = token {

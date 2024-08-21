@@ -1,7 +1,7 @@
 use crate::catche::error::CatcheError;
 use crate::catche::reader::{CatchePacketHandler, PacketReader};
 use crate::catche::writer::PacketWriter;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
@@ -53,6 +53,9 @@ impl CatcheConnection {
             .write(token.as_bytes())
             .await
     }
+    pub async fn shutdown(&self) {
+        self._internal_connection.shutdown().await;
+    }
 }
 
 #[derive(Debug)]
@@ -80,5 +83,11 @@ impl InternalCatcheConnection {
             reader,
             is_closing: AtomicBool::new(false),
         })
+    }
+
+    pub async fn shutdown(&self) {
+        self.is_closing.store(true, Ordering::SeqCst);
+        self.writer.lock().await.close();
+        self.reader.close();
     }
 }

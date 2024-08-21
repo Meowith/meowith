@@ -30,9 +30,9 @@ pub fn build_autogen_ssl_acceptor_builder(
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
         .set_private_key(&private_key)
-        .expect("An error occurred during auto gen ssl acceptor init");
+        .expect("An mdsftp_error occurred during auto gen ssl acceptor init");
     builder
         .set_certificate(&certificate)
-        .expect("An error occurred during auto gen ssl acceptor init");
+        .expect("An mdsftp_error occurred during auto gen ssl acceptor init");
     builder
 }

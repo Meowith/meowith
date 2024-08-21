@@ -12,7 +12,7 @@ use std::path::Path;
 const MIN_STORAGE_VALUE: u64 = 2 * 1024 * 1024 * 1024;
 
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct NodeConfig {
+pub struct NodeConfig {
     pub cnc_addr: String,
     pub cnc_port: u16,
     pub max_space: String,
@@ -35,7 +35,7 @@ pub(crate) struct NodeConfig {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct NodeConfigInstance {
+pub struct NodeConfigInstance {
     pub cnc_addr: String,
     pub cnc_port: u16,
     pub max_space: u64,

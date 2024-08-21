@@ -14,12 +14,12 @@ mod tests {
 
     use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
     use commons::context::microservice_request_context::NodeAddrMap;
+    use commons::error::mdsftp_error::MDSFTPResult;
     use logging::initialize_test_logging;
 
     use crate::mdsftp::authenticator::ConnectionAuthContext;
     use crate::mdsftp::channel::MDSFTPChannel;
     use crate::mdsftp::data::{CommitFlags, LockAcquireResult, LockKind, PutFlags, ReserveFlags};
-    use crate::mdsftp::error::MDSFTPResult;
     use crate::mdsftp::handler::{Channel, ChannelPacketHandler, PacketHandler};
     use crate::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
     use crate::mdsftp::server::MDSFTPServer;

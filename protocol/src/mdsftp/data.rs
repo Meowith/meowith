@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use crate::mdsftp::error::MDSFTPError;
+use commons::error::mdsftp_error::MDSFTPError;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum LockKind {

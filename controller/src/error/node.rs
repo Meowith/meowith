@@ -7,7 +7,7 @@ use derive_more::Display;
 
 #[derive(Debug, Display)]
 pub enum NodeError {
-    #[display(fmt = "internal error")]
+    #[display(fmt = "internal mdsftp_error")]
     InternalError,
     #[display(fmt = "bad request")]
     BadRequest,

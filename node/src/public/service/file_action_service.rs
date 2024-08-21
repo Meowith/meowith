@@ -1,10 +1,10 @@
 use crate::public::middleware::user_middleware::BucketAccessor;
-use crate::public::response::NodeClientResponse;
 use crate::public::routes::entity_action::RenameEntityRequest;
 use crate::public::routes::EntryPath;
 use crate::public::service::DELETE_ALLOWANCE;
 use crate::AppState;
 use actix_web::web::Data;
+use commons::error::std_response::NodeClientResponse;
 use data::access::file_access::{
     delete_file, get_bucket, get_file_dir, maybe_get_file_dir, update_file_path, DID,
 };
@@ -41,12 +41,12 @@ pub async fn do_delete_file(
     for chunk in &file.chunk_ids {
         if chunk.server_id == state.req_ctx.id {
             log_err(
-                "file delete error",
+                "file delete mdsftp_error",
                 state.fragment_ledger.delete_chunk(&chunk.chunk_id).await,
             );
         } else if let Ok(channel) = state.mdsftp_server.pool().channel(&chunk.server_id).await {
             log_err(
-                "file delete error",
+                "file delete mdsftp_error",
                 channel.delete_chunk(chunk.chunk_id).await,
             );
         }

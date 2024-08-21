@@ -6,8 +6,8 @@ use tokio::net::TcpStream;
 use uuid::Uuid;
 
 use commons::context::microservice_request_context::MicroserviceRequestContext;
+use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
 use protocol::mdsftp::authenticator::MeowithConnectionAuthenticator;
-use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
 
 pub struct MeowithMDSFTPConnectionAuthenticator {
     pub req_ctx: Arc<MicroserviceRequestContext>,

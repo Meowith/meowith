@@ -3,7 +3,6 @@ pub mod channel;
 pub mod channel_handle;
 pub mod connection;
 pub mod data;
-pub mod error;
 pub mod handler;
 mod net;
 pub mod pool;

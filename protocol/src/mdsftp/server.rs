@@ -19,11 +19,12 @@ use uuid::{Bytes, Uuid};
 use commons::context::microservice_request_context::NodeAddrMap;
 
 use crate::mdsftp::authenticator::ConnectionAuthContext;
-use crate::mdsftp::error::MDSFTPError;
 use crate::mdsftp::pool::{MDSFTPPool, MDSFTPPoolConfigHolder, PacketHandlerRef};
+use commons::error::mdsftp_error::MDSFTPError;
 
 pub const ZERO_UUID: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
+#[derive(Clone)]
 pub struct MDSFTPServer {
     pool: Option<MDSFTPPool>,
     running: Arc<AtomicBool>,
@@ -185,7 +186,7 @@ impl MDSFTPServer {
         self.pool = Some(pool)
     }
 
-    pub async fn shutdown(self) {
+    pub async fn shutdown(&self) {
         let sender = self.shutdown_sender.clone();
         if let Some(sender) = sender {
             self.running.store(false, Ordering::SeqCst);

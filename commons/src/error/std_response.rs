@@ -5,16 +5,15 @@ use derive_more::Display;
 use log::error;
 use serde::Serialize;
 
+use crate::error::io_error::MeowithIoError;
+use crate::error::mdsftp_error::MDSFTPError;
 use data::error::MeowithDataError;
-use protocol::mdsftp::error::MDSFTPError;
-
-use crate::io::error::MeowithIoError;
 
 pub type NodeClientResponse<T> = Result<T, NodeClientError>;
 
 #[derive(Serialize)]
-struct ErrorResponse {
-    message: String,
+pub(crate) struct ErrorResponse {
+    pub(crate) message: String,
 }
 
 #[derive(Debug, Display)]

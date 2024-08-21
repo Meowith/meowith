@@ -72,4 +72,8 @@ impl CatcheClient {
             .write_invalidate_packet(cache_id, cache_key)
             .await
     }
+
+    pub async fn shutdown(&self) {
+        self.connection.shutdown().await;
+    }
 }

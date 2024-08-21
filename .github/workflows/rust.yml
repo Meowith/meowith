@@ -11,15 +11,16 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    
+
     steps:
       - uses: actions/checkout@v4
       - name: Cargo fmt check
         run: cargo fmt --check
       - name: Build
         run: cargo build --verbose --workspace
-      - name: Run tests
-        run: cargo test --verbose --workspace -F test_logging
+      - name: Run unit tests
+        run: cargo test --verbose --workspace -F test_logging -- --skip integration
+      - name: Run integration tests
+        run: cargo test --verbose --workspace -F test_logging integration

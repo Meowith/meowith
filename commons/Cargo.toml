@@ -7,9 +7,10 @@ edition = "2021"
 openssl = "0.10.64"
 rand = "0.8.5"
 reqwest = { version = "0.12.5", features = ["__rustls", "json"] }
+rustls = "0.23.12"
 time = "0.3.36"
 uuid = { version = "1.9.1", features = ["v4"] }
-
+actix-web = "4.9.0"
 data = { path = "../data", version = "0.1.0" }
 regex = "1.10.5"
 derive_more = "0.99.18"

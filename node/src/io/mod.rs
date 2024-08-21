@@ -2,9 +2,8 @@ use std::path::Path;
 
 use heim::disk::usage;
 
-use crate::io::error::{MeowithIoError, MeowithIoResult};
+use commons::error::io_error::{MeowithIoError, MeowithIoResult};
 
-pub mod error;
 pub mod fragment_ledger;
 
 #[derive(PartialOrd, PartialEq)]

@@ -11,18 +11,18 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
 use protocol::mdsftp::data::{ChunkErrorKind, CommitFlags, LockKind, PutFlags, ReserveFlags};
-use protocol::mdsftp::error::{MDSFTPError, MDSFTPResult};
 use protocol::mdsftp::handler::{
     AbstractReadStream, AbstractWriteStream, Channel, ChannelPacketHandler, DownloadDelegator,
     UploadDelegator,
 };
 
 use crate::file_transfer::transfer_manager::mdsftp_upload;
-use crate::io::error::MeowithIoError;
 use crate::io::fragment_ledger::FragmentLedger;
 use crate::locking::file_read_guard::FileReadGuard;
 use crate::locking::file_write_guard::FileWriteGuard;
+use commons::error::io_error::MeowithIoError;
 
 pub struct MeowithMDSFTPChannelPacketHandler {
     fragment_ledger: FragmentLedger,
@@ -102,7 +102,7 @@ impl MeowithMDSFTPChannelPacketHandler {
                     match upload {
                         Ok(_) => {}
                         Err(err) => {
-                            warn!("File upload error {}", err);
+                            warn!("File upload mdsftp_error {}", err);
                         }
                     }
                 }
@@ -266,7 +266,7 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
                 channel.respond_reserve_ok(id, self.chunk_buffer).await?;
                 if flags.temp {
                     if let Err(e) = self.fragment_ledger.pause_reservation(&id).await {
-                        error!("Unexpected internal error occurred {}", e);
+                        error!("Unexpected internal mdsftp_error occurred {}", e);
                         channel.close(Err(MDSFTPError::Internal)).await;
                     } else {
                         channel.close(Ok(())).await;

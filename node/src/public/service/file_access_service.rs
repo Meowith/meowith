@@ -22,7 +22,6 @@ use protocol::mdsftp::data::{CommitFlags, ReserveFlags};
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 
 use crate::public::middleware::user_middleware::BucketAccessor;
-use crate::public::response::{NodeClientError, NodeClientResponse};
 use crate::public::routes::file_transfer::{UploadSessionRequest, UploadSessionStartResponse};
 use crate::public::routes::EntryPath;
 use crate::public::service::chunk_service::{commit_chunk, query_chunk, ChunkInfo};
@@ -34,6 +33,7 @@ use crate::public::service::reservation_service::{
 };
 use crate::public::service::{DOWNLOAD_ALLOWANCE, UPLOAD_ALLOWANCE, UPLOAD_OVERWRITE_ALLOWANCE};
 use crate::AppState;
+use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use data::pathlib::split_path;
 
 pub struct DlInfo {
@@ -324,7 +324,7 @@ pub async fn handle_upload_durable(
     );
 
     let transfer_result: NodeClientResponse<()> = async {
-        let mut first = already_uploaded > 0; // TODO handle user vs internal error. same for oneshot.
+        let mut first = already_uploaded > 0; // TODO handle user vs internal mdsftp_error. same for oneshot.
         let skip = if first { skip as u64 } else { 0 };
         for chunk in sorted_chunks.iter().skip(i.try_into().unwrap()) {
             inbound_transfer(

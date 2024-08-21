@@ -14,11 +14,11 @@ use uuid::Uuid;
 
 use crate::mdsftp::channel::InternalMDSFTPChannel;
 use crate::mdsftp::connection::ChannelFactory;
-use crate::mdsftp::error::MDSFTPError;
 use crate::mdsftp::handler::PacketHandler;
 use crate::mdsftp::net::packet_type::MDSFTPPacketType;
 use crate::mdsftp::net::validate::PreValidate;
 use crate::mdsftp::net::wire::{read_header, MDSFTPRawPacket, HEADER_SIZE};
+use commons::error::mdsftp_error::MDSFTPError;
 
 pub type ConnectionMap = Arc<RwLock<HashMap<u32, Arc<InternalMDSFTPChannel>>>>;
 pub type GlobalHandler = Arc<Mutex<Box<dyn PacketHandler>>>;

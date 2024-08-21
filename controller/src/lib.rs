@@ -7,9 +7,12 @@ use crate::config::controller_config::ControllerConfig;
 use crate::discovery::routes::{
     authenticate_node, config_fetch, register_node, security_csr, validate_peer,
 };
-use crate::health::routes::{microservice_heart_beat, update_storage_node_properties};
+use crate::health::routes::{
+    fetch_free_storage, microservice_heart_beat, update_storage_node_properties,
+};
 use crate::ioutils::read_file;
 use crate::middleware::node_internal::NodeVerify;
+use crate::public::routes::node_management::create_register_code;
 use actix_cors::Cors;
 use actix_web::dev::{Server, ServerHandle};
 use actix_web::web::Data;
@@ -40,6 +43,7 @@ pub mod error;
 pub mod health;
 pub mod ioutils;
 pub mod middleware;
+pub mod public;
 pub mod token_service;
 
 pub struct AppState {
@@ -144,7 +148,6 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
     let internal_certs = create_internal_certs(&init_app_data, &clonfig);
 
     let catche = start_server(
-        // TODO A
         config
             .clone()
             .general_configuration
@@ -158,7 +161,6 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
     )
     .await;
     let internode_server = HttpServer::new(move || {
-        // TODO B
         let internode_app_data = app_data.clone();
         let cors = Cors::permissive();
         let internal_scope = web::scope("/api/internal")
@@ -170,6 +172,7 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
         let health_scope = web::scope("/api/internal/health")
             .wrap(NodeVerify {})
             .service(update_storage_node_properties)
+            .service(fetch_free_storage)
             .service(microservice_heart_beat);
 
         let init_scope = web::scope("/api/internal/initialize")
@@ -178,17 +181,21 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
 
         App::new()
             .app_data(internode_app_data)
-            .service(internal_scope)
+            .wrap(cors)
             .service(init_scope)
             .service(health_scope)
-            .wrap(cors)
+            .service(internal_scope)
     });
 
-    let controller_server = HttpServer::new(|| {
-        // TODO C
+    let controller_server = HttpServer::new(move || {
+        let controller_app_data = init_app_data.clone();
         let cors = Cors::permissive();
+        let register_codes = web::scope("/api/public/registerCodes").service(create_register_code);
 
-        App::new().wrap(cors)
+        App::new()
+            .wrap(cors)
+            .app_data(controller_app_data)
+            .service(register_codes)
     });
 
     let internode_server_future: Server;
@@ -235,7 +242,7 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
     let join_handle = task::spawn(async move {
         if let Err(err) = future::try_join(internode_server_future, controller_server_future).await
         {
-            error!("Server error {err:?}");
+            error!("Server mdsftp_error {err:?}");
         }
     });
 

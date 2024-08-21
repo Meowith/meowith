@@ -14,9 +14,9 @@ use protocol::catche::catche_client::CatcheClient;
 use protocol::catche::handler::CatcheHandler;
 
 use crate::caching::invalidator::{insert_invalidator_map, CacheInvalidator};
-use crate::public::response::NodeClientError;
+use commons::error::std_response::NodeClientError;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CacheInvalidationHandler {
     invalidators: HashMap<u8, Box<dyn CacheInvalidator>>,
 }

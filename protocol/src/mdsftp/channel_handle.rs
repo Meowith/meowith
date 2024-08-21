@@ -3,12 +3,11 @@ use std::pin::Pin;
 use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 
-use tokio::sync::mpsc::Receiver;
-use uuid::Uuid;
-
 use crate::mdsftp::channel::{InternalMDSFTPChannel, MDSFTPChannel};
 use crate::mdsftp::data::{ChunkErrorKind, LockKind};
-use crate::mdsftp::error::MDSFTPResult;
+use commons::error::mdsftp_error::MDSFTPResult;
+use tokio::sync::mpsc::Receiver;
+use uuid::Uuid;
 
 pub struct ChannelAwaitHandle {
     pub(crate) _receiver: Receiver<MDSFTPResult<()>>,
