@@ -41,10 +41,10 @@ mod tests {
     use controller_lib::start_controller;
     use data::database_session::build_raw_session;
     use log::info;
-    use std::os::windows::process::CommandExt;
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::time::Duration;
+    use migrate::MigrationBuilder;
     use tokio::time::sleep;
 
     async fn initialize_database() {
@@ -69,43 +69,26 @@ mod tests {
             .await
             .expect("Failed to create test data");
 
-        // run migrate from shell as it is private in the crate, PR on the way
-        // migrate --hosts <host> --keyspace <your_keyspace> --drop-and-replace
+
         let mut data_path = PathBuf::new();
         data_path.push(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap());
         data_path.push("data");
-        let out = Command::new("migrate")
-            .current_dir(data_path)
-            .raw_arg(format!("--host {}", &cfg.database_nodes[0]))
-            .raw_arg(format!("--keyspace {}", &cfg.keyspace))
-            .raw_arg(format!("--user {}", &cfg.db_password))
-            .raw_arg(format!("--password {}", &cfg.db_password))
-            .raw_arg("--drop-and-replace")
-            .raw_arg("--verbose")
-            .output()
-            .expect("Failed to create the test database");
 
-        if !out.status.success() {
-            panic!(
-                "Failed to create the test database, {}, {}",
-                String::from_utf8_lossy(&out.stdout),
-                String::from_utf8_lossy(&out.stderr)
-            )
-        }
+        let migration = MigrationBuilder::new()
+            .keyspace(cfg.keyspace)
+            .verbose(true)
+            .drop_and_replace(true)
+            .build(&conn).await;
 
-        println!(
-            "{}, {}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        )
+        migration.run().await;
     }
 
     #[tokio::test]
     #[ignore]
     async fn test_controller_boot() {
-        info!("DB init...");
+        info!("Database initialization");
         initialize_database().await;
-        info!("Server init...");
+        info!("Server initialization");
         let stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
             .await
             .expect("BOOT FAILED");
