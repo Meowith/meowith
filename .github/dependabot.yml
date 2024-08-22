@@ -8,14 +8,13 @@ updates:
       time: "01:00"
     commit-message:
       prefix: "chore(deps)"
+      include: "scope" # Dependency name included in commit message
     pull-request-branch-name:
       separator: "-"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "automerge"
-    commit-message:
-      include: scope
     rebase-strategy: "auto"
     target-branch: "main"
 
@@ -27,14 +26,13 @@ updates:
       time: "01:00"
     commit-message:
       prefix: "chore(deps)"
+      include: "scope"
     pull-request-branch-name:
       separator: "-"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "automerge"
-    commit-message:
-      include: scope
     rebase-strategy: "auto"
     target-branch: "main"
 
@@ -46,14 +44,13 @@ updates:
       time: "01:00"
     commit-message:
       prefix: "chore(deps)"
+      include: "scope"
     pull-request-branch-name:
       separator: "-"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "automerge"
-    commit-message:
-      include: scope
     rebase-strategy: "auto"
     target-branch: "main"
 
@@ -65,14 +62,13 @@ updates:
       time: "01:00"
     commit-message:
       prefix: "chore(deps)"
+      include: "scope"
     pull-request-branch-name:
       separator: "-"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "automerge"
-    commit-message:
-      include: scope
     rebase-strategy: "auto"
     target-branch: "main"
 
@@ -84,14 +80,13 @@ updates:
       time: "01:00"
     commit-message:
       prefix: "chore(deps)"
+      include: "scope"
     pull-request-branch-name:
       separator: "-"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "automerge"
-    commit-message:
-      include: scope
     rebase-strategy: "auto"
     target-branch: "main"
 
@@ -103,14 +98,13 @@ updates:
       time: "01:00"
     commit-message:
       prefix: "chore(deps)"
+      include: "scope"
     pull-request-branch-name:
       separator: "-"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "automerge"
-    commit-message:
-      include: scope
     rebase-strategy: "auto"
     target-branch: "main"
 
@@ -122,14 +116,13 @@ updates:
       time: "01:00"
     commit-message:
       prefix: "chore(deps)"
+      include: "scope"
     pull-request-branch-name:
       separator: "-"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "automerge"
-    commit-message:
-      include: scope
     rebase-strategy: "auto"
     target-branch: "main"
 
@@ -141,13 +134,12 @@ updates:
       time: "01:00"
     commit-message:
       prefix: "chore(deps)"
+      include: "scope"
     pull-request-branch-name:
       separator: "-"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "automerge"
-    commit-message:
-      include: scope
     rebase-strategy: "auto"
     target-branch: "main"
