@@ -1,10 +1,153 @@
 version: 2
 updates:
+  # Commons package
   - package-ecosystem: "cargo"
-    directory: "/"
+    directory: "/commons"
     schedule:
       interval: "daily"
-    allow:
-      - dependency-type: "direct"
-    ignore:
-      - update-types: ["version-update:semver-minor", "version-update:semver-patch"]
+      time: "01:00"
+    commit-message:
+      prefix: "chore(deps)"
+    pull-request-branch-name:
+      separator: "-"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      include: scope
+    rebase-strategy: "auto"
+    target-branch: "main"
+
+  # Controller package
+  - package-ecosystem: "cargo"
+    directory: "/controller"
+    schedule:
+      interval: "daily"
+      time: "01:00"
+    commit-message:
+      prefix: "chore(deps)"
+    pull-request-branch-name:
+      separator: "-"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      include: scope
+    rebase-strategy: "auto"
+    target-branch: "main"
+
+  # Dashboard package
+  - package-ecosystem: "cargo"
+    directory: "/dashboard"
+    schedule:
+      interval: "daily"
+      time: "01:00"
+    commit-message:
+      prefix: "chore(deps)"
+    pull-request-branch-name:
+      separator: "-"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      include: scope
+    rebase-strategy: "auto"
+    target-branch: "main"
+
+  # Data package
+  - package-ecosystem: "cargo"
+    directory: "/data"
+    schedule:
+      interval: "daily"
+      time: "01:00"
+    commit-message:
+      prefix: "chore(deps)"
+    pull-request-branch-name:
+      separator: "-"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      include: scope
+    rebase-strategy: "auto"
+    target-branch: "main"
+
+  # Logging package
+  - package-ecosystem: "cargo"
+    directory: "/logging"
+    schedule:
+      interval: "daily"
+      time: "01:00"
+    commit-message:
+      prefix: "chore(deps)"
+    pull-request-branch-name:
+      separator: "-"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      include: scope
+    rebase-strategy: "auto"
+    target-branch: "main"
+
+  # Node package
+  - package-ecosystem: "cargo"
+    directory: "/node"
+    schedule:
+      interval: "daily"
+      time: "01:00"
+    commit-message:
+      prefix: "chore(deps)"
+    pull-request-branch-name:
+      separator: "-"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      include: scope
+    rebase-strategy: "auto"
+    target-branch: "main"
+
+  # Protocol package
+  - package-ecosystem: "cargo"
+    directory: "/protocol"
+    schedule:
+      interval: "daily"
+      time: "01:00"
+    commit-message:
+      prefix: "chore(deps)"
+    pull-request-branch-name:
+      separator: "-"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      include: scope
+    rebase-strategy: "auto"
+    target-branch: "main"
+
+  # Tests package
+  - package-ecosystem: "cargo"
+    directory: "/tests"
+    schedule:
+      interval: "daily"
+      time: "01:00"
+    commit-message:
+      prefix: "chore(deps)"
+    pull-request-branch-name:
+      separator: "-"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      include: scope
+    rebase-strategy: "auto"
+    target-branch: "main"
