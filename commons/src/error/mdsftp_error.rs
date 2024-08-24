@@ -7,14 +7,14 @@ pub type MDSFTPResult<T> = Result<T, MDSFTPError>;
 #[derive(Debug, derive_more::Display)]
 pub enum MDSFTPError {
     ConnectionError,
-    #[display(fmt = "SSLError {_0:?}")]
+    #[display("SSLError {_0:?}")]
     SSLError(Option<Box<dyn Error + Send + Sync>>),
     NoSuchNode,
     AddressResolutionError,
     ConnectionAuthenticationError,
 
     NoSuchChunkId,
-    #[display(fmt = "ReserveError max_space = {_0}")]
+    #[display("ReserveError max_space = {_0}")]
     ReserveError(u64),
     ReservationError,
     MaxChannels,

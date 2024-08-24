@@ -2,6 +2,8 @@ use crate::model::microservice_node_model::MicroserviceType;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+pub static X_ADDR_HEADER: &str = "X-Custom-Addr";
+
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct NodeRegisterRequest {
     pub code: String,

@@ -13,6 +13,7 @@ use crate::catche::connection::CatcheConnection;
 use crate::catche::error::CatcheError;
 use crate::catche::reader::CatchePacketHandler;
 
+#[derive(Clone)]
 pub struct CatcheClient {
     connection: CatcheConnection,
 }

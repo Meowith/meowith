@@ -1,14 +1,16 @@
-use std::error::Error;
-use std::fmt::Debug;
-use std::{env, fs};
-
 use data::dto::controller::{
     AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
+    X_ADDR_HEADER,
 };
 use log::info;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use regex::Regex;
+use std::error::Error;
+use std::fmt::Debug;
+use std::net::IpAddr;
+use std::string::ToString;
+use std::{env, fs};
 
 use crate::autoconfigure::ssl_conf::perform_certificate_request;
 use crate::context::microservice_request_context::MicroserviceRequestContext;
@@ -34,14 +36,19 @@ pub struct RegistrationResult {
 /// Lastly, if everything succeeded, the node sends out a health report
 ///
 /// If an mdsftp_error occurs, a panic is issued.
-pub async fn register_procedure(ctx: &mut MicroserviceRequestContext) -> RegistrationResult {
-    let token = read_renewal_token();
+pub async fn register_procedure(
+    ctx: &mut MicroserviceRequestContext,
+    self_addr: IpAddr,
+    token_path: Option<String>,
+) -> RegistrationResult {
+    let token = read_renewal_token(token_path.clone());
     if let Ok(token) = token {
         info!("Renewal token present");
         ctx.security_context.renewal_token = token;
     } else {
         info!("Performing registration...");
-        ctx.security_context.renewal_token = perform_registration(ctx).await.unwrap();
+        ctx.security_context.renewal_token = perform_registration(ctx, self_addr).await.unwrap();
+        store_renewal_token(token_path, ctx.security_context.renewal_token.clone()).unwrap();
         info!("Done.");
     }
     info!("Fetching access token...");
@@ -52,7 +59,7 @@ pub async fn register_procedure(ctx: &mut MicroserviceRequestContext) -> Registr
     ctx.id = reg_resp.id;
     ctx.update_client();
     info!("Fetching certificates...");
-    let certificate_pair = perform_certificate_request(ctx)
+    let certificate_pair = perform_certificate_request(ctx, self_addr)
         .await
         .expect("Certificate request failed!");
 
@@ -67,12 +74,12 @@ pub async fn register_procedure(ctx: &mut MicroserviceRequestContext) -> Registr
 }
 
 // Note: consider obfuscating the data on disk, or otherwise storing it in a more secure manner.
-pub fn store_renewal_token(token: String) -> std::io::Result<()> {
-    fs::write(TOKEN_PATH, token)
+pub fn store_renewal_token(path: Option<String>, token: String) -> std::io::Result<()> {
+    fs::write(path.unwrap_or(TOKEN_PATH.to_string()), token)
 }
 
-pub fn read_renewal_token() -> Result<String, Box<dyn Error>> {
-    let token = fs::read_to_string(TOKEN_PATH)?;
+pub fn read_renewal_token(path: Option<String>) -> Result<String, Box<dyn Error>> {
+    let token = fs::read_to_string(path.unwrap_or(TOKEN_PATH.to_string()))?;
     if !is_renewal_token_valid(&token) {
         Err(Box::new(TokenReadError {}))
     } else {
@@ -99,6 +106,7 @@ pub async fn fetch_access_token(
 
 pub async fn perform_registration(
     ctx: &MicroserviceRequestContext,
+    addr: IpAddr,
 ) -> Result<String, Box<dyn Error>> {
     let register_code =
         env::var("REGISTER_CODE").expect("No env var REGISTER_CODE provided. Unable to register!");
@@ -111,6 +119,7 @@ pub async fn perform_registration(
         .client()
         .await
         .post(ctx.controller("/api/internal/initialize/register"))
+        .header(X_ADDR_HEADER, addr.to_string())
         .json(&register_request)
         .send()
         .await?

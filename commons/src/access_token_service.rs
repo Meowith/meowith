@@ -34,7 +34,7 @@ impl From<&AppTokenData> for ClaimKey {
     }
 }
 
-pub struct JwtService {
+pub struct AccessTokenJwtService {
     pub(crate) validation: Validation,
     pub(crate) token_validity: u64,
     pub(crate) encoding_key: EncodingKey,
@@ -42,7 +42,7 @@ pub struct JwtService {
     pub(crate) header: Header,
 }
 
-impl JwtService {
+impl AccessTokenJwtService {
     pub fn generate_token(
         &self,
         token_data: &AppTokenData,
@@ -62,11 +62,11 @@ impl JwtService {
         Ok(serde_json::from_str(&token_data?.claims.sub)?)
     }
 
-    pub fn new(config: &AccessTokenConfiguration) -> Result<JwtService, Box<dyn Error>> {
+    pub fn new(config: &AccessTokenConfiguration) -> Result<AccessTokenJwtService, Box<dyn Error>> {
         let mut header = Header::new(Algorithm::HS384);
         header.typ = Some("JWT".to_string());
 
-        Ok(JwtService {
+        Ok(AccessTokenJwtService {
             validation: Validation::new(Algorithm::HS384),
             token_validity: config.token_validity,
             encoding_key: EncodingKey::from_secret(config.secret.as_bytes()),

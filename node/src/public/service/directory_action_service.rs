@@ -22,7 +22,7 @@ pub async fn do_create_directory(
     bucket_accessor: BucketAccessor,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {
-    bucket_accessor.has_permission(&path.bucket_id, &path.app_id, *CREATE_DIRECTORY_ALLOWANCE)?;
+    bucket_accessor.has_permission(&path.app_id, &path.bucket_id, *CREATE_DIRECTORY_ALLOWANCE)?;
     let _ = try_mkdir(path.bucket_id, path.path(), &app_state.session).await;
     Ok(())
 }
@@ -33,7 +33,7 @@ pub async fn do_delete_directory(
     bucket_accessor: BucketAccessor,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {
-    bucket_accessor.has_permission(&e_path.bucket_id, &e_path.app_id, *DELETE_ALLOWANCE)?;
+    bucket_accessor.has_permission(&e_path.app_id, &e_path.bucket_id, *DELETE_ALLOWANCE)?;
     let path = e_path.path();
 
     if path.is_empty() {
@@ -100,8 +100,8 @@ pub async fn do_rename_directory(
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {
     bucket_accessor.has_permission(
-        &e_path.bucket_id,
         &e_path.app_id,
+        &e_path.bucket_id,
         *RENAME_DIRECTORY_ALLOWANCE,
     )?;
     let path = e_path.path();

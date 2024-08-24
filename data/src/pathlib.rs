@@ -10,6 +10,7 @@ use std::path::Path;
 /// assert_eq!(split_path("a/path/to/a.txt"),   (Some("a/path/to".to_string()), "a.txt".to_string()));
 /// assert_eq!(split_path("a\\path\\to/a.txt"), (Some("a/path/to".to_string()), "a.txt".to_string()));
 /// assert_eq!(split_path("a.txt"),             (None, "a.txt".to_string()));
+/// assert_eq!(split_path("/a.txt"),             (None, "a.txt".to_string()));
 /// ```
 pub fn split_path(file_path: &str) -> (Option<String>, String) {
     let path = Path::new(file_path);

@@ -1,5 +1,3 @@
-use std::net::IpAddr;
-
 use actix_web::http::header::HeaderValue;
 use actix_web::web::Bytes;
 use actix_web::{web, HttpRequest};
@@ -7,6 +5,8 @@ use chrono::prelude::*;
 use futures_util::TryFutureExt;
 use openssl::x509::X509Req;
 use scylla::CachingSession;
+use std::net::IpAddr;
+use std::str::FromStr;
 use uuid::Uuid;
 
 use commons::autoconfigure::ssl_conf::SigningData;
@@ -17,6 +17,7 @@ use data::access::microservice_node_access::{
 };
 use data::dto::controller::{
     AuthenticationRequest, AuthenticationResponse, NodeRegisterRequest, NodeRegisterResponse,
+    X_ADDR_HEADER,
 };
 use data::error::MeowithDataError;
 use data::model::microservice_node_model::MicroserviceNode;
@@ -144,10 +145,14 @@ pub async fn sign_node_csr(
 }
 
 // Note: Its worth considering a self-reported address as it allows for potential proxy usage
+// Note: considered it.
 pub fn get_address(req: &HttpRequest) -> Result<IpAddr, ()> {
-    if let Some(sock_addr) = req.peer_addr() {
-        Ok(sock_addr.ip())
-    } else {
-        Err(())
-    }
+    IpAddr::from_str(
+        req.headers()
+            .get(X_ADDR_HEADER)
+            .ok_or(())?
+            .to_str()
+            .map_err(|_| ())?,
+    )
+    .map_err(|_| ())
 }

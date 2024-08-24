@@ -27,7 +27,9 @@ pub fn initialize_logging(config_path: Option<&Path>) {
 
 fn initialize_default(level: LevelFilter) {
     let stdout = ConsoleAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{d} - {l} - {m}{n}")))
+        .encoder(Box::new(PatternEncoder::new(
+            "\x1b[94m{d}\x1b[0m - {h({l})} - {m}{n}",
+        )))
         .build();
 
     let config = Config::builder()

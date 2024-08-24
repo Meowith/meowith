@@ -2,6 +2,7 @@ extern crate openssl;
 
 use crate::context::microservice_request_context::MicroserviceRequestContext;
 use crate::context::request_context::RequestContext;
+use data::dto::controller::X_ADDR_HEADER;
 use openssl::bn::{BigNum, MsbOption};
 use openssl::error::ErrorStack;
 use openssl::pkey::{PKey, Private};
@@ -89,6 +90,7 @@ pub fn sign_csr(
 /// Expects BOTH of the tokens.
 pub async fn perform_certificate_request(
     ctx: &MicroserviceRequestContext,
+    addr: IpAddr,
 ) -> Result<(PKey<Private>, X509), Box<dyn Error>> {
     let pkey = generate_private_key()?;
     let csr = generate_csr(&pkey)?;
@@ -101,6 +103,7 @@ pub async fn perform_certificate_request(
             "Sec-Authorization",
             ctx.security_context.renewal_token.clone(),
         )
+        .header(X_ADDR_HEADER, addr.to_string())
         .body(csr.to_der()?)
         .send()
         .await?

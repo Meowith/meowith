@@ -1,7 +1,6 @@
 use std::error::Error;
 use std::io;
 use std::net::{IpAddr, SocketAddr};
-use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -53,7 +52,12 @@ impl MDSFTPServer {
         srv
     }
 
-    pub async fn start(&mut self, cert: &X509, key: &PKey<Private>) -> Result<(), Box<dyn Error>> {
+    pub async fn start(
+        &mut self,
+        cert: &X509,
+        key: &PKey<Private>,
+        bind_addr: IpAddr,
+    ) -> Result<(), Box<dyn Error>> {
         let config = rustls::ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(
@@ -64,7 +68,7 @@ impl MDSFTPServer {
 
         let acceptor = TlsAcceptor::from(Arc::new(config));
         let listener = TcpListener::bind(SocketAddr::new(
-            IpAddr::from_str("0.0.0.0").unwrap(),
+            bind_addr,
             self.connection_auth_context.port,
         ))
         .await?;

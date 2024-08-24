@@ -1,5 +1,6 @@
 use crate::error::node::NodeError;
 use crate::AppState;
+use actix_web::http::header::AUTHORIZATION;
 use actix_web::web::Data;
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
@@ -53,7 +54,7 @@ where
 
         Box::pin(async move {
             let app_data = req.app_data::<Data<AppState>>().unwrap();
-            let token_header = req.headers().get("Authorization");
+            let token_header = req.headers().get(AUTHORIZATION);
             if token_header.is_none() {
                 return Err(Error::from(NodeError::BadAuth));
             }

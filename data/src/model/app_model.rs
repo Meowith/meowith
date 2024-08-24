@@ -1,5 +1,5 @@
 use charybdis::macros::{charybdis_model, charybdis_view_model};
-use charybdis::types::{BigInt, Set, Text, Timestamp, TinyInt, Tuple, Uuid};
+use charybdis::types::{BigInt, Set, Text, Timestamp, Tuple, Uuid};
 
 #[charybdis_model(
     table_name = apps,
@@ -44,7 +44,7 @@ pub struct AppByOwner {
 pub struct UserRole {
     pub app_id: Uuid,
     pub name: Text, // non-re-nameable
-    pub scopes: Set<Tuple<Text, TinyInt>>,
+    pub scopes: Set<Tuple<Text, BigInt>>,
     pub created: Timestamp,
     pub last_modified: Timestamp,
 }

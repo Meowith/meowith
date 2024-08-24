@@ -133,4 +133,9 @@ impl MicroserviceRequestContext {
             self.port_configuration.internal_server_port
         ))
     }
+
+    pub async fn shutdown(&self) {
+        // Drop the old client, closing its pool.
+        *self.client.write().await = Client::new();
+    }
 }

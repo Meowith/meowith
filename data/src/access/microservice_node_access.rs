@@ -9,7 +9,7 @@ use chrono::Utc;
 use scylla::transport::session::TypedRowIter;
 use scylla::{CachingSession, QueryResult};
 
-static GET_ALL_NODES_QUERY: &str = "SELECT * FROM microservice_nodes";
+static GET_ALL_NODES_QUERY: &str = "SELECT microservice_type, id, max_space, used_space, access_token, access_token_issued_at, renewal_token, address, created, register_code FROM microservice_nodes";
 
 partial_microservice_node!(
     UpdateMicroservice,

@@ -1,0 +1,12 @@
+[package]
+name = "auth_framework"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1.81"
+data = { path = "../data", version = "0.1.0" }
+serde = "1.0.208"
+uuid = "1.10.0"
+actix-web = "4.9.0"
+scylla = "0.13.2"

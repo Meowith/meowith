@@ -29,7 +29,7 @@ tokio-rustls = "0.26.0"
 async-trait = "0.1.80"
 actix-cors = "0.7.0"
 log = "0.4.22"
-derive_more = "0.99.18"
+derive_more = { version="1.0.0", features = ["full"] }
 filesize = "0.2.0"
 heim = { version = "0.0.11", features = ["disk"], default-features = false }
 rand = "0.8.5"

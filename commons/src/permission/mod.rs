@@ -1,6 +1,6 @@
 pub mod check;
 
-use data::model::permission_model::UserPermission;
+use crate::permission::check::PermissionListEntryBounds;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -20,13 +20,13 @@ pub struct AppTokenData {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct PermissionList(pub Vec<UserPermission>);
+pub struct PermissionList<T: PermissionListEntryBounds>(pub Vec<T>);
 
 #[cfg(test)]
 mod tests {
     use crate::permission::check::check_permission;
     use crate::permission::PermissionList;
-    use data::model::permission_model::UserPermission;
+    use data::model::permission_model::{IntoBit, UserPermission};
 
     #[test]
     fn test_list() {
@@ -39,7 +39,7 @@ mod tests {
         let list = PermissionList(perms);
 
         let encoded: u64 = (&list).into();
-        let decoded: PermissionList = encoded.into();
+        let decoded: PermissionList<UserPermission> = encoded.into();
 
         assert_eq!(list, decoded);
     }
@@ -69,8 +69,9 @@ mod tests {
         ])
         .into();
 
-        assert_eq!(check_permission(allowance, req1), false);
-        assert_eq!(check_permission(allowance, req2), true);
-        assert_eq!(check_permission(allowance, req3), true);
+        assert_eq!(check_permission(req1, allowance), false);
+        assert_eq!(check_permission(req2, allowance), true);
+        assert_eq!(check_permission(req3, allowance), true);
+        assert_eq!(check_permission(127, 2), true);
     }
 }

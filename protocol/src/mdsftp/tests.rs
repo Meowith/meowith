@@ -2,6 +2,8 @@
 mod tests {
     use std::collections::HashMap;
     use std::io::Write;
+    use std::net::IpAddr;
+    use std::str::FromStr;
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -249,7 +251,10 @@ mod tests {
             Default::default(),
         )
         .await;
-        assert!(server.start(&cert, &key).await.is_ok());
+        assert!(server
+            .start(&cert, &key, IpAddr::from_str("0.0.0.0").unwrap())
+            .await
+            .is_ok());
 
         let client_stats = Arc::new(Mutex::new(HandlerStats::default()));
         let client_received = Arc::new(Mutex::new(Vec::<u8>::new()));

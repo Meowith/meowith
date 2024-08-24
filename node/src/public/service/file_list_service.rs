@@ -1,5 +1,4 @@
 use crate::public::middleware::user_middleware::BucketAccessor;
-use crate::public::routes::entity_list::{Entity, ListResponse};
 use crate::public::routes::EntryPath;
 use crate::public::service::{LIST_BUCKET_ALLOWANCE, LIST_DIR_ALLOWANCE};
 use crate::AppState;
@@ -9,6 +8,7 @@ use data::access::file_access::{
     get_directory, get_files_from_bucket, get_files_from_bucket_and_directory,
     get_files_from_bucket_and_directory_paginated, get_files_from_bucket_paginated, FileItem, DID,
 };
+use data::dto::entity::{Entity, EntityList};
 use futures::Stream;
 use futures_util::StreamExt;
 use serde::Deserialize;
@@ -52,9 +52,9 @@ pub async fn do_list_bucket(
     accessor: BucketAccessor,
     app_data: web::Data<AppState>,
     pagination_info: PaginationInfo,
-) -> NodeClientResponse<ListResponse> {
+) -> NodeClientResponse<EntityList> {
     pagination_info.validate()?;
-    accessor.has_permission(&bucket_id, &app_id, *LIST_BUCKET_ALLOWANCE)?;
+    accessor.has_permission(&app_id, &bucket_id, *LIST_BUCKET_ALLOWANCE)?;
     let files: Box<dyn Stream<Item = FileItem> + Unpin> = if pagination_info.is_paginated() {
         let complete = pagination_info.completed();
         Box::new(
@@ -78,9 +78,9 @@ pub async fn do_list_dir(
     accessor: BucketAccessor,
     app_data: web::Data<AppState>,
     pagination_info: PaginationInfo,
-) -> NodeClientResponse<ListResponse> {
+) -> NodeClientResponse<EntityList> {
     pagination_info.validate()?;
-    accessor.has_permission(&e_path.bucket_id, &e_path.app_id, *LIST_DIR_ALLOWANCE)?;
+    accessor.has_permission(&e_path.app_id, &e_path.bucket_id, *LIST_DIR_ALLOWANCE)?;
 
     let path = if e_path.path().is_empty() {
         None
@@ -119,7 +119,7 @@ pub async fn do_list_dir(
 async fn collect_files(
     mut files: Box<dyn Stream<Item = FileItem> + Unpin>,
     include_dir: bool,
-) -> NodeClientResponse<ListResponse> {
+) -> NodeClientResponse<EntityList> {
     let mut entities = Vec::new();
 
     while let Some(item) = files.next().await {
@@ -140,5 +140,5 @@ async fn collect_files(
         }
     }
 
-    Ok(ListResponse { entities })
+    Ok(EntityList { entities })
 }

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use actix_web::http::header::{ContentDisposition, CONTENT_LENGTH};
 use actix_web::{get, post, put, web, HttpRequest, HttpResponse};
 use futures_util::StreamExt;
+use log::error;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncWriteExt, BufReader, BufWriter};
 use tokio::sync::Mutex;
@@ -72,27 +73,27 @@ pub async fn upload_oneshot(
     let abstract_reader: AbstractReadStream =
         Arc::new(Mutex::new(Box::pin(BufReader::new(receiver))));
     let channel_handle = tokio::spawn(async move {
-        handle_upload_oneshot(
+        let err = handle_upload_oneshot(
             path.into_inner(),
             content_size,
             app_state,
             accessor,
             abstract_reader,
         )
-        .await
+        .await;
+        if let Err(err) = err {
+            error!("ONESHOT UPLOAD ERR: {err:?}");
+            return Err(err);
+        }
+        Ok(())
     });
 
     while let Some(item) = payload.next().await {
         let item = item.map_err(|_| NodeClientError::BadRequest)?;
-        sender
-            .write_all(&item)
-            .await
-            .map_err(|_| NodeClientError::InternalError)?;
+        sender.write_all(&item).await?;
     }
 
-    channel_handle
-        .await
-        .map_err(|_| NodeClientError::InternalError)??;
+    channel_handle.await??;
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -162,7 +163,7 @@ pub async fn download(
 
     let abstract_writer: AbstractWriteStream =
         Arc::new(Mutex::new(Box::pin(BufWriter::new(sender))));
-    let info = handle_download(path.into_inner(), accessor, abstract_writer, app_data).await?;
+    let (info, _) = handle_download(path.into_inner(), accessor, abstract_writer, app_data).await?;
 
     let response_stream = ReaderStream::new(receiver);
 

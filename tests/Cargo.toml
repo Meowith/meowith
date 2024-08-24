@@ -9,8 +9,16 @@ node = { path = "../node", version = "0.1.0" }
 commons = { path = "../commons", version = "0.1.0" }
 data = { path = "../data", version = "0.1.0" }
 logging = { path = "../logging", version = "0.1.0" }
+dashboard = { path = "../dashboard", version = "0.1.0" }
 tokio = "1.39.3"
 lazy_static = "1.5.0"
 charybdis-migrate = "0.7.5"
 log = "0.4.22"
-reqwest = "0.12.7"
+reqwest = { version = "0.12.7", features = ["stream"] }
+rand = "0.8.5"
+uuid = { version = "1.10.0", features = ["v4"] }
+futures = "0.3.30"
+tokio-util = "0.7.11"
+async-trait = "0.1.81"
+reqwest-middleware = { version = "0.3.3", features = ["json"] }
+http = "1.1.0"

@@ -11,6 +11,7 @@ use tokio::io;
 use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 
+// todo release when not fully finished
 pub async fn inbound_transfer(
     reader: AbstractReadStream,
     skip: u64,
@@ -21,21 +22,38 @@ pub async fn inbound_transfer(
     state: &Data<AppState>,
 ) -> NodeClientResponse<()> {
     if node_id == state.req_ctx.id {
-        let writer = if chunk.append {
-            state.fragment_ledger.fragment_write_stream(&chunk_id).await
-        } else {
-            state
-                .fragment_ledger
-                .fragment_append_stream(&chunk_id)
-                .await
-        }
-        .map_err(|_| NodeClientError::InternalError)?;
-        let mut writer = writer.lock().await;
-        let reader = reader.lock().await;
-        let mut reader = Pin::new(reader).take(chunk.size - skip);
-        io::copy(&mut reader, &mut *writer)
-            .await
+        let res: NodeClientResponse<()> = async {
+            let writer = if chunk.append {
+                state.fragment_ledger.fragment_write_stream(&chunk_id).await
+            } else {
+                state
+                    .fragment_ledger
+                    .fragment_append_stream(&chunk_id)
+                    .await
+            }
             .map_err(|_| NodeClientError::InternalError)?;
+            let mut writer = writer.lock().await;
+            let reader = reader.lock().await;
+            let mut reader = Pin::new(reader).take(chunk.size - skip);
+            io::copy(&mut reader, &mut *writer)
+                .await
+                .map_err(|_| NodeClientError::InternalError)?;
+            Ok(())
+        }
+        .await;
+        match res {
+            Ok(_) => {
+                state
+                    .fragment_ledger
+                    .release_reservation(&chunk_id, chunk.size)
+                    .await
+                    .map_err(|_| NodeClientError::InternalError)?;
+            }
+            Err(_) => {
+                todo!()
+            }
+        }
+
         Ok(())
     } else {
         let eff_channel: MDSFTPChannel;
@@ -88,6 +106,7 @@ pub async fn outbound_transfer(
             .map_err(|_| NodeClientError::NotFound)?;
         let mut writer = writer.lock().await;
         let mut reader = reader.lock().await;
+
         io::copy(&mut *reader, &mut *writer)
             .await
             .map_err(|_| NodeClientError::InternalError)?;

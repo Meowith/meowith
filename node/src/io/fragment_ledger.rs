@@ -214,6 +214,7 @@ impl FragmentLedger {
     /// Used when a client reserves space on multiple nodes, but not all the calls succeed.
     /// In that case, the client cancels every reservation it has made up to that point.
     pub async fn cancel_reservation(&self, id: &Uuid) -> MeowithIoResult<()> {
+        debug!("Fragment ledger Cancelling reservation {id}");
         let mut reservations = self._internal.reservation_map.write().await;
         if let Some(reservation) = reservations.remove(id) {
             let mut uncommited = self._internal.uncommited_map.write().await;
@@ -230,6 +231,7 @@ impl FragmentLedger {
     }
 
     pub async fn try_reserve(&self, size: u64, durable: bool) -> MeowithIoResult<Uuid> {
+        debug!("Fragment ledger Try Reseve {size} {durable}");
         let mut reservations = self._internal.reservation_map.write().await;
 
         let available = self.get_available_space();
@@ -254,17 +256,20 @@ impl FragmentLedger {
 
         let mut uncommited = self._internal.uncommited_map.write().await;
         uncommited.insert(id, CommitInfo::new());
+        debug!("Inserted uncommited chunk {id}");
 
         Ok(id)
     }
 
     /// Notifies the ledger that upload has been resumed, moving the chunk out of the broken queue.
     pub async fn resume_reservation(&self, id: &Uuid) -> MeowithIoResult<Reservation> {
+        debug!("Fragment ledger Resuming reservation {id}");
         self.refresh_reservation(id).await
     }
 
     /// Moves the reservation into the idle 1H timeout state.
     pub async fn pause_reservation(&self, id: &Uuid) -> MeowithIoResult<()> {
+        debug!("Fragment ledger pausing reservation {id}");
         self.refresh_reservation(id).await.map(|_| ())
     }
 
@@ -284,6 +289,7 @@ impl FragmentLedger {
     /// where it awaits further data for at most an hour.
     /// If it is not, the chunk is immediately dropped, releasing the reservation.
     pub async fn release_reservation(&self, id: &Uuid, size_actual: u64) -> MeowithIoResult<()> {
+        debug!("Fragment ledger releasing reservation {id} {size_actual}");
         let mut reservations = self._internal.reservation_map.write().await;
 
         let reservation = reservations.get(id);
@@ -327,6 +333,7 @@ impl FragmentLedger {
             reservation.completed += size_actual;
             reservation.last_update = Instant::now();
         } else if !transfer_completed && !reservation.durable {
+            debug!("Non durable upload failure");
             reservations.remove(id);
             uncommited.remove(id);
             self._internal
@@ -341,18 +348,23 @@ impl FragmentLedger {
     }
 
     pub async fn commit_chunk(&self, id: &Uuid) -> MeowithIoResult<()> {
+        debug!("Fragment ledger Committing chunk {id}");
         let mut uncommited = self._internal.uncommited_map.write().await;
         let uncommited = uncommited.remove(id);
         if uncommited.is_some() {
+            debug!("Fragment ledger Committing chunk {id} ok");
             tokio::fs::rename(self.get_path(id, true), self.get_path(id, false))
                 .await
                 .map_err(|_| MeowithIoError::Internal(None))?;
+        } else {
+            debug!("Fragment ledger Committing chunk {id} NotFound");
         }
         Ok(())
     }
 
     /// Update the timeout on the chunk.
     pub(crate) async fn commit_alive(&self, chunk_id: &Uuid) -> MeowithIoResult<()> {
+        debug!("Fragment ledger commit alive {chunk_id}");
         let reservation = self.refresh_reservation(chunk_id).await;
         let uncommitted = match self._internal.uncommited_map.write().await.entry(*chunk_id) {
             Entry::Occupied(mut entry) => {

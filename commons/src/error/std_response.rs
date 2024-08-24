@@ -1,13 +1,15 @@
+use crate::error::io_error::MeowithIoError;
+use crate::error::mdsftp_error::MDSFTPError;
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::{error, HttpResponse};
+use bcrypt::BcryptError;
+use data::error::MeowithDataError;
 use derive_more::Display;
+use jsonwebtoken::errors::Error;
 use log::error;
 use serde::Serialize;
-
-use crate::error::io_error::MeowithIoError;
-use crate::error::mdsftp_error::MDSFTPError;
-use data::error::MeowithDataError;
+use tokio::task::JoinError;
 
 pub type NodeClientResponse<T> = Result<T, NodeClientError>;
 
@@ -84,5 +86,33 @@ impl From<MDSFTPError> for NodeClientError {
                 NodeClientError::InternalError
             }
         }
+    }
+}
+
+impl From<Error> for NodeClientError {
+    fn from(value: Error) -> Self {
+        error!("JWT ERROR: {:?}", value);
+        NodeClientError::InternalError
+    }
+}
+
+impl From<BcryptError> for NodeClientError {
+    fn from(value: BcryptError) -> Self {
+        error!("BCRYPT ERROR: {:?}", value);
+        NodeClientError::InternalError
+    }
+}
+
+impl From<JoinError> for NodeClientError {
+    fn from(value: JoinError) -> Self {
+        error!("JOIN ERROR: {:?}", value);
+        NodeClientError::InternalError
+    }
+}
+
+impl From<std::io::Error> for NodeClientError {
+    fn from(value: std::io::Error) -> Self {
+        error!("STD::IO::ERROR: {:?}", value);
+        NodeClientError::InternalError
     }
 }

@@ -6,7 +6,7 @@ use actix_web::web;
 use actix_web::web::Data;
 use chrono::Utc;
 use futures_util::future::try_join_all;
-use log::{debug, error};
+use log::{debug, error, info};
 use mime_guess::mime;
 use scylla::CachingSession;
 use tokio::task::JoinHandle;
@@ -50,7 +50,7 @@ pub async fn handle_upload_oneshot(
     reader: AbstractReadStream,
 ) -> NodeClientResponse<()> {
     // quit early if the user cannot upload at all.
-    accessor.has_permission(&path.bucket_id, &path.app_id, *UPLOAD_ALLOWANCE)?;
+    accessor.has_permission(&path.app_id, &path.bucket_id, *UPLOAD_ALLOWANCE)?;
     let split_path = split_path(&path.path());
 
     let bucket = get_bucket(path.app_id, path.bucket_id, &app_state.session).await?;
@@ -65,7 +65,7 @@ pub async fn handle_upload_oneshot(
     .await;
     let mut old_file: Option<File> = None;
     let overwrite = if file.is_ok() {
-        accessor.has_permission(&path.bucket_id, &path.app_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
+        accessor.has_permission(&path.app_id, &path.bucket_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
         old_file = Some(file?.0);
         if !bucket.atomic_upload {
             do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
@@ -169,6 +169,7 @@ pub async fn handle_upload_oneshot(
     }
 
     let chunks = bucket_upload_session.fragments;
+
     end_session(
         app_state,
         split_path,
@@ -188,7 +189,7 @@ pub async fn start_upload_session(
     app_state: Data<AppState>,
 ) -> NodeClientResponse<web::Json<UploadSessionStartResponse>> {
     accessor
-        .has_permission(&e_path.bucket_id, &e_path.app_id, *UPLOAD_ALLOWANCE)
+        .has_permission(&e_path.app_id, &e_path.bucket_id, *UPLOAD_ALLOWANCE)
         .map_err(|_| NodeClientError::BadRequest)?;
 
     let path = split_path(&e_path.path());
@@ -199,8 +200,8 @@ pub async fn start_upload_session(
     let file = get_file_dir(e_path.bucket_id, path.0, path.1, &app_state.session).await;
     let overwrite = if file.is_ok() {
         accessor.has_permission(
-            &e_path.bucket_id,
             &e_path.app_id,
+            &e_path.bucket_id,
             *UPLOAD_OVERWRITE_ALLOWANCE,
         )?;
         let file = file?;
@@ -405,12 +406,13 @@ pub async fn end_session(
     app_session_ids: (Uuid, Uuid),
     old_file: Option<Option<File>>,
 ) -> NodeClientResponse<()> {
+    debug!("Committing chunks {:?}", &chunks);
     let mut futures = vec![];
     for chunk in &chunks {
         futures.push(commit_chunk(
             CommitFlags::r#final(),
             chunk.server_id,
-            chunk.server_id,
+            chunk.chunk_id,
             &app_state,
         ))
     }
@@ -541,29 +543,41 @@ pub fn create_commit_notifier(
     })
 }
 
+// TODO: range header
 pub async fn handle_download(
     mut e_path: EntryPath,
     accessor: BucketAccessor,
     writer: AbstractWriteStream,
     app_state: Data<AppState>,
-) -> NodeClientResponse<DlInfo> {
-    accessor.has_permission(&e_path.bucket_id, &e_path.app_id, *DOWNLOAD_ALLOWANCE)?;
+) -> NodeClientResponse<(DlInfo, JoinHandle<NodeClientResponse<()>>)> {
+    accessor.has_permission(&e_path.app_id, &e_path.bucket_id, *DOWNLOAD_ALLOWANCE)?;
     let path = split_path(&e_path.path());
     let attachment_name = path.1.clone();
     let file = get_file_dir(e_path.bucket_id, path.0, path.1, &app_state.session).await?;
 
-    let mut chunk_ids: Vec<&FileChunk> = file.0.chunk_ids.iter().collect();
+    let mut chunk_ids: Vec<FileChunk> = file.0.chunk_ids.iter().cloned().collect();
     chunk_ids.sort_by_key(|chunk| chunk.chunk_order);
 
-    for chunk in chunk_ids {
-        outbound_transfer(writer.clone(), chunk.server_id, chunk.chunk_id, &app_state).await?
-    }
+    info!("Before outbound transfer");
 
-    Ok(DlInfo {
-        size: file.0.size as u64,
-        mime: ContentType(
-            mime_guess::from_path(&attachment_name).first_or(mime::APPLICATION_OCTET_STREAM),
-        ),
-        attachment_name,
-    })
+    let handle: JoinHandle<NodeClientResponse<()>> = tokio::spawn(async move {
+        for chunk in chunk_ids {
+            info!("{chunk:?}");
+            outbound_transfer(writer.clone(), chunk.server_id, chunk.chunk_id, &app_state).await?;
+        }
+        Ok(())
+    });
+
+    info!("Finished outbound transfer");
+
+    Ok((
+        DlInfo {
+            size: file.0.size as u64,
+            mime: ContentType(
+                mime_guess::from_path(&attachment_name).first_or(mime::APPLICATION_OCTET_STREAM),
+            ),
+            attachment_name,
+        },
+        handle,
+    ))
 }

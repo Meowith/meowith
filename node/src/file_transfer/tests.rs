@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::net::IpAddr;
     use std::path::PathBuf;
+    use std::str::FromStr;
     use std::sync::Arc;
     use std::time::Instant;
     use std::{env, fs, io};
@@ -130,7 +132,10 @@ mod tests {
             Default::default(),
         )
         .await;
-        assert!(server.start(&cert, &key).await.is_ok());
+        assert!(server
+            .start(&cert, &key, IpAddr::from_str("0.0.0.0").unwrap())
+            .await
+            .is_ok());
 
         let client_ledger = FragmentLedger::new(
             node_dir_two.to_str().unwrap().to_string(),

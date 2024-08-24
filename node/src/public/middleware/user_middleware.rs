@@ -2,6 +2,7 @@ use std::future::{ready, Ready};
 use std::rc::Rc;
 
 use actix_web::dev::Payload;
+use actix_web::http::header::AUTHORIZATION;
 use actix_web::web::Data;
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
@@ -60,7 +61,7 @@ where
 
         Box::pin(async move {
             let app_data = req.app_data::<Data<AppState>>().unwrap();
-            let token_header = req.headers().get("Authorization");
+            let token_header = req.headers().get(AUTHORIZATION);
             if token_header.is_none() {
                 return Err(Error::from(NodeClientError::BadAuth));
             }
@@ -114,8 +115,8 @@ impl FromRequest for BucketAccessor {
 impl BucketAccessor {
     pub fn has_permission(
         &self,
-        bucket: &Uuid,
         app_id: &Uuid,
+        bucket: &Uuid,
         requested: u64,
     ) -> Result<(), NodeClientError> {
         if self.app_id != *app_id {

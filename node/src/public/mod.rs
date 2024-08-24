@@ -1,3 +1,3 @@
-mod middleware;
+pub mod middleware;
 pub mod routes;
-pub(crate) mod service;
+pub mod service;

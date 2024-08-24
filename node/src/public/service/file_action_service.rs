@@ -18,7 +18,7 @@ pub async fn delete_file_srv(
     bucket_accessor: BucketAccessor,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {
-    bucket_accessor.has_permission(&path.bucket_id, &path.app_id, *DELETE_ALLOWANCE)?;
+    bucket_accessor.has_permission(&path.app_id, &path.bucket_id, *DELETE_ALLOWANCE)?;
     let split_path = split_path(&path.path());
     let (bucket, file) = try_join!(
         get_bucket(path.app_id, path.bucket_id, &app_state.session),
@@ -98,7 +98,7 @@ pub async fn rename_file_srv(
         }
         Some(new_file_file) => {
             // if a file already exists in the new destination, and the user possesses the required allowance, delete it
-            bucket_accessor.has_permission(&path.bucket_id, &path.app_id, *DELETE_ALLOWANCE)?;
+            bucket_accessor.has_permission(&path.app_id, &path.bucket_id, *DELETE_ALLOWANCE)?;
             let bucket = get_bucket(path.app_id, path.bucket_id, &app_state.session).await?;
             do_delete_file(&new_file_file, &bucket, &app_state).await?;
             let _new_file = update_file_path(

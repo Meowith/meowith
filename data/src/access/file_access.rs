@@ -4,6 +4,7 @@ use charybdis::errors::CharybdisError;
 use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
 use charybdis::types::Timestamp;
+use chrono::Utc;
 use futures::stream::Skip;
 use futures::stream::Take;
 use futures::{try_join, Stream, StreamExt, TryFutureExt};
@@ -22,6 +23,7 @@ use crate::model::file_model::{
 use crate::pathlib::split_path;
 
 pub type FileItem = Result<File, CharybdisError>;
+pub type BucketItem = Result<Bucket, CharybdisError>;
 pub type DirectoryItem = Result<Directory, MeowithDataError>;
 pub type FileDir = (File, Option<Directory>);
 pub type MaybeFileDir = (Option<File>, Option<Directory>);
@@ -118,6 +120,27 @@ pub async fn get_directory(
             .map(Some)
         }
     }
+}
+
+pub async fn insert_bucket(
+    bucket: &Bucket,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    bucket
+        .insert()
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
+pub async fn get_buckets(
+    app_id: Uuid,
+    session: &CachingSession,
+) -> Result<CharybdisModelStream<Bucket>, MeowithDataError> {
+    Bucket::find_by_app_id(app_id)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
 }
 
 pub async fn insert_directory(
@@ -284,6 +307,7 @@ pub async fn update_file_path(
     let mut new_file = file.clone();
     new_file.directory = directory.unwrap_or(Uuid::from_u128(0));
     new_file.name = name;
+    new_file.last_modified = Utc::now();
     // There is no other way to do this as
     // the primary key ((bucket_id), directory, name) is immutable,
     // and is what we are changing.
@@ -374,14 +398,13 @@ pub async fn update_bucket_space(
     space_taken_delta: i64,
     session: &CachingSession,
 ) -> Result<(), MeowithDataError> {
-    let update_query = format!(
-        "{} {}",
+    let update_query = concat!(
         update_bucket_query!("file_count = ?, space_taken = ?"),
-        "IF file_count = ? and space_taken = ?"
+        " IF file_count = ? and space_taken = ?"
     );
 
     for _ in 0..QUERY_ATTEMPTS {
-        let query = Query::new(&update_query);
+        let query = Query::new(update_query);
 
         let result = session
             .execute(
@@ -389,6 +412,8 @@ pub async fn update_bucket_space(
                 (
                     bucket.file_count + file_count_delta,
                     bucket.space_taken + space_taken_delta,
+                    bucket.app_id,
+                    bucket.id,
                     bucket.file_count,
                     bucket.space_taken,
                 ),

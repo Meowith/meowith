@@ -51,7 +51,12 @@ pub async fn register_node(
         Uuid::new_v4(),
     );
 
-    let reg_res = register_procedure(&mut ctx).await;
+    let reg_res = register_procedure(
+        &mut ctx,
+        config.internal_server_bind_address,
+        config.renewal_token_path.clone(),
+    )
+    .await;
 
     (ctx, reg_res)
 }
@@ -75,7 +80,7 @@ pub async fn initialize_io(
     });
 
     let lock_table: LockTable = FileLockTable::new(global_config.max_readers);
-    let ledger = FragmentLedger::new(config.path.clone(), config.max_space, lock_table);
+    let ledger = FragmentLedger::new(config.data_save_path.clone(), config.max_space, lock_table);
     let handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
         MeowithMDSFTPPacketHandler::new(ledger.clone(), config.net_fragment_size),
     )));
@@ -93,7 +98,7 @@ pub async fn initialize_io(
     )
     .await;
     server
-        .start(cert, key)
+        .start(cert, key, config.internal_server_bind_address)
         .await
         .expect("Failed to stat the MDSFTP server");
 

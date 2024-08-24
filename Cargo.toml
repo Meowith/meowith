@@ -12,8 +12,7 @@ members = [
     "commons",
     "logging",
     "protocol",
-    "tests"
+    "tests",
+    "dashboard",
+    "auth_framework"
 ]
-
-[dependencies]
-scylla = "0.13.1"

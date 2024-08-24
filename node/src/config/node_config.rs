@@ -8,6 +8,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 use std::net::IpAddr;
 use std::path::Path;
+use std::str::FromStr;
 
 const MIN_STORAGE_VALUE: u64 = 2 * 1024 * 1024 * 1024;
 
@@ -19,15 +20,18 @@ pub struct NodeConfig {
     pub ca_certificate: String,
     pub net_fragment_size: u32,
 
-    //internal commons config
-    pub addr: String,
-    pub port: u16,
+    // internal commons config
+    pub external_server_bind_address: String,
+    pub external_server_port: u16,
+    pub internal_server_bind_address: String,
+    pub renewal_token_path: Option<String>,
 
-    //external certificates config
+    // external certificates config
     pub ssl_certificate: Option<String>,
     pub ssl_private_key: Option<String>,
-    pub path: String,
+    pub data_save_path: String,
 
+    // Database config
     pub database_nodes: Vec<String>,
     pub db_username: String,
     pub db_password: String,
@@ -40,11 +44,13 @@ pub struct NodeConfigInstance {
     pub cnc_port: u16,
     pub max_space: u64,
     pub ca_certificate: String,
-    pub addr: String,
-    pub port: u16,
+    pub external_server_bind_address: String,
+    pub external_server_port: u16,
+    pub internal_server_bind_address: IpAddr,
     pub ssl_certificate: Option<String>,
     pub ssl_private_key: Option<String>,
-    pub path: String,
+    pub renewal_token_path: Option<String>,
+    pub data_save_path: String,
     pub net_fragment_size: u32,
     pub database_nodes: Vec<String>,
     pub db_username: String,
@@ -74,11 +80,13 @@ impl NodeConfig {
             cnc_port: 9000,
             ca_certificate: "ca_cert.pem".to_string(),
             max_space: "100mb".to_string(),
-            addr: "127.0.0.1".to_string(),
-            port: 8080,
+            external_server_bind_address: "127.0.0.1".to_string(),
+            external_server_port: 8080,
+            internal_server_bind_address: "127.0.0.1".to_string(),
+            renewal_token_path: None,
             ssl_certificate: None,
             ssl_private_key: None,
-            path: "/var/meowith/data/".to_string(),
+            data_save_path: "/var/meowith/data/".to_string(),
             net_fragment_size: 256 * 1024,
             database_nodes: vec!["127.0.0.1".to_string()],
             db_username: "root".to_string(),
@@ -108,11 +116,15 @@ impl NodeConfig {
             return Err(ConfigError::InvalidPort);
         }
 
-        if self.addr.parse::<IpAddr>().is_err() {
+        if self.external_server_bind_address.parse::<IpAddr>().is_err() {
             return Err(ConfigError::InvalidIpAddress);
         }
 
-        if self.port == 0 {
+        if self.internal_server_bind_address.parse::<IpAddr>().is_err() {
+            return Err(ConfigError::InvalidIpAddress);
+        }
+
+        if self.external_server_port == 0 {
             return Err(ConfigError::InvalidPort);
         }
 
@@ -121,7 +133,7 @@ impl NodeConfig {
         }
 
         // The ledger will create the directory if not found.
-        let path = Path::new(&self.path);
+        let path = Path::new(&self.data_save_path);
 
         let max_space_bytes = parse_size(&self.max_space)?;
 
@@ -136,14 +148,17 @@ impl NodeConfig {
             cnc_port: self.cnc_port,
             ca_certificate: self.ca_certificate,
             max_space: max_space_bytes,
-            addr: self.addr,
-            port: self.port,
+            external_server_bind_address: self.external_server_bind_address,
+            external_server_port: self.external_server_port,
+            internal_server_bind_address: IpAddr::from_str(&self.internal_server_bind_address)
+                .unwrap(),
             ssl_certificate: self.ssl_certificate,
             ssl_private_key: self.ssl_private_key,
-            path: if self.path.ends_with('/') {
-                self.path
+            renewal_token_path: None,
+            data_save_path: if self.data_save_path.ends_with('/') {
+                self.data_save_path
             } else {
-                self.path + "/"
+                self.data_save_path + "/"
             },
             net_fragment_size: self.net_fragment_size,
             database_nodes: self.database_nodes,

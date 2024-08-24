@@ -3,10 +3,9 @@ use std::error::Error;
 pub type MeowithIoResult<T> = Result<T, MeowithIoError>;
 
 #[derive(Debug, derive_more::Display)]
-
 pub enum MeowithIoError {
     NotFound,
-    #[display(fmt = "NotFound err = {_0:?}")]
+    #[display("NotFound err = {_0:?}")]
     Internal(Option<Box<dyn Error + Send + Sync>>),
     InvalidDataDir,
     InsufficientDiskSpace,

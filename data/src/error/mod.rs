@@ -9,7 +9,7 @@ use scylla::transport::errors::QueryError;
 
 #[derive(Debug, Display)]
 pub enum DataResponseError {
-    #[display(fmt = "bad auth")]
+    #[display("bad auth")]
     BadAuth,
 }
 impl ResponseError for DataResponseError {

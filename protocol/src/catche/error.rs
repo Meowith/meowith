@@ -8,7 +8,7 @@ pub type CatcheResult<T> = Result<T, CatcheError>;
 
 pub enum CatcheError {
     ConnectionError,
-    #[display(fmt = "SSLError {_0:?}")]
+    #[display("SSLError {_0:?}")]
     SSLError(Option<Box<dyn Error + Send + Sync>>),
     AddressResolutionError,
     ConnectionAuthenticationError,

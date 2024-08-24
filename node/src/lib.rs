@@ -3,12 +3,20 @@ use crate::init_procedure::{fetch_storage_nodes, initialize_io, register_node};
 
 use crate::caching::catche::connect_catche;
 use crate::io::fragment_ledger::FragmentLedger;
+use crate::public::middleware::user_middleware::UserAuthenticate;
+use crate::public::routes::entity_action::{
+    create_directory, delete_directory, delete_file, rename_directory, rename_file,
+};
+use crate::public::routes::entity_list::{list_bucket, list_dir};
+use crate::public::routes::file_transfer::{
+    download, resume_durable_upload, start_upload_durable, upload_durable, upload_oneshot,
+};
 use crate::public::service::durable_transfer_session_manager::DurableTransferSessionManager;
 use actix_cors::Cors;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
-use actix_web::{App, HttpServer};
-use commons::access_token_service::JwtService;
+use actix_web::{web, App, HttpServer};
+use commons::access_token_service::AccessTokenJwtService;
 use commons::autoconfigure::general_conf::fetch_general_config;
 use commons::context::microservice_request_context::{MicroserviceRequestContext, NodeStorageMap};
 use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
@@ -34,6 +42,7 @@ pub struct NodeHandle {
     external_handle: ServerHandle,
     mdsftp_server: MDSFTPServer,
     catche_client: CatcheClient,
+    req_ctx: Arc<MicroserviceRequestContext>,
     pub join_handle: JoinHandle<()>,
 }
 
@@ -42,6 +51,7 @@ impl NodeHandle {
         self.external_handle.stop(true).await;
         self.catche_client.shutdown().await;
         self.mdsftp_server.shutdown().await;
+        self.req_ctx.shutdown().await;
     }
 }
 
@@ -50,7 +60,7 @@ pub struct AppState {
     mdsftp_server: MDSFTPServer,
     upload_manager: DurableTransferSessionManager,
     fragment_ledger: FragmentLedger,
-    jwt_service: JwtService,
+    jwt_service: AccessTokenJwtService,
     node_storage_map: NodeStorageMap,
     req_ctx: Arc<MicroserviceRequestContext>,
 }
@@ -62,6 +72,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
     req_ctx.port_configuration = global_conf.port_configuration.clone();
     let (internal_cert, internal_key) = (init_res.1.internal_cert, init_res.1.internal_key);
     let req_ctx = Arc::new(req_ctx);
+    let req_ctx_handle = req_ctx.clone();
 
     let (mdsftp_server, fragment_ledger) = initialize_io(
         &internal_cert,
@@ -85,7 +96,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         req_ctx.security_context.access_token.clone(),
     )
     .await
-    .expect("Catche conncetion failed");
+    .expect("Catche connection failed");
 
     let mut external_ssl: Option<SslAcceptorBuilder> = None;
 
@@ -113,7 +124,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         mdsftp_server,
         upload_manager: DurableTransferSessionManager::new(),
         fragment_ledger,
-        jwt_service: JwtService::new(&global_conf.access_token_configuration)
+        jwt_service: AccessTokenJwtService::new(&global_conf.access_token_configuration)
             .expect("JWT Service creation failed"),
         node_storage_map: Arc::new(RwLock::new(
             fetch_storage_nodes(&req_ctx)
@@ -129,16 +140,43 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         let cors = Cors::permissive();
         let external_app_data = app_data.clone();
 
-        App::new().app_data(external_app_data).wrap(cors)
+        let file_scope = web::scope("/api/file")
+            .service(upload_oneshot)
+            .service(upload_durable)
+            .service(start_upload_durable)
+            .service(resume_durable_upload)
+            .service(download)
+            .service(rename_file)
+            .service(delete_file)
+            .service(create_directory)
+            .service(delete_directory)
+            .service(rename_directory)
+            .service(list_bucket)
+            .service(list_dir)
+            .wrap(UserAuthenticate);
+
+        App::new()
+            .app_data(external_app_data)
+            .wrap(cors)
+            .service(file_scope)
     });
 
     let external_server = if external_ssl.is_some() {
         external_server
-            .bind_openssl((config.addr.clone(), config.port), external_ssl.unwrap())?
+            .bind_openssl(
+                (
+                    config.external_server_bind_address.clone(),
+                    config.external_server_port,
+                ),
+                external_ssl.unwrap(),
+            )?
             .run()
     } else {
         external_server
-            .bind((config.addr.clone(), config.port))?
+            .bind((
+                config.external_server_bind_address.clone(),
+                config.external_server_port,
+            ))?
             .run()
     };
     let external_handle = external_server.handle();
@@ -153,6 +191,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         external_handle,
         catche_client,
         mdsftp_server: mdsftp_server_clone,
+        req_ctx: req_ctx_handle,
         join_handle,
     })
 }

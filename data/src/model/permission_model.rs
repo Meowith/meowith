@@ -46,9 +46,40 @@ impl FromCqlVal<CqlValue> for UserPermission {
     }
 }
 
-impl UserPermission {
-    pub fn bit(&self) -> u64 {
+pub trait IntoBit {
+    fn bit(&self) -> u64;
+}
+
+impl IntoBit for UserPermission {
+    fn bit(&self) -> u64 {
         let perm_i8: i8 = self.into();
         1u64 << (perm_i8 - 1)
     }
+}
+
+#[derive(Debug, Hash, Eq, PartialEq, EnumIter, IntoPrimitive, TryFromPrimitive, Clone, Copy)]
+#[repr(i8)]
+pub enum AppPermission {
+    CreateBucket = 1i8,
+    DeleteBucket = 2i8,
+}
+
+impl From<&AppPermission> for i8 {
+    fn from(value: &AppPermission) -> i8 {
+        <AppPermission as Into<i8>>::into(*value)
+    }
+}
+
+impl IntoBit for AppPermission {
+    fn bit(&self) -> u64 {
+        let perm_i8: i8 = self.into();
+        1u64 << (perm_i8 - 1)
+    }
+}
+
+#[derive(Debug, Hash, Eq, PartialEq, EnumIter, IntoPrimitive, TryFromPrimitive, Clone, Copy)]
+#[repr(i32)]
+pub enum GlobalRole {
+    User = 1i32,
+    Admin = 2i32,
 }
