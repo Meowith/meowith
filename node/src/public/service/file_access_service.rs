@@ -6,9 +6,10 @@ use actix_web::web;
 use actix_web::web::Data;
 use chrono::Utc;
 use futures_util::future::try_join_all;
-use log::{debug, error, info};
+use log::{debug, error};
 use mime_guess::mime;
 use scylla::CachingSession;
+use tokio::io::AsyncWriteExt;
 use tokio::task::JoinHandle;
 use tokio::time;
 use uuid::Uuid;
@@ -558,17 +559,13 @@ pub async fn handle_download(
     let mut chunk_ids: Vec<FileChunk> = file.0.chunk_ids.iter().cloned().collect();
     chunk_ids.sort_by_key(|chunk| chunk.chunk_order);
 
-    info!("Before outbound transfer");
-
     let handle: JoinHandle<NodeClientResponse<()>> = tokio::spawn(async move {
         for chunk in chunk_ids {
-            info!("{chunk:?}");
             outbound_transfer(writer.clone(), chunk.server_id, chunk.chunk_id, &app_state).await?;
         }
+        writer.lock().await.shutdown().await?;
         Ok(())
     });
-
-    info!("Finished outbound transfer");
 
     Ok((
         DlInfo {

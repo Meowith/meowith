@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 
-use log::{debug, warn};
+use log::{debug, error, warn};
 use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::TcpStream;
 use tokio::sync::{Mutex, MutexGuard, RwLock};
@@ -79,36 +79,36 @@ impl PacketReader {
             let mut header_buf: [u8; HEADER_SIZE] = [0; HEADER_SIZE];
 
             while running.load(Ordering::Relaxed) {
-                if stream.read_exact(&mut header_buf).await.is_err() {
+                if let Err(e) = stream.read_exact(&mut header_buf).await {
+                    error!("Header read failed {e} {conn_id}");
                     Self::close_map(&conn_map, &channels, &running).await;
-                    debug!("Header read failed");
                     break;
                 };
 
                 let header = read_header(&header_buf);
                 let packet_type = MDSFTPPacketType::try_from(header.packet_id);
                 if packet_type.is_err() {
+                    error!("Packet type read failed");
                     Self::close_map(&conn_map, &channels, &running).await;
-                    debug!("Packet type read failed");
                     break;
                 }
                 let packet_type = packet_type.unwrap();
                 if !packet_type.pre_validate(&header) {
+                    error!("Packet pre-validate failed");
                     Self::close_map(&conn_map, &channels, &running).await;
-                    debug!("Packet pre-validate failed");
                     break;
                 }
 
                 let mut payload = vec![0u8; header.payload_size as usize];
-                if stream.read_exact(&mut payload).await.is_err() {
+                if let Err(e) = stream.read_exact(&mut payload).await {
+                    error!("Packet payload read failed {e}");
                     Self::close_map(&conn_map, &channels, &running).await;
-                    debug!("Packet payload read failed");
                     break;
                 };
 
                 if payload.len() != header.payload_size as usize {
+                    error!("Packet payload read failed");
                     Self::close_map(&conn_map, &channels, &running).await;
-                    debug!("Packet payload read failed");
                     break;
                 }
 
@@ -140,12 +140,17 @@ impl PacketReader {
 
                     if channel.is_some() {
                         let channel = channel.unwrap();
-                        if let Err(MDSFTPError::ConnectionError) = channel.handle_packet(raw).await
-                        {
-                            warn!("Connection poisoned. Closing.");
-                            Self::close_map(&conn_map, &channels, &running).await;
-                            break;
-                        }
+                        match channel.handle_packet(raw).await {
+                            Err(MDSFTPError::ConnectionError) => {
+                                error!("Connection poisoned. Closing.");
+                                Self::close_map(&conn_map, &channels, &running).await;
+                                break;
+                            }
+                            Err(e) => {
+                                warn!("Channel handler error {e} {conn_id}");
+                            }
+                            _ => {}
+                        };
                     } else {
                         debug!(
                             "Received a packet for a non-existing channel {}",

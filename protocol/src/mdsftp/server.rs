@@ -25,12 +25,16 @@ pub const ZERO_UUID: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 #[derive(Clone)]
 pub struct MDSFTPServer {
+    _internal: Arc<InternalMDSFTPServer>,
+}
+
+pub struct InternalMDSFTPServer {
     pool: Option<MDSFTPPool>,
     running: Arc<AtomicBool>,
     connection_auth_context: Arc<ConnectionAuthContext>,
     node_addr_map: NodeAddrMap,
     cfg: MDSFTPPoolConfigHolder,
-    shutdown_sender: Option<Arc<Mutex<Sender<()>>>>,
+    shutdown_sender: Arc<Mutex<Option<Sender<()>>>>,
 }
 
 impl MDSFTPServer {
@@ -40,12 +44,50 @@ impl MDSFTPServer {
         incoming_handler: PacketHandlerRef,
         cfg: MDSFTPPoolConfigHolder,
     ) -> Self {
-        let mut srv = MDSFTPServer {
+        MDSFTPServer {
+            _internal: Arc::new(
+                InternalMDSFTPServer::new(
+                    connection_auth_context,
+                    node_addr_map,
+                    incoming_handler,
+                    cfg,
+                )
+                .await,
+            ),
+        }
+    }
+
+    pub async fn start(
+        &mut self,
+        cert: &X509,
+        key: &PKey<Private>,
+        bind_addr: IpAddr,
+    ) -> Result<(), Box<dyn Error>> {
+        self._internal.start(cert, key, bind_addr).await
+    }
+
+    pub fn pool(&self) -> MDSFTPPool {
+        self._internal.pool()
+    }
+
+    pub async fn shutdown(&self) {
+        self._internal.shutdown().await
+    }
+}
+
+impl InternalMDSFTPServer {
+    pub async fn new(
+        connection_auth_context: Arc<ConnectionAuthContext>,
+        node_addr_map: NodeAddrMap,
+        incoming_handler: PacketHandlerRef,
+        cfg: MDSFTPPoolConfigHolder,
+    ) -> Self {
+        let mut srv = InternalMDSFTPServer {
             pool: None,
             connection_auth_context,
             node_addr_map,
             running: Arc::new(AtomicBool::new(false)),
-            shutdown_sender: None,
+            shutdown_sender: Arc::new(Mutex::new(None)),
             cfg,
         };
         srv.create_pool(incoming_handler).await;
@@ -53,7 +95,7 @@ impl MDSFTPServer {
     }
 
     pub async fn start(
-        &mut self,
+        &self,
         cert: &X509,
         key: &PKey<Private>,
         bind_addr: IpAddr,
@@ -79,8 +121,8 @@ impl MDSFTPServer {
         let running = self.running.clone();
 
         let (tx, _rx) = broadcast::channel(1);
-        let shutdown_sender = Arc::new(Mutex::new(tx));
-        self.shutdown_sender = Some(shutdown_sender.clone());
+        *self.shutdown_sender.lock().await = Some(tx);
+        let shutdown_sender = self.shutdown_sender.clone();
 
         let (startup_tx, startup_rx) = oneshot::channel();
 
@@ -91,7 +133,8 @@ impl MDSFTPServer {
                     let stream: TcpStream;
                     let mut rx: Receiver<()>;
                     {
-                        let tx = shutdown_sender.lock().await;
+                        let mut a = shutdown_sender.lock().await;
+                        let tx = a.as_mut().unwrap();
                         rx = tx.subscribe();
                     }
 
@@ -101,12 +144,15 @@ impl MDSFTPServer {
                         return Err(MDSFTPError::ShuttingDown);
                     }
 
+                    let addr: SocketAddr;
                     tokio::select! {
                         _val = rx.recv() => {
                             return Err(MDSFTPError::ShuttingDown);
                         }
                         val = listener.accept() => {
-                            stream = val.map_err(|_| MDSFTPError::ConnectionError)?.0
+                            let val = val.map_err(|_| MDSFTPError::ConnectionError)?;
+                            stream = val.0;
+                            addr = val.1;
                         }
                     }
 
@@ -148,10 +194,10 @@ impl MDSFTPServer {
                             return Err(MDSFTPError::ConnectionAuthenticationError);
                         }
                     } else {
-                        debug!("No validator, skipping.")
+                        debug!("No validator, skipping.");
                     }
 
-                    debug!("Adding a new remote connection");
+                    debug!("Adding a new remote connection from {addr:?}");
                     pool._internal_pool
                         .lock()
                         .await
@@ -192,21 +238,24 @@ impl MDSFTPServer {
 
     pub async fn shutdown(&self) {
         let sender = self.shutdown_sender.clone();
-        if let Some(sender) = sender {
+        let mut lock = sender.lock().await;
+        if let Some(sender) = lock.as_mut() {
             self.running.store(false, Ordering::SeqCst);
-            let _ = sender.lock().await.send(());
+            let _ = sender.send(());
         }
     }
 }
 
-impl Drop for MDSFTPServer {
+impl Drop for InternalMDSFTPServer {
     fn drop(&mut self) {
+        debug!("Dropping InternalMDSFTPServer");
         let sender = self.shutdown_sender.clone();
         let running = self.running.clone();
         tokio::spawn(async move {
-            if let Some(sender) = sender {
+            let mut lock = sender.lock().await;
+            if let Some(sender) = lock.as_mut() {
                 running.store(false, Ordering::SeqCst);
-                let _ = sender.lock().await.send(());
+                let _ = sender.send(());
             }
         });
     }

@@ -1,10 +1,10 @@
+use log::debug;
+use multimap::MultiMap;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-
-use multimap::MultiMap;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
@@ -116,6 +116,7 @@ impl InternalMDSFTPPool {
                         if conn.last_access().await.elapsed() > STALE_TIMEOUT
                             && conn.safe_to_close()
                         {
+                            debug!("Closing stale connection");
                             conn.close().await;
                             mark.insert(*id, conn.local_id())
                         }
@@ -218,6 +219,7 @@ impl InternalMDSFTPPool {
     }
 
     pub(crate) async fn close(&self) {
+        debug!("Shutting the pool down");
         self.shutting_down.store(true, Ordering::SeqCst);
         if let Some(handle) = &self.stale_conn_watcher {
             handle.abort();
@@ -234,9 +236,12 @@ impl InternalMDSFTPPool {
 
 impl Drop for MDSFTPPool {
     fn drop(&mut self) {
-        let internal = self._internal_pool.clone();
-        tokio::spawn(async move {
-            internal.lock().await.close().await;
-        });
+        let strong_count = Arc::strong_count(&self._internal_pool);
+        if strong_count == 1 {
+            let internal = self._internal_pool.clone();
+            tokio::spawn(async move {
+                internal.lock().await.close().await;
+            });
+        }
     }
 }

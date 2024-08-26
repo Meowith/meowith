@@ -36,7 +36,7 @@ lazy_static! {
                 token_validity: 1000u64,
                 secret: "secret".to_string()
             },
-            max_readers: 0,
+            max_readers: 256,
         },
     };
     pub static ref TEST_NODE_1_CONFIG: NodeConfigInstance = NodeConfigInstance {

@@ -160,6 +160,7 @@ async fn upload_file(
 async fn download_file(
     path: &str,
     remote_path: &str,
+    addr: &str,
     bucket_id: Uuid,
     app_id: Uuid,
     token: &String,
@@ -167,8 +168,8 @@ async fn download_file(
 ) {
     let mut response = client
         .get(format!(
-            "http://127.0.0.2:4000/api/file/download/{}/{}/{}",
-            app_id, bucket_id, remote_path
+            "http://{}/api/file/download/{}/{}/{}",
+            addr, app_id, bucket_id, remote_path
         ))
         .header(AUTHORIZATION, format!("{}", token.clone()))
         .send()
@@ -177,6 +178,7 @@ async fn download_file(
 
     let mut file = File::create(path).await.unwrap();
     while let Some(chunk) = response.chunk().await.unwrap() {
+        info!("RECV CHUNK: {}", chunk.len());
         file.write_all(&chunk).await.unwrap()
     }
 }
@@ -234,8 +236,9 @@ pub async fn test_file_transfer() {
     info!("File uploaded");
 
     download_file(
-        "test_data/test1-dl.txt",
+        "test_data/test1-dl-1.txt",
         "test1",
+        "127.0.0.2:4000",
         bucket_dto.id,
         app_dto.id,
         &token,
@@ -244,10 +247,27 @@ pub async fn test_file_transfer() {
     .await;
     info!("File downloaded");
 
-    let comparison = compare_files("test_data/test1.txt", "test_data/test1-dl.txt")
+    let comparison = compare_files("test_data/test1.txt", "test_data/test1-dl-1.txt")
         .expect("Unable to compare files");
     assert!(comparison);
 
+    download_file(
+        "test_data/test1-dl-2.txt",
+        "test1",
+        "127.0.0.3:4001",
+        bucket_dto.id,
+        app_dto.id,
+        &token,
+        &client,
+    )
+    .await;
+    info!("File downloaded");
+
+    let comparison = compare_files("test_data/test1.txt", "test_data/test1-dl-2.txt")
+        .expect("Unable to compare files");
+    assert!(comparison);
+
+    info!("Shutting down all nodes.");
     node_1_stop_handle.shutdown().await;
     node_1_stop_handle.join_handle.await.expect("Join fail");
     info!("Node 1 shutdown awaited");

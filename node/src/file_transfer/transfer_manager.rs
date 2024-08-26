@@ -1,9 +1,9 @@
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-
 use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
+use log::warn;
 use protocol::mdsftp::handler::AbstractReader;
 use protocol::mdsftp::handler::Channel;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::MutexGuard;
@@ -22,6 +22,7 @@ pub async fn mdsftp_upload(
     let mut recv: u32 = 0;
     let fragments = size / fragment_size;
     if fragments > (u32::MAX - 1) as u64 {
+        warn!("Failed to send, too many fragments");
         return Err(MDSFTPError::Interrupted);
     }
     let fragments = fragments as u32;

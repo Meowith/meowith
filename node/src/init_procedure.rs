@@ -1,18 +1,16 @@
-use std::collections::HashMap;
-use std::fs;
-use std::sync::Arc;
-
+use log::info;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use reqwest::Certificate;
+use std::collections::HashMap;
+use std::fs;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use commons::autoconfigure::auth_conf::{register_procedure, RegistrationResult};
 use commons::context::microservice_request_context::{MicroserviceRequestContext, SecurityContext};
-use commons::context::request_context::RequestContext;
 use data::dto::config::GeneralConfiguration;
-use data::dto::controller::StorageResponse;
 use data::model::microservice_node_model::MicroserviceType;
 use protocol::mdsftp::authenticator::ConnectionAuthContext;
 use protocol::mdsftp::pool::{MDSFTPPoolConfigHolder, PacketHandlerRef};
@@ -57,6 +55,11 @@ pub async fn register_node(
         config.renewal_token_path.clone(),
     )
     .await;
+
+    info!(
+        "Registration successful. Id {} Int-Addr {}",
+        ctx.id, config.internal_server_bind_address
+    );
 
     (ctx, reg_res)
 }
@@ -103,17 +106,4 @@ pub async fn initialize_io(
         .expect("Failed to stat the MDSFTP server");
 
     (server, ledger)
-}
-
-pub async fn fetch_storage_nodes(
-    req_ctx: &MicroserviceRequestContext,
-) -> reqwest::Result<StorageResponse> {
-    req_ctx
-        .client()
-        .await
-        .get(req_ctx.controller("/api/internal/health/storage"))
-        .send()
-        .await?
-        .json::<StorageResponse>()
-        .await
 }

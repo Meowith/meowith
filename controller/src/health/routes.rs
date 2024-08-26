@@ -5,13 +5,15 @@ use actix_web::{get, post, web};
 use chrono::Utc;
 
 use commons::context::controller_request_context::NodeHealth;
-use data::dto::controller::StorageResponse;
-use data::model::microservice_node_model::MicroserviceNode;
+use data::dto::controller::{PeerStorage, StorageResponse};
+use data::model::microservice_node_model::{MicroserviceNode, MicroserviceType};
 
 use crate::discovery::routes::{UpdateStorageNodeProperties, UpdateStorageNodeResponse};
 use crate::error::node::NodeError;
 use crate::health::health_service::perform_storage_node_properties_update;
 use crate::AppState;
+
+// TODO dynamically notify nodes of new nodes.
 
 #[get("/storage")]
 pub async fn fetch_free_storage(
@@ -21,9 +23,27 @@ pub async fn fetch_free_storage(
     let mut peers = HashMap::new();
 
     let node_health = state.req_ctx.node_health.read().await;
+
+    let nodes = state.req_ctx.nodes.read().await;
+    let storage_node_i8: i8 = MicroserviceType::StorageNode.into();
+    for node in &*nodes {
+        if node.microservice_type == storage_node_i8 {
+            peers.insert(
+                node.id,
+                PeerStorage {
+                    storage: 0,
+                    addr: node.address,
+                },
+            );
+        }
+    }
+
     for (k, v) in &*node_health {
         if v.available_storage.is_some() {
-            peers.insert(*k, v.available_storage.unwrap());
+            match peers.entry(*k) {
+                Entry::Occupied(mut node) => node.get_mut().storage = v.available_storage.unwrap(),
+                Entry::Vacant(_) => {}
+            }
         }
     }
 

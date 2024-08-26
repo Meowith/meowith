@@ -182,8 +182,10 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         id: Uuid,
         chunk_buffer: u16,
     ) -> MDSFTPResult<()> {
+        debug!("handle_retrieve {id} {chunk_buffer}");
         let meta = self.fragment_ledger.fragment_meta(&id).await;
         if meta.is_none() {
+            debug!("No such chunk id");
             return Err(MDSFTPError::NoSuchChunkId);
         }
         let meta = meta.unwrap();
@@ -203,6 +205,7 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
                 .map_err(|_| MDSFTPError::RemoteError)?,
         );
 
+        debug!("Uploading...");
         self.start_uploading(channel, size, chunk_buffer).await?;
         Ok(())
     }

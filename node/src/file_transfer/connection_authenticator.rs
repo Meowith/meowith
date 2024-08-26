@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use log::debug;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use uuid::Uuid;
@@ -35,17 +36,19 @@ impl MeowithConnectionAuthenticator for MeowithMDSFTPConnectionAuthenticator {
             .read_exact(&mut token_buffer)
             .await
             .map_err(|_| MDSFTPError::ConnectionAuthenticationError)?;
+        let token_str = String::from_utf8_lossy(&token_buffer).to_string();
 
         let validation_response = self
             .req_ctx
-            .validate_peer_token(String::from_utf8_lossy(&token_buffer).to_string(), conn_id)
+            .validate_peer_token(token_str.clone(), conn_id)
             .await
-            .map_err(|_| MDSFTPError::ConnectionError);
+            .map_err(|_| MDSFTPError::ConnectionAuthenticationError);
 
-        if validation_response.is_err() || !validation_response.unwrap().valid {
+        if validation_response.is_err() || !validation_response?.valid {
+            debug!("authenticate_incoming failed from {conn_id:?}");
             return Ok(false);
         }
-
-        return Ok(true);
+        debug!("authenticate_incoming succeeded from {conn_id:?}");
+        Ok(true)
     }
 }

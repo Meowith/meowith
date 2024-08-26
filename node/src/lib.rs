@@ -1,5 +1,6 @@
 use crate::config::node_config::NodeConfigInstance;
-use crate::init_procedure::{fetch_storage_nodes, initialize_io, register_node};
+use crate::init_procedure::{initialize_io, register_node};
+use std::collections::HashMap;
 
 use crate::caching::catche::connect_catche;
 use crate::io::fragment_ledger::FragmentLedger;
@@ -22,6 +23,7 @@ use commons::context::microservice_request_context::{MicroserviceRequestContext,
 use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
 use data::database_session::{build_session, CACHE_SIZE};
 use openssl::ssl::SslAcceptorBuilder;
+use peer::peer_utils::fetch_peer_storage_info;
 use protocol::catche::catche_client::CatcheClient;
 use protocol::mdsftp::server::MDSFTPServer;
 use scylla::CachingSession;
@@ -29,6 +31,7 @@ use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
+use uuid::Uuid;
 
 pub mod caching;
 pub mod config;
@@ -36,6 +39,7 @@ pub mod file_transfer;
 pub mod init_procedure;
 pub mod io;
 pub mod locking;
+pub mod peer;
 pub mod public;
 
 pub struct NodeHandle {
@@ -119,6 +123,22 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
 
     let mdsftp_server_clone = mdsftp_server.clone();
 
+    let peers = fetch_peer_storage_info(&req_ctx)
+        .await
+        .expect("Failed to fetch storage nodes")
+        .peers;
+    let storage_map: HashMap<Uuid, u64> = peers
+        .clone()
+        .into_iter()
+        .map(|elem| (elem.0, elem.1.storage))
+        .collect();
+    {
+        let mut nodes = req_ctx.node_addr.write().await;
+        for peer in peers {
+            nodes.insert(peer.0, peer.1.addr.to_string());
+        }
+    }
+
     let app_data = Data::new(AppState {
         session,
         mdsftp_server,
@@ -126,12 +146,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         fragment_ledger,
         jwt_service: AccessTokenJwtService::new(&global_conf.access_token_configuration)
             .expect("JWT Service creation failed"),
-        node_storage_map: Arc::new(RwLock::new(
-            fetch_storage_nodes(&req_ctx)
-                .await
-                .expect("Failed to fetch storage nodes")
-                .peers,
-        )),
+        node_storage_map: Arc::new(RwLock::new(storage_map)),
         req_ctx,
     });
     app_data.upload_manager.init_session(app_data.clone()).await;

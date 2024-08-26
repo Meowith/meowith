@@ -24,7 +24,6 @@ mod tests {
     #[tokio::test]
     async fn test_write() {
         let table: FileLockTable<Uuid> = FileLockTable::new(2);
-
         {
             let id = Uuid::new_v4();
             let guard_1 = table.try_write(id).await;
@@ -32,6 +31,15 @@ mod tests {
             let guard_2 = table.try_read(id).await;
             assert!(guard_2.is_err());
             assert_eq!(guard_2.unwrap_err(), FileLockError::LockTaken)
+        }
+
+        {
+            let id = Uuid::new_v4();
+            let guard_1 = table.try_write(id).await;
+            assert!(guard_1.is_ok());
+            drop(guard_1);
+            let guard_2 = table.try_read(id).await;
+            assert!(guard_2.is_ok());
         }
 
         {

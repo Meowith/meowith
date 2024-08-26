@@ -97,9 +97,11 @@ pub async fn perform_token_creation(
 
         // Update quick lookup token map
         let mut node_tk_map = state.req_ctx.token_node.write().await;
+        let mut tk_node_map = state.req_ctx.node_token.write().await;
         if let Some(token) = old_token {
             node_tk_map.remove(&token);
         }
+        tk_node_map.insert(node.id, access_token.clone());
         node_tk_map.insert(access_token.clone(), node.clone());
 
         Ok(AuthenticationResponse {
