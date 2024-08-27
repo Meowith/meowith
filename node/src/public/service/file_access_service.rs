@@ -1,7 +1,8 @@
+use std::cmp::{max, min};
 use std::collections::HashSet;
 use std::time::Duration;
 
-use actix_web::http::header::ContentType;
+use actix_web::http::header::{ByteRangeSpec, ContentType};
 use actix_web::web;
 use actix_web::web::Data;
 use chrono::Utc;
@@ -19,7 +20,7 @@ use data::access::file_access::{
     update_upload_session_last_access, ROOT_DIR,
 };
 use data::model::file_model::{Bucket, BucketUploadSession, Directory, File, FileChunk};
-use protocol::mdsftp::data::{CommitFlags, ReserveFlags};
+use protocol::mdsftp::data::{ChunkRange, CommitFlags, ReserveFlags};
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 
 use crate::public::middleware::user_middleware::BucketAccessor;
@@ -544,24 +545,67 @@ pub fn create_commit_notifier(
     })
 }
 
-// TODO: range header
 pub async fn handle_download(
     mut e_path: EntryPath,
     accessor: BucketAccessor,
     writer: AbstractWriteStream,
     app_state: Data<AppState>,
+    range: Option<ByteRangeSpec>,
 ) -> NodeClientResponse<(DlInfo, JoinHandle<NodeClientResponse<()>>)> {
     accessor.has_permission(&e_path.app_id, &e_path.bucket_id, *DOWNLOAD_ALLOWANCE)?;
     let path = split_path(&e_path.path());
     let attachment_name = path.1.clone();
     let file = get_file_dir(e_path.bucket_id, path.0, path.1, &app_state.session).await?;
 
+    let range = if let Some(range) = range {
+        // end inclusive
+        Some(
+            range
+                .to_satisfiable_range(file.0.size as u64)
+                .ok_or(NodeClientError::RangeUnsatisfiable)?,
+        )
+    } else {
+        None
+    };
+
     let mut chunk_ids: Vec<FileChunk> = file.0.chunk_ids.iter().cloned().collect();
     chunk_ids.sort_by_key(|chunk| chunk.chunk_order);
+    let mut chunk_ranges: Vec<Option<ChunkRange>> =
+        vec![Some(ChunkRange::default()); chunk_ids.len()];
+
+    if let Some(range) = range {
+        let mut start = 0i64;
+        for (chunk, i) in chunk_ids.iter().zip(0..) {
+            let end = start + chunk.chunk_size - 1;
+
+            let in_range_start = max(start, range.0 as i64);
+            let in_range_end = min(end, range.1 as i64);
+
+            if in_range_end < in_range_start {
+                chunk_ranges[i] = None;
+            } else if in_range_end != end || in_range_start != start {
+                chunk_ranges[i] = Some(ChunkRange::new(
+                    (in_range_start - start) as u64,
+                    (in_range_end + 1 - start) as u64,
+                )?);
+            } // else leave default
+
+            start += chunk.chunk_size;
+        }
+    }
 
     let handle: JoinHandle<NodeClientResponse<()>> = tokio::spawn(async move {
-        for chunk in chunk_ids {
-            outbound_transfer(writer.clone(), chunk.server_id, chunk.chunk_id, &app_state).await?;
+        for (chunk, range) in chunk_ids.iter().zip(chunk_ranges) {
+            if let Some(range) = range {
+                outbound_transfer(
+                    writer.clone(),
+                    chunk.server_id,
+                    chunk.chunk_id,
+                    &app_state,
+                    range.into_option(),
+                )
+                .await?;
+            }
         }
         writer.lock().await.shutdown().await?;
         Ok(())

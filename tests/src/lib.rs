@@ -133,21 +133,21 @@ mod tests {
             .expect("Controller boot failed");
         info!("Controller started");
 
-        env::set_var("REGISTER_CODE", &get_code(&client).await);
+        env::set_var("REGISTER_CODE", get_code(&client).await);
 
         let node_1_stop_handle = start_node(TEST_NODE_1_CONFIG.clone())
             .await
             .expect("Failed to register node 1");
         info!("Node started");
 
-        env::set_var("REGISTER_CODE", &get_code(&client).await);
+        env::set_var("REGISTER_CODE", get_code(&client).await);
 
         let node_2_stop_handle = start_node(TEST_NODE_2_CONFIG.clone())
             .await
             .expect("Failed to register node 2");
         info!("Node started");
 
-        env::set_var("REGISTER_CODE", &get_code(&client).await);
+        env::set_var("REGISTER_CODE", get_code(&client).await);
         let dashboard_1_stop_handle = start_dashboard(TEST_DASHBOARD_1_CONFIG.clone())
             .await
             .expect("Failed to register dashboard 1");
@@ -169,6 +169,4 @@ mod tests {
         controller_stop_handle.shutdown().await;
         controller_stop_handle.join_handle.await.expect("Join fail");
     }
-
-    // TODO file transfer test
 }

@@ -3,8 +3,8 @@ use std::sync::{Arc, Weak};
 
 use crate::mdsftp::channel_handle::{ChannelAwaitHandle, MDSFTPHandlerChannel};
 use crate::mdsftp::data::{
-    ChunkErrorKind, CommitFlags, LockAcquireResult, LockKind, PutFlags, PutResult, QueryResult,
-    ReserveFlags, ReserveResult,
+    ChunkErrorKind, ChunkRange, CommitFlags, LockAcquireResult, LockKind, PutFlags, PutResult,
+    QueryResult, ReserveFlags, ReserveResult,
 };
 use crate::mdsftp::handler::{
     AbstractReadStream, AbstractWriteStream, ChannelPacketHandler, DownloadDelegator,
@@ -66,9 +66,14 @@ impl MDSFTPChannel {
             .await
     }
 
-    pub async fn retrieve_req(&self, chunk_id: Uuid, chunk_buffer: u16) -> MDSFTPResult<()> {
+    pub async fn retrieve_req(
+        &self,
+        chunk_id: Uuid,
+        chunk_buffer: u16,
+        range: Option<ChunkRange>,
+    ) -> MDSFTPResult<()> {
         self._internal_channel
-            .retrieve_req(chunk_id, chunk_buffer)
+            .retrieve_req(chunk_id, chunk_buffer, range)
             .await
     }
 
@@ -314,10 +319,13 @@ impl InternalMDSFTPChannel {
         { Ok(()) }
     });
 
-    internal_sender_method!(payload_buffer this none retrieve_req(MDSFTPPacketType::Retrieve, chunk_id: Uuid, chunk_buffer: u16) -> MDSFTPResult<()> {
+    internal_sender_method!(payload_buffer this none retrieve_req(MDSFTPPacketType::Retrieve, chunk_id: Uuid, chunk_buffer: u16, range: Option<ChunkRange>) -> MDSFTPResult<()> {
         {
             let _ = payload_buffer.write(chunk_id.as_bytes().as_slice());
             let _ = payload_buffer.write(&chunk_buffer.to_be_bytes());
+            let range = range.unwrap_or_default();
+            let _ = payload_buffer.write(&range.start.to_be_bytes());
+            let _ = payload_buffer.write(&range.end.to_be_bytes());
         }
         { Ok(()) }
     });
@@ -434,8 +442,7 @@ impl InternalMDSFTPChannel {
                         Bytes::try_from(&packet.payload.as_slice()[0..16])
                             .map_err(MDSFTPError::from)?,
                     );
-                    let chunk_buffer =
-                        u16::from_be_bytes(packet.payload[16..18].try_into().unwrap());
+                    let chunk_buffer = u16::from_be_bytes(packet.payload[16..18].try_into()?);
                     tx.send(Ok(ReserveResult {
                         chunk_id,
                         chunk_buffer,
@@ -559,8 +566,19 @@ impl InternalMDSFTPChannel {
                     );
                     let chunk_buffer =
                         u16::from_be_bytes(packet.payload[16..18].try_into().unwrap());
+
+                    let range_start =
+                        u64::from_be_bytes(packet.payload[18..26].try_into().unwrap());
+                    let range_end = u64::from_be_bytes(packet.payload[26..34].try_into().unwrap());
+
+                    let range = if range_start + range_end == 0 {
+                        None
+                    } else {
+                        Some(ChunkRange::new(range_start, range_end)?)
+                    };
+
                     handler
-                        .handle_retrieve(handler_channel, chunk_id, chunk_buffer)
+                        .handle_retrieve(handler_channel, chunk_id, chunk_buffer, range)
                         .await?;
                 }
                 MDSFTPPacketType::Put => {

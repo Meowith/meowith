@@ -133,6 +133,16 @@ pub async fn insert_bucket(
         .map_err(MeowithDataError::from)
 }
 
+pub async fn maybe_get_first_bucket(
+    app_id: Uuid,
+    session: &CachingSession,
+) -> Result<Option<Bucket>, MeowithDataError> {
+    Bucket::maybe_find_first_by_app_id(app_id)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
 pub async fn get_buckets(
     app_id: Uuid,
     session: &CachingSession,
@@ -385,6 +395,17 @@ pub async fn get_bucket(
     session: &CachingSession,
 ) -> Result<Bucket, MeowithDataError> {
     Bucket::find_first_by_app_id_and_id(app_id, id)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
+pub async fn delete_bucket(
+    bucket: &Bucket,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    bucket
+        .delete()
         .execute(session)
         .await
         .map_err(MeowithDataError::from)

@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod fp63_tests {
     use std::collections::HashMap;
     use std::net::IpAddr;
     use std::path::PathBuf;
@@ -41,7 +41,7 @@ mod tests {
 
     impl Drop for Cleanup {
         fn drop(&mut self) {
-            let _ = remove_dir_iteratively(&self.temp_dir).unwrap();
+            remove_dir_iteratively(&self.temp_dir).unwrap();
         }
     }
 
@@ -235,7 +235,7 @@ mod tests {
                 .expect("Retrieve req reg failed");
             debug!("Handler setup");
             channel
-                .retrieve_req(uploaded_id, 16)
+                .retrieve_req(uploaded_id, 16, None)
                 .await
                 .expect("Retrieve req failed");
 

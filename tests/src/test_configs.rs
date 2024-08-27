@@ -37,6 +37,7 @@ lazy_static! {
                 secret: "secret".to_string()
             },
             max_readers: 256,
+            default_application_quota: 256 * 1024 * 1024,
         },
     };
     pub static ref TEST_NODE_1_CONFIG: NodeConfigInstance = NodeConfigInstance {

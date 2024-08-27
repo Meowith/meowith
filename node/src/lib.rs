@@ -92,16 +92,6 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         .await
         .expect("Ledger init failed");
 
-    let catche_client = connect_catche(
-        config.cnc_addr.as_str(),
-        global_conf.clone(),
-        req_ctx.id,
-        req_ctx.security_context.root_x509.clone(),
-        req_ctx.security_context.access_token.clone(),
-    )
-    .await
-    .expect("Catche connection failed");
-
     let mut external_ssl: Option<SslAcceptorBuilder> = None;
 
     if config.ssl_certificate.is_some() && config.ssl_private_key.is_some() {
@@ -139,6 +129,22 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         }
     }
 
+    let node_storage_map = Arc::new(RwLock::new(storage_map));
+    req_ctx
+        .update_storage(fragment_ledger.update_req())
+        .await
+        .expect("Update storage failed");
+
+    let catche_client = connect_catche(
+        config.cnc_addr.as_str(),
+        global_conf.clone(),
+        req_ctx.id,
+        req_ctx.security_context.root_x509.clone(),
+        req_ctx.security_context.access_token.clone(),
+        (node_storage_map.clone(), req_ctx.clone()),
+    )
+    .await
+    .expect("Catche connection failed");
     let app_data = Data::new(AppState {
         session,
         mdsftp_server,
@@ -146,7 +152,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         fragment_ledger,
         jwt_service: AccessTokenJwtService::new(&global_conf.access_token_configuration)
             .expect("JWT Service creation failed"),
-        node_storage_map: Arc::new(RwLock::new(storage_map)),
+        node_storage_map,
         req_ctx,
     });
     app_data.upload_manager.init_session(app_data.clone()).await;

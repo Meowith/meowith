@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use actix_web::http::header::{ContentDisposition, ContentLength, CONTENT_LENGTH};
+use actix_web::http::header::{ContentDisposition, ContentLength, Header, Range, CONTENT_LENGTH};
 use actix_web::{get, post, put, web, HttpRequest, HttpResponse};
 use futures_util::StreamExt;
 use log::error;
@@ -70,6 +70,7 @@ pub async fn upload_oneshot(
         .map_err(|_| NodeClientError::BadRequest)?;
 
     let (mut sender, receiver) = tokio::io::duplex(USER_TRANSFER_BUFFER);
+
     let abstract_reader: AbstractReadStream =
         Arc::new(Mutex::new(Box::pin(BufReader::new(receiver))));
     let channel_handle = tokio::spawn(async move {
@@ -158,18 +159,46 @@ pub async fn download(
     path: web::Path<EntryPath>,
     accessor: BucketAccessor,
     app_data: web::Data<AppState>,
+    req: HttpRequest,
 ) -> NodeClientResponse<HttpResponse> {
     let (sender, receiver) = tokio::io::duplex(USER_TRANSFER_BUFFER);
+    let range = Range::parse(&req);
+    let mut range_clone = None;
+    let mut byte_range = None;
+
+    if let Ok(range) = range {
+        match range {
+            Range::Bytes(range) => {
+                if range.len() != 1 {
+                    return Err(NodeClientError::RangeUnsatisfiable);
+                }
+                byte_range = Some(range[0].clone());
+                range_clone.clone_from(&byte_range);
+            }
+            Range::Unregistered(_, _) => {}
+        }
+    }
 
     let abstract_writer: AbstractWriteStream =
         Arc::new(Mutex::new(Box::pin(BufWriter::new(sender))));
-    let (info, _) = handle_download(path.into_inner(), accessor, abstract_writer, app_data).await?;
+    let (info, _) = handle_download(
+        path.into_inner(),
+        accessor,
+        abstract_writer,
+        app_data,
+        byte_range,
+    )
+    .await?;
 
     let response_stream = ReaderStream::new(receiver);
 
-    Ok(HttpResponse::Ok()
-        .content_type(info.mime)
-        .insert_header(ContentLength(info.size as usize))
-        .insert_header(ContentDisposition::attachment(info.attachment_name))
-        .streaming(response_stream))
+    Ok(if range_clone.is_some() {
+        HttpResponse::PartialContent()
+    } else {
+        HttpResponse::Ok()
+    }
+    .content_type(info.mime)
+    .insert_header(ContentLength(info.size as usize))
+    .insert_header(ContentDisposition::attachment(info.attachment_name))
+    .streaming(response_stream))
 }

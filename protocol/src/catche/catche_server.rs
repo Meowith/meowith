@@ -22,11 +22,16 @@ use crate::catche::handler::CatcheHandler;
 use crate::mdsftp::authenticator::ConnectionAuthContext;
 use crate::mdsftp::server::ZERO_UUID;
 
+#[derive(Clone)]
 pub struct CatcheServer {
+    _internal: Arc<InternalCatcheServer>,
+}
+
+pub struct InternalCatcheServer {
     running: Arc<AtomicBool>,
     connections: Arc<Mutex<Vec<CatcheConnection>>>,
     connection_auth_context: Arc<ConnectionAuthContext>,
-    shutdown_sender: Option<Arc<Mutex<Sender<()>>>>,
+    shutdown_sender: Arc<Mutex<Option<Sender<()>>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -38,9 +43,9 @@ pub struct CatcheServerHandler {
 impl CatcheHandler for CatcheServerHandler {
     #[allow(clippy::unnecessary_to_owned)]
     async fn handle_invalidate(&mut self, cache_id: u32, cache: &[u8]) {
-        let conns = self.connections.lock().await;
+        let connections = self.connections.lock().await;
 
-        for connection in conns.to_vec() {
+        for connection in connections.to_vec() {
             let _ = connection.write_invalidate_packet(cache_id, cache).await;
         }
     }
@@ -51,16 +56,40 @@ impl CatcheHandler for CatcheServerHandler {
 }
 
 impl CatcheServer {
+    pub async fn write_invalidate_packet(&self, cache_id: u32, cache: &[u8]) {
+        let connections = self._internal.connections.lock().await;
+
+        for connection in &*connections {
+            let _ = connection.write_invalidate_packet(cache_id, cache).await;
+        }
+    }
+
     pub fn new(connection_auth_context: Arc<ConnectionAuthContext>) -> Self {
         CatcheServer {
+            _internal: Arc::new(InternalCatcheServer::new(connection_auth_context)),
+        }
+    }
+
+    pub async fn start_server(&self, port: u16, cert: (X509, PKey<Private>)) -> io::Result<()> {
+        self._internal.start_server(port, cert).await
+    }
+
+    pub async fn shutdown(&self) {
+        self._internal.shutdown().await
+    }
+}
+
+impl InternalCatcheServer {
+    pub fn new(connection_auth_context: Arc<ConnectionAuthContext>) -> Self {
+        InternalCatcheServer {
             running: Arc::new(AtomicBool::new(false)),
-            shutdown_sender: None,
+            shutdown_sender: Arc::new(Mutex::new(None)),
             connections: Arc::new(Mutex::new(Vec::new())),
             connection_auth_context,
         }
     }
 
-    pub async fn start_server(&mut self, port: u16, cert: (X509, PKey<Private>)) -> io::Result<()> {
+    pub async fn start_server(&self, port: u16, cert: (X509, PKey<Private>)) -> io::Result<()> {
         let config = rustls::ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(
@@ -76,8 +105,8 @@ impl CatcheServer {
         let running = self.running.clone();
 
         let (tx, _rx) = broadcast::channel(1);
-        let shutdown_sender = Arc::new(Mutex::new(tx));
-        self.shutdown_sender = Some(shutdown_sender.clone());
+        *self.shutdown_sender.lock().await = Some(tx);
+        let shutdown_sender = self.shutdown_sender.clone();
         let connections = self.connections.clone();
 
         let (startup_tx, startup_rx) = oneshot::channel();
@@ -90,7 +119,8 @@ impl CatcheServer {
                     let stream: TcpStream;
                     let mut rx: Receiver<()>;
                     {
-                        let tx = shutdown_sender.lock().await;
+                        let mut a = shutdown_sender.lock().await;
+                        let tx = a.as_mut().unwrap();
                         rx = tx.subscribe();
                     }
 
@@ -174,23 +204,25 @@ impl CatcheServer {
 
     pub async fn shutdown(&self) {
         let sender = self.shutdown_sender.clone();
-        if let Some(sender) = sender {
+        let mut lock = sender.lock().await;
+        if let Some(sender) = lock.as_mut() {
             self.running.store(false, Ordering::SeqCst);
-            let _ = sender.lock().await.send(());
+            let _ = sender.send(());
         }
     }
 }
 
-impl Drop for CatcheServer {
+impl Drop for InternalCatcheServer {
     fn drop(&mut self) {
         let running = self.running.clone();
         let sender = self.shutdown_sender.clone();
 
         tokio::spawn(async move {
-            if let Some(mut_sender) = sender {
+            let mut lock = sender.lock().await;
+            if let Some(sender) = lock.as_mut() {
                 running.store(false, Ordering::SeqCst);
 
-                let _ = mut_sender.lock().await.send(());
+                let _ = sender.send(());
             }
         });
     }

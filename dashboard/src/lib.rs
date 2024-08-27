@@ -18,6 +18,7 @@ use commons::autoconfigure::general_conf::fetch_general_config;
 use commons::context::microservice_request_context::MicroserviceRequestContext;
 use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
 use data::database_session::{build_session, CACHE_SIZE};
+use data::dto::config::GeneralConfiguration;
 use log::error;
 use openssl::ssl::SslAcceptorBuilder;
 use protocol::catche::catche_client::CatcheClient;
@@ -25,8 +26,6 @@ use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
-// TODO middleware for dashboard
-// TODO middleware for controller admin
 
 pub mod auth;
 pub mod caching;
@@ -57,6 +56,7 @@ pub struct AppState {
     catche_client: CatcheClient,
     authentication: AuthenticationMethodList,
     req_ctx: Arc<MicroserviceRequestContext>,
+    global_config: GeneralConfiguration,
 }
 
 pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<DashboardHandle> {
@@ -111,6 +111,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
         catche_client: catche_client.clone(),
         authentication: Arc::new(auth),
         req_ctx,
+        global_config: global_conf,
     });
 
     let external_server = HttpServer::new(move || {

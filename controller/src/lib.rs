@@ -52,6 +52,7 @@ pub struct AppState {
     pub ca_cert: X509,
     pub ca_private_key: PKey<Private>,
     req_ctx: ControllerRequestContext,
+    catche_server: CatcheServer,
 }
 
 pub struct ControllerHandle {
@@ -136,16 +137,7 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
         Certificate::from_pem(ca_cert.to_pem().unwrap().as_slice())
             .expect("Invalid certificate file"),
     );
-    let app_data = Data::new(AppState {
-        session,
-        config: config.clone(),
-        ca_cert: ca_cert.clone(),
-        ca_private_key: ca_private_key.clone(),
-        req_ctx: req_ctx.clone(),
-    });
-
-    let init_app_data = app_data.clone();
-    let internal_certs = create_internal_certs(&init_app_data, &clonfig);
+    let internal_certs = create_internal_certs((ca_cert.clone(), ca_private_key.clone()), &clonfig);
 
     let catche = start_server(
         config
@@ -160,6 +152,17 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
         internal_certs.clone(),
     )
     .await;
+    let app_data = Data::new(AppState {
+        session,
+        config: config.clone(),
+        ca_cert: ca_cert.clone(),
+        ca_private_key: ca_private_key.clone(),
+        req_ctx: req_ctx.clone(),
+        catche_server: catche.clone(),
+    });
+
+    let init_app_data = app_data.clone();
+
     let internode_server = HttpServer::new(move || {
         let internode_app_data = app_data.clone();
         let cors = Cors::permissive();
@@ -255,7 +258,7 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
 }
 
 fn create_internal_certs(
-    state: &Data<AppState>,
+    state: (X509, PKey<Private>),
     config: &ControllerConfig,
 ) -> (X509, PKey<Private>) {
     let key = generate_private_key().expect("Key gen failed");
@@ -263,8 +266,8 @@ fn create_internal_certs(
 
     let cert = sign_csr(
         &request,
-        &state.ca_cert.clone(),
-        &state.ca_private_key.clone(),
+        &state.0,
+        &state.1,
         &SigningData {
             ip_addr: config.internal_ip_addr,
             validity_days: 3560, // Note: consider auto-renewal

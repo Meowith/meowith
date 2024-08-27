@@ -203,10 +203,7 @@ pub mod tests {
         let (ca, ca_private_key) = gen_test_ca();
         let (cert, _key) = gen_test_certs(&ca, &ca_private_key);
 
-        let success = match ca.issued(&cert) {
-            X509VerifyResult::OK => true,
-            _ => false,
-        };
+        let success = matches!(ca.issued(&cert), X509VerifyResult::OK);
 
         assert!(success);
     }

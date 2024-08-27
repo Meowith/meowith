@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use crate::mdsftp::channel::MDSFTPChannel;
 use crate::mdsftp::channel_handle::MDSFTPHandlerChannel;
-use crate::mdsftp::data::{CommitFlags, LockKind, PutFlags, ReserveFlags};
+use crate::mdsftp::data::{ChunkRange, CommitFlags, LockKind, PutFlags, ReserveFlags};
 use async_trait::async_trait;
 use commons::error::mdsftp_error::MDSFTPResult;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncSeek, AsyncWrite};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -27,6 +27,7 @@ pub trait ChannelPacketHandler: Send {
         channel: Channel,
         chunk_id: Uuid,
         chunk_buffer: u16,
+        range: Option<ChunkRange>,
     ) -> MDSFTPResult<()>;
 
     async fn handle_put(
@@ -99,7 +100,12 @@ pub trait PacketHandler: Send {
     async fn channel_err(&mut self, channel_id: u32, conn_id: Uuid);
 }
 
+pub trait AbstractOmni: AsyncRead + AsyncWrite + AsyncSeek {}
+impl<T> AbstractOmni for T where T: AsyncRead + AsyncWrite + AsyncSeek {}
+
 pub type AbstractReader = Pin<Box<dyn AsyncRead + Unpin + Send>>;
 pub type AbstractWriter = Pin<Box<dyn AsyncWrite + Unpin + Send>>;
+pub type AbstractOmniPin = Pin<Box<dyn AbstractOmni + Unpin + Send>>;
 pub type AbstractReadStream = Arc<Mutex<AbstractReader>>;
+pub type AbstractFileStream = Arc<Mutex<AbstractOmniPin>>;
 pub type AbstractWriteStream = Arc<Mutex<AbstractWriter>>;

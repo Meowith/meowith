@@ -3,6 +3,7 @@ pub struct GeneralConfiguration {
     pub port_configuration: PortConfiguration,
     pub access_token_configuration: AccessTokenConfiguration,
     pub max_readers: u32,
+    pub default_application_quota: u64,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -55,6 +56,7 @@ impl GeneralConfiguration {
             port_configuration: Default::default(),
             access_token_configuration: Default::default(),
             max_readers: 2048u32,
+            default_application_quota: 512 * 1024 * 1024,
         }
     }
 }

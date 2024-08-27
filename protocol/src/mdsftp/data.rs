@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use commons::error::mdsftp_error::MDSFTPError;
+use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum LockKind {
@@ -181,4 +181,34 @@ pub struct PutResult {
 #[derive(Debug, Eq, PartialEq)]
 pub struct QueryResult {
     pub size: u64,
+}
+
+#[derive(Debug, Eq, PartialEq, Default, Clone)]
+pub struct ChunkRange {
+    /// Inclusive
+    pub start: u64,
+    /// Exclusive
+    pub end: u64,
+}
+
+impl ChunkRange {
+    pub fn new(start: u64, end: u64) -> MDSFTPResult<Self> {
+        if start >= end {
+            Err(MDSFTPError::RemoteError)
+        } else {
+            Ok(Self { start, end })
+        }
+    }
+
+    pub fn size(&self) -> u64 {
+        self.end - self.start
+    }
+
+    pub fn into_option(self) -> Option<Self> {
+        if self.start + self.end != 0 {
+            Some(self)
+        } else {
+            None
+        }
+    }
 }

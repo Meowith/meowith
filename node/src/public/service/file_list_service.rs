@@ -6,7 +6,7 @@ use actix_web::web;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use data::access::file_access::{
     get_directory, get_files_from_bucket, get_files_from_bucket_and_directory,
-    get_files_from_bucket_and_directory_paginated, get_files_from_bucket_paginated, FileItem, DID,
+    get_files_from_bucket_paginated, get_sub_dirs, FileItem,
 };
 use data::dto::entity::{Entity, EntityList};
 use futures::Stream;
@@ -89,31 +89,53 @@ pub async fn do_list_dir(
     };
 
     let dir = get_directory(e_path.bucket_id, path, &app_data.session).await?;
-    let files: Box<dyn Stream<Item = FileItem> + Unpin> = if pagination_info.is_paginated() {
-        let complete = pagination_info.completed();
-        Box::new(
-            get_files_from_bucket_and_directory_paginated(
-                e_path.bucket_id,
-                DID::of(dir).0,
-                &app_data.session,
-                complete.start.unwrap(),
-                complete.end.unwrap(),
-            )
-            .await?,
-        )
-    } else {
-        Box::new(
+
+    let mut sub_dirs = get_sub_dirs(e_path.bucket_id, e_path.path(), &app_data.session).await?;
+
+    let complete = pagination_info.completed();
+
+    let mut length = complete
+        .end
+        .unwrap()
+        .saturating_sub(complete.start.unwrap());
+
+    let mut entries = Vec::new();
+    while let Some(dir) = sub_dirs.next().await {
+        if length == 0 {
+            break;
+        }
+        let dir = dir.map_err(|_| NodeClientError::InternalError)?;
+
+        entries.push(Entity {
+            name: dir.name,
+            dir: None,
+            dir_id: Some(dir.id),
+            size: 0,
+            is_dir: true,
+            created: dir.created,
+            last_modified: dir.last_modified,
+        });
+        length -= 1;
+    }
+
+    if length > 0 {
+        let files: Box<dyn Stream<Item = FileItem> + Unpin> = Box::new(
             get_files_from_bucket_and_directory(
                 e_path.bucket_id,
                 dir.map(|dir| dir.id),
                 &app_data.session,
             )
             .await?,
-        )
-    };
-
-    //TODO append dirs
-    collect_files(files, false).await
+        );
+        for entity in collect_files(files, false).await?.entities {
+            if length == 0 {
+                break;
+            }
+            entries.push(entity);
+            length -= 1;
+        }
+    }
+    Ok(EntityList { entities: entries })
 }
 
 async fn collect_files(

@@ -1,6 +1,6 @@
-use crate::public::service::bucket_service::do_create_bucket;
+use crate::public::service::bucket_service::{do_create_bucket, do_delete_bucket};
 use crate::AppState;
-use actix_web::{post, web};
+use actix_web::{delete, post, web, HttpResponse};
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use data::dto::entity::BucketDto;
 use data::model::user_model::User;
@@ -34,7 +34,12 @@ pub async fn create_bucket(
     do_create_bucket(app_state, req.0, user).await
 }
 
-#[allow(unused)]
-pub async fn delete_bucket(_app_state: web::Data<AppState>, _user: User) -> NodeClientResponse<()> {
-    todo!()
+#[delete("/delete/{app_id}/{bucket_id}")]
+pub async fn delete_bucket(
+    app_state: web::Data<AppState>,
+    user: User,
+    path: web::Path<(Uuid, Uuid)>,
+) -> NodeClientResponse<HttpResponse> {
+    do_delete_bucket(&app_state.session, path.0, path.1, user).await?;
+    Ok(HttpResponse::Ok().finish())
 }

@@ -1,4 +1,4 @@
-use crate::public::service::application_service::do_create_app;
+use crate::public::service::application_service::{do_create_app, do_delete_app};
 use crate::AppState;
 use actix_web::{delete, post, web, HttpResponse};
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
@@ -33,14 +33,15 @@ pub async fn create_application(
     user: User,
 ) -> NodeClientResponse<web::Json<AppDto>> {
     req.validate()?;
-    do_create_app(req.0, &state.session, user).await
+    do_create_app(req.0, &state.session, user, &state.global_config).await
 }
 
 #[delete("/delete")]
 pub async fn delete_application(
-    _req: web::Json<DeleteApplicationRequest>,
-    _state: web::Data<AppState>,
-    _user: User,
+    req: web::Json<DeleteApplicationRequest>,
+    state: web::Data<AppState>,
+    user: User,
 ) -> NodeClientResponse<HttpResponse> {
-    todo!()
+    do_delete_app(req.id, &state.session, user).await?;
+    Ok(HttpResponse::Ok().finish())
 }

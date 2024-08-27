@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod int_tests {
     use std::any::Any;
     use std::net::{IpAddr, SocketAddr};
     use std::str::FromStr;
@@ -60,7 +60,7 @@ mod tests {
             own_id: Uuid::new_v4(),
         });
 
-        let mut server = CatcheServer::new(connection_auth_context.clone());
+        let server = CatcheServer::new(connection_auth_context.clone());
 
         assert!(server.start_server(7810, (cert, key)).await.is_ok());
 

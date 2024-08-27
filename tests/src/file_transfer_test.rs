@@ -11,18 +11,22 @@ use dashboard_lib::public::routes::token::{AppTokenResponse, TokenIssueRequest};
 use dashboard_lib::start_dashboard;
 use data::dto::entity::{AppDto, BucketDto};
 use data::model::permission_model::UserPermission;
-use http::header::CONTENT_LENGTH;
+use http::header::{CONTENT_LENGTH, RANGE};
 use log::info;
 use node_lib::start_node;
 use rand::{distributions::Alphanumeric, Rng};
 use reqwest::header::AUTHORIZATION;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use std::ops::Range;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 async fn setup_test_files() -> tokio::io::Result<()> {
-    let files: Vec<(&str, usize)> = vec![("test_data/test1.txt", 10_000)];
+    let files: Vec<(&str, usize)> = vec![
+        ("test_data/test1.txt", 10_000),
+        ("test_data/test2.txt", 1700 * 1024),
+    ];
     for (file_name, size) in files {
         let mut file = File::create(file_name).await?;
         let random_letters: String = rand::thread_rng()
@@ -53,7 +57,7 @@ async fn create_user(client: &ClientWithMiddleware) -> String {
 }
 
 async fn create_application(
-    user_token: &String,
+    user_token: &str,
     name: String,
     client: &ClientWithMiddleware,
 ) -> AppDto {
@@ -62,7 +66,7 @@ async fn create_application(
     client
         .post("http://127.0.0.4:4002/api/app/create")
         .json(&req)
-        .header(AUTHORIZATION, format!("Bearer {}", user_token.clone()))
+        .header(AUTHORIZATION, format!("Bearer {}", user_token))
         .send()
         .await
         .expect("")
@@ -72,7 +76,7 @@ async fn create_application(
 }
 
 async fn create_bucket(
-    user_token: &String,
+    user_token: &str,
     app_dto: &AppDto,
     name: String,
     client: &ClientWithMiddleware,
@@ -87,7 +91,7 @@ async fn create_bucket(
     client
         .post("http://127.0.0.4:4002/api/bucket/create")
         .json(&req)
-        .header(AUTHORIZATION, format!("Bearer {}", user_token.clone()))
+        .header(AUTHORIZATION, format!("Bearer {}", user_token))
         .send()
         .await
         .expect("")
@@ -100,11 +104,11 @@ async fn issue_token(
     app: &AppDto,
     bucket_id: Uuid,
     name: String,
-    user_token: &String,
+    user_token: &str,
     client: &ClientWithMiddleware,
 ) -> AppTokenResponse {
     let req = TokenIssueRequest {
-        app_id: app.id.clone(),
+        app_id: app.id,
         name,
         perms: vec![AppTokenPermit {
             bucket_id,
@@ -124,7 +128,7 @@ async fn issue_token(
     client
         .post("http://127.0.0.4:4002/api/app/token/issue")
         .json(&req)
-        .header(AUTHORIZATION, format!("Bearer {}", user_token.clone()))
+        .header(AUTHORIZATION, format!("Bearer {}", user_token))
         .send()
         .await
         .expect("")
@@ -136,9 +140,10 @@ async fn issue_token(
 async fn upload_file(
     path: &str,
     remote_path: &str,
+    node: &str,
     bucket_id: Uuid,
     app_id: Uuid,
-    token: &String,
+    token: &str,
     client: &ClientWithMiddleware,
 ) {
     let file = File::open(path).await.unwrap();
@@ -146,10 +151,10 @@ async fn upload_file(
 
     client
         .post(format!(
-            "http://127.0.0.2:4000/api/file/upload/oneshot/{}/{}/{}",
-            app_id, bucket_id, remote_path
+            "http://{}/api/file/upload/oneshot/{}/{}/{}",
+            node, app_id, bucket_id, remote_path
         ))
-        .header(AUTHORIZATION, format!("{}", token.clone()))
+        .header(AUTHORIZATION, token.to_string())
         .header(CONTENT_LENGTH, size.to_string())
         .body(file_to_body(file))
         .send()
@@ -163,7 +168,7 @@ async fn download_file(
     addr: &str,
     bucket_id: Uuid,
     app_id: Uuid,
-    token: &String,
+    token: &str,
     client: &ClientWithMiddleware,
 ) {
     let mut response = client
@@ -171,14 +176,41 @@ async fn download_file(
             "http://{}/api/file/download/{}/{}/{}",
             addr, app_id, bucket_id, remote_path
         ))
-        .header(AUTHORIZATION, format!("{}", token.clone()))
+        .header(AUTHORIZATION, token.to_string())
         .send()
         .await
         .expect("");
 
     let mut file = File::create(path).await.unwrap();
     while let Some(chunk) = response.chunk().await.unwrap() {
-        info!("RECV CHUNK: {}", chunk.len());
+        file.write_all(&chunk).await.unwrap()
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn download_file_ranged(
+    path: &str,
+    remote_path: &str,
+    addr: &str,
+    bucket_id: Uuid,
+    app_id: Uuid,
+    token: &str,
+    client: &ClientWithMiddleware,
+    range: Range<u64>,
+) {
+    let mut response = client
+        .get(format!(
+            "http://{}/api/file/download/{}/{}/{}",
+            addr, app_id, bucket_id, remote_path
+        ))
+        .header(AUTHORIZATION, token.to_string())
+        .header(RANGE, format!("bytes={}-{}", range.start, range.end - 1))
+        .send()
+        .await
+        .expect("");
+
+    let mut file = File::create(path).await.unwrap();
+    while let Some(chunk) = response.chunk().await.unwrap() {
         file.write_all(&chunk).await.unwrap()
     }
 }
@@ -227,6 +259,7 @@ pub async fn test_file_transfer() {
     upload_file(
         "test_data/test1.txt",
         "test1",
+        "127.0.0.2:4000",
         bucket_dto.id,
         app_dto.id,
         &token,
@@ -247,7 +280,7 @@ pub async fn test_file_transfer() {
     .await;
     info!("File downloaded");
 
-    let comparison = compare_files("test_data/test1.txt", "test_data/test1-dl-1.txt")
+    let comparison = compare_files("test_data/test1.txt", "test_data/test1-dl-1.txt", None)
         .expect("Unable to compare files");
     assert!(comparison);
 
@@ -263,8 +296,74 @@ pub async fn test_file_transfer() {
     .await;
     info!("File downloaded");
 
-    let comparison = compare_files("test_data/test1.txt", "test_data/test1-dl-2.txt")
+    let comparison = compare_files("test_data/test1.txt", "test_data/test1-dl-2.txt", None)
         .expect("Unable to compare files");
+    assert!(comparison);
+
+    upload_file(
+        "test_data/test2.txt",
+        "test2",
+        "127.0.0.3:4001",
+        bucket_dto.id,
+        app_dto.id,
+        &token,
+        &client,
+    )
+    .await;
+    info!("Big File uploaded");
+
+    download_file(
+        "test_data/test2-dl-1.txt",
+        "test2",
+        "127.0.0.2:4000",
+        bucket_dto.id,
+        app_dto.id,
+        &token,
+        &client,
+    )
+    .await;
+    info!("File downloaded");
+
+    let comparison = compare_files("test_data/test2.txt", "test_data/test2-dl-1.txt", None)
+        .expect("Unable to compare files");
+    assert!(comparison);
+
+    download_file(
+        "test_data/test2-dl-2.txt",
+        "test2",
+        "127.0.0.3:4001",
+        bucket_dto.id,
+        app_dto.id,
+        &token,
+        &client,
+    )
+    .await;
+    info!("File downloaded");
+
+    let comparison = compare_files("test_data/test2.txt", "test_data/test2-dl-2.txt", None)
+        .expect("Unable to compare files");
+    assert!(comparison);
+
+    let range = 1000..1700 * 1024 - 1000;
+    download_file_ranged(
+        "test_data/test3-dl.txt",
+        "test2",
+        "127.0.0.3:4001",
+        bucket_dto.id,
+        app_dto.id,
+        &token,
+        &client,
+        range.clone(),
+    )
+    .await;
+    info!("File downloaded");
+
+    let comparison = compare_files(
+        "test_data/test2.txt",
+        "test_data/test3-dl.txt",
+        Some((range.start, range.end)),
+    )
+    .expect("Unable to compare files");
     assert!(comparison);
 
     info!("Shutting down all nodes.");

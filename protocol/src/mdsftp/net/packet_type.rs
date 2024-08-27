@@ -34,7 +34,7 @@ impl MDSFTPPacketType {
     pub(crate) fn payload_size(&self) -> u32 {
         match self {
             MDSFTPPacketType::FileChunk => 6,
-            MDSFTPPacketType::Retrieve => 18,
+            MDSFTPPacketType::Retrieve => 34,
             MDSFTPPacketType::Put => 25,
             MDSFTPPacketType::RecvAck => 4,
             MDSFTPPacketType::Reserve => 9,

@@ -4,14 +4,14 @@ use crate::AppState;
 use actix_web::web::Data;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use protocol::mdsftp::channel::MDSFTPChannel;
-use protocol::mdsftp::data::PutFlags;
+use protocol::mdsftp::data::{ChunkRange, PutFlags};
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
+use std::io::SeekFrom;
 use std::pin::Pin;
 use tokio::io;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use uuid::Uuid;
 
-// todo release when not fully finished
 pub async fn inbound_transfer(
     reader: AbstractReadStream,
     skip: u64,
@@ -50,7 +50,12 @@ pub async fn inbound_transfer(
                     .map_err(|_| NodeClientError::InternalError)?;
             }
             Err(_) => {
-                todo!()
+                let size = state.fragment_ledger.stat_chunk(&chunk_id).await?;
+                state
+                    .fragment_ledger
+                    .release_reservation(&chunk_id, size)
+                    .await
+                    .map_err(|_| NodeClientError::InternalError)?;
             }
         }
 
@@ -96,20 +101,28 @@ pub async fn outbound_transfer(
     node_id: Uuid,
     chunk_id: Uuid,
     state: &Data<AppState>,
+    range: Option<ChunkRange>,
 ) -> NodeClientResponse<()> {
     if node_id == state.req_ctx.id {
         // send local chunk, no need for net io
-        let reader = state
+        let mut reader = state
             .fragment_ledger
-            .fragment_read_stream(&chunk_id)
+            .raw_fragment_read_omni_stream(&chunk_id)
             .await
             .map_err(|_| NodeClientError::NotFound)?;
         let mut writer = writer.lock().await;
-        let mut reader = reader.lock().await;
 
-        io::copy(&mut *reader, &mut *writer)
-            .await
-            .map_err(|_| NodeClientError::InternalError)?;
+        if let Some(range) = range {
+            reader.seek(SeekFrom::Start(range.start)).await?;
+            io::copy(&mut reader.take(range.size()), &mut *writer)
+                .await
+                .map_err(|_| NodeClientError::InternalError)?;
+        } else {
+            io::copy(&mut reader, &mut *writer)
+                .await
+                .map_err(|_| NodeClientError::InternalError)?;
+        }
+
         Ok(())
     } else {
         let pool = state.mdsftp_server.pool();
@@ -125,7 +138,7 @@ pub async fn outbound_transfer(
             .retrieve_content(writer, handler, false) // there might be more chunks to send!
             .await?;
 
-        channel.retrieve_req(chunk_id, 16).await?;
+        channel.retrieve_req(chunk_id, 16, range).await?;
 
         handle
             .await

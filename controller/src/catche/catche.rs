@@ -18,7 +18,7 @@ pub async fn start_server(
     authenticator: ControllerAuthenticator,
     cert: (X509, PKey<Private>),
 ) -> CatcheServer {
-    let mut server = CatcheServer::new(Arc::new(ConnectionAuthContext {
+    let server = CatcheServer::new(Arc::new(ConnectionAuthContext {
         root_certificate,
         authenticator: Some(Box::new(authenticator)),
         port,

@@ -10,6 +10,7 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 use commons::autoconfigure::ssl_conf::SigningData;
+use commons::cache::CacheId;
 use commons::context::controller_request_context::ControllerRequestContext;
 use data::access::microservice_node_access::{
     get_service_register_code, insert_microservice_node, update_service_access_token,
@@ -103,6 +104,12 @@ pub async fn perform_token_creation(
         }
         tk_node_map.insert(node.id, access_token.clone());
         node_tk_map.insert(access_token.clone(), node.clone());
+
+        let cache_id: u8 = CacheId::NodeStorageMap.into();
+        state
+            .catche_server
+            .write_invalidate_packet(cache_id as u32, &[])
+            .await;
 
         Ok(AuthenticationResponse {
             access_token,

@@ -15,6 +15,14 @@ pub async fn insert_app(
     app.insert().execute(session).await.map_err(|e| e.into())
 }
 
+pub async fn delete_app(app: &App, session: &CachingSession) -> Result<(), MeowithDataError> {
+    AppToken::delete_by_app_id(app.id).execute(session).await?;
+    UserRole::delete_by_app_id(app.id).execute(session).await?;
+    AppMember::delete_by_app_id(app.id).execute(session).await?;
+    app.delete().execute(session).await?;
+    Ok(())
+}
+
 pub async fn get_app_member(
     app_id: Uuid,
     user_id: Uuid,

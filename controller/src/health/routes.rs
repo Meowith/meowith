@@ -3,17 +3,16 @@ use std::collections::HashMap;
 
 use actix_web::{get, post, web};
 use chrono::Utc;
-
+use commons::cache::CacheId;
 use commons::context::controller_request_context::NodeHealth;
-use data::dto::controller::{PeerStorage, StorageResponse};
+use data::dto::controller::{PeerStorage, StorageResponse, UpdateStorageNodeProperties};
 use data::model::microservice_node_model::{MicroserviceNode, MicroserviceType};
+use log::debug;
 
-use crate::discovery::routes::{UpdateStorageNodeProperties, UpdateStorageNodeResponse};
+use crate::discovery::routes::UpdateStorageNodeResponse;
 use crate::error::node::NodeError;
 use crate::health::health_service::perform_storage_node_properties_update;
 use crate::AppState;
-
-// TODO dynamically notify nodes of new nodes.
 
 #[get("/storage")]
 pub async fn fetch_free_storage(
@@ -23,8 +22,8 @@ pub async fn fetch_free_storage(
     let mut peers = HashMap::new();
 
     let node_health = state.req_ctx.node_health.read().await;
-
     let nodes = state.req_ctx.nodes.read().await;
+
     let storage_node_i8: i8 = MicroserviceType::StorageNode.into();
     for node in &*nodes {
         if node.microservice_type == storage_node_i8 {
@@ -56,6 +55,10 @@ pub async fn update_storage_node_properties(
     node: MicroserviceNode,
     req: web::Json<UpdateStorageNodeProperties>,
 ) -> Result<web::Json<UpdateStorageNodeResponse>, NodeError> {
+    debug!(
+        "update_storage_node_properties {:?} for node {node:?}",
+        &req.0
+    );
     let free_space = req.0.max_space - req.0.used_space;
     perform_storage_node_properties_update(req.0, &state.session, node.clone()).await?;
 
@@ -67,6 +70,12 @@ pub async fn update_storage_node_properties(
             available_storage: Some(free_space),
         },
     );
+
+    let cache_id: u8 = CacheId::NodeStorageMap.into();
+    state
+        .catche_server
+        .write_invalidate_packet(cache_id as u32, &[])
+        .await;
 
     Ok(web::Json(UpdateStorageNodeResponse {}))
 }

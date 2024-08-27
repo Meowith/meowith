@@ -1,16 +1,22 @@
 use crate::public::routes::bucket::CreateBucketRequest;
-use crate::public::service::{has_app_permission, PermCheckScope, CREATE_BUCKET_ALLOWANCE};
+use crate::public::service::{
+    has_app_permission, PermCheckScope, CREATE_BUCKET_ALLOWANCE, DELETE_BUCKET_ALLOWANCE,
+};
 use crate::AppState;
 use actix_web::web;
 use chrono::Utc;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use data::access::app_access::get_app_by_id;
-use data::access::file_access::{get_buckets, insert_bucket, BucketItem};
+use data::access::file_access::{
+    delete_bucket, get_bucket, get_buckets, insert_bucket, maybe_get_first_child_from_directory,
+    maybe_get_first_file_from_directory, BucketItem,
+};
 use data::dto::entity::BucketDto;
 use data::error::MeowithDataError;
 use data::model::file_model::Bucket;
 use data::model::user_model::User;
 use futures::StreamExt;
+use scylla::CachingSession;
 use uuid::Uuid;
 
 pub async fn do_create_bucket(
@@ -62,4 +68,38 @@ pub async fn do_create_bucket(
     insert_bucket(&bucket, &app_state.session).await?;
 
     Ok(web::Json(bucket.into()))
+}
+
+pub async fn do_delete_bucket(
+    session: &CachingSession,
+    app_id: Uuid,
+    bucket_id: Uuid,
+    user: User,
+) -> NodeClientResponse<()> {
+    let bucket = get_bucket(app_id, bucket_id, session).await?;
+    let app = get_app_by_id(app_id, session).await?;
+    has_app_permission(
+        &user,
+        &app,
+        *DELETE_BUCKET_ALLOWANCE,
+        session,
+        PermCheckScope::Application,
+    )
+    .await?;
+
+    if maybe_get_first_file_from_directory(bucket_id, None, session)
+        .await?
+        .is_some()
+    {
+        return Err(NodeClientError::EntityExists);
+    };
+    if maybe_get_first_child_from_directory(bucket_id, None, session)
+        .await?
+        .is_some()
+    {
+        return Err(NodeClientError::EntityExists);
+    }
+
+    delete_bucket(&bucket, session).await?;
+    Ok(())
 }

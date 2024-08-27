@@ -48,3 +48,9 @@ pub struct PeerStorage {
 pub struct StorageResponse {
     pub peers: HashMap<Uuid, PeerStorage>,
 }
+
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+pub struct UpdateStorageNodeProperties {
+    pub max_space: u64,
+    pub used_space: u64,
+}

@@ -28,6 +28,7 @@ pub enum NodeClientError {
     BadAuth,
     InsufficientStorage,
     NotEmpty,
+    RangeUnsatisfiable,
 }
 
 impl error::ResponseError for NodeClientError {
@@ -41,6 +42,7 @@ impl error::ResponseError for NodeClientError {
             NodeClientError::NoSuchSession => StatusCode::NOT_FOUND,
             NodeClientError::EntityExists => StatusCode::BAD_REQUEST,
             NodeClientError::NotEmpty => StatusCode::BAD_REQUEST,
+            NodeClientError::RangeUnsatisfiable => StatusCode::RANGE_NOT_SATISFIABLE,
         }
     }
 

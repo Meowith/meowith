@@ -26,9 +26,11 @@ Flags: `is_last` (true/false)
 
 - **Retrieve** (`retreive` Packet ID: 0x02)
 
-| Chunk ID | Chunk Buffer |
-|----------|--------------|
-| 16 Bytes | 2 Bytes      |
+| Chunk ID | Chunk Buffer | Range Start | Range End |
+|----------|--------------|-------------|-----------|
+| 16 Bytes | 2 Bytes      | 8 Bytes     | 8 Bytes   |
+
+Range Start = Range End = 0 ⇒ the whole chunk.
 
 - **Put** (`put` Packet ID: 0x03)
 

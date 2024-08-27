@@ -1,6 +1,6 @@
-use crate::discovery::routes::UpdateStorageNodeProperties;
 use crate::error::node::NodeError;
 use data::access::microservice_node_access::update_microservice_node;
+use data::dto::controller::UpdateStorageNodeProperties;
 use data::model::microservice_node_model::MicroserviceNode;
 use scylla::CachingSession;
 

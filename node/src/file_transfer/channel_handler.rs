@@ -8,17 +8,20 @@ use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tokio::select;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::{mpsc, Mutex};
+use tokio_util::either::Either;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
-use protocol::mdsftp::data::{ChunkErrorKind, CommitFlags, LockKind, PutFlags, ReserveFlags};
+use protocol::mdsftp::data::{
+    ChunkErrorKind, ChunkRange, CommitFlags, LockKind, PutFlags, ReserveFlags,
+};
 use protocol::mdsftp::handler::{
-    AbstractReadStream, AbstractWriteStream, Channel, ChannelPacketHandler, DownloadDelegator,
-    UploadDelegator,
+    AbstractFileStream, AbstractReadStream, AbstractWriteStream, Channel, ChannelPacketHandler,
+    DownloadDelegator, UploadDelegator,
 };
 
-use crate::file_transfer::transfer_manager::mdsftp_upload;
+use crate::file_transfer::transfer_manager::{mdsftp_upload, SizeParams};
 use crate::io::fragment_ledger::FragmentLedger;
 use crate::locking::file_read_guard::FileReadGuard;
 use crate::locking::file_write_guard::FileWriteGuard;
@@ -35,6 +38,7 @@ pub struct MeowithMDSFTPChannelPacketHandler {
     auto_close: Arc<AtomicBool>,
     receive_file_stream: Option<AbstractWriteStream>,
     upload_file_stream: Option<AbstractReadStream>,
+    upload_local_file_stream: Option<AbstractFileStream>,
     upload_cancel: Option<CancellationToken>,
     data_transferred: Arc<AtomicU64>,
 }
@@ -52,6 +56,7 @@ impl MeowithMDSFTPChannelPacketHandler {
             auto_close: Arc::new(AtomicBool::new(true)),
             receive_file_stream: None,
             upload_file_stream: None,
+            upload_local_file_stream: None,
             upload_cancel: None,
             data_transferred: Default::default(),
         }
@@ -84,21 +89,27 @@ impl MeowithMDSFTPChannelPacketHandler {
         channel: Channel,
         size: u64,
         chunk_buffer: u16,
+        range: Option<ChunkRange>,
     ) -> MDSFTPResult<()> {
         let (tx, rx) = mpsc::channel(self.chunk_buffer as usize + 10usize);
         self.recv_ack_sender = Some(Arc::new(tx));
 
         let read = self.upload_file_stream.clone();
+        let read_file = self.upload_local_file_stream.clone();
         let transferred = self.data_transferred.clone();
         let cancellation_token = CancellationToken::new();
         let fragment_size = self.fragment_size;
         self.upload_cancel = Some(cancellation_token.clone());
 
         tokio::spawn(async move {
-            let read = read.unwrap();
-            let read = read.lock().await;
+            let stream: Either<AbstractReadStream, AbstractFileStream> = if let Some(read) = read {
+                Either::Left(read)
+            } else {
+                Either::Right(read_file.unwrap())
+            };
+
             select! {
-                upload = mdsftp_upload(&channel, read, size, rx, chunk_buffer, transferred, fragment_size) => {
+                upload = mdsftp_upload(&channel, stream, SizeParams {size,range}, rx, chunk_buffer, transferred, fragment_size) => {
                     match upload {
                         Ok(_) => {}
                         Err(err) => {
@@ -181,6 +192,7 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         channel: Channel,
         id: Uuid,
         chunk_buffer: u16,
+        range: Option<ChunkRange>,
     ) -> MDSFTPResult<()> {
         debug!("handle_retrieve {id} {chunk_buffer}");
         let meta = self.fragment_ledger.fragment_meta(&id).await;
@@ -198,15 +210,16 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
                 .await
                 .map_err(|_| MDSFTPError::ReservationError)?,
         ));
-        self.upload_file_stream = Some(
+        self.upload_local_file_stream = Some(
             self.fragment_ledger
-                .fragment_read_stream(&id)
+                .fragment_read_omni_stream(&id)
                 .await
                 .map_err(|_| MDSFTPError::RemoteError)?,
         );
 
         debug!("Uploading...");
-        self.start_uploading(channel, size, chunk_buffer).await?;
+        self.start_uploading(channel, size, chunk_buffer, range)
+            .await?;
         Ok(())
     }
 
@@ -417,7 +430,8 @@ impl UploadDelegator for MeowithMDSFTPChannelPacketHandler {
         chunk_buffer: u16,
     ) -> MDSFTPResult<()> {
         self.upload_file_stream = Some(source);
-        self.start_uploading(channel, size, chunk_buffer).await?;
+        self.start_uploading(channel, size, chunk_buffer, None)
+            .await?;
         Ok(())
     }
 }

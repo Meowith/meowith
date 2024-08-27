@@ -10,21 +10,23 @@ use std::time::{Duration, Instant};
 use filesize::PathExt;
 use log::{debug, error, info, warn};
 use tokio::fs::{File, OpenOptions};
-use tokio::io::{BufReader, BufWriter};
+use tokio::io::{BufReader, BufStream, BufWriter};
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time;
 use uuid::Uuid;
 
-use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
+use protocol::mdsftp::handler::{AbstractFileStream, AbstractReadStream, AbstractWriteStream};
 
 use crate::io::get_space;
 use crate::locking::file_lock_table::FileLockTable;
 use crate::public::service::durable_transfer_session_manager::DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS;
 use commons::error::io_error::{MeowithIoError, MeowithIoResult};
+use data::dto::controller::UpdateStorageNodeProperties;
 
 pub type LockTable = FileLockTable<Uuid>;
 
+pub type FragmentReadOmniStream = AbstractFileStream;
 pub type FragmentReadStream = AbstractReadStream;
 pub type FragmentWriteStream = AbstractWriteStream;
 
@@ -39,6 +41,7 @@ const ORDERING_DISK_STORE: Ordering = Ordering::SeqCst;
 
 const HOUSEKEEPER_TASK_INTERVAL: usize = 5 * 60;
 
+#[allow(unused)]
 const AVAILABLE_BUFFER: u64 = 65535;
 
 // TODO: verify the fragments should exist with database.
@@ -111,6 +114,12 @@ impl FragmentLedger {
             let entry = entry.map_err(MeowithIoError::from)?;
             let entry_path = entry.path();
             let path = Path::new(&entry_path);
+            if let Some(ext) = path.extension() {
+                if ext == "uncommited" {
+                    tokio::fs::remove_file(path).await?;
+                    continue;
+                }
+            }
             match Uuid::from_str(entry.file_name().to_str().unwrap_or("invalid_unicode")) {
                 Ok(id) => {
                     if let Ok(metadata) = entry.metadata() {
@@ -141,8 +150,24 @@ impl FragmentLedger {
         Ok(())
     }
 
+    pub fn update_req(&self) -> UpdateStorageNodeProperties {
+        let max = self._internal.max_physical_size.load(ORDERING_MAX_LOAD);
+        UpdateStorageNodeProperties {
+            max_space: max,
+            used_space: max - self.get_available_space(),
+        }
+    }
+
     pub fn lock_table(&self) -> LockTable {
         self._internal.file_lock_table.clone()
+    }
+
+    pub async fn stat_chunk(&self, chunk_id: &Uuid) -> MeowithIoResult<u64> {
+        let uncommited = self._internal.uncommited_map.read().await;
+        let uncommited = uncommited.contains_key(chunk_id);
+        let path = self.get_path(chunk_id, uncommited);
+        let file = File::open(path).await?;
+        Ok(file.metadata().await?.len())
     }
 
     pub async fn fragment_exists(&self, chunk_id: &Uuid) -> bool {
@@ -180,6 +205,25 @@ impl FragmentLedger {
             .await
             .map_err(MeowithIoError::from)?;
         Ok(Arc::new(Mutex::new(Box::pin(BufReader::new(file)))))
+    }
+
+    pub async fn raw_fragment_read_omni_stream(
+        &self,
+        chunk_id: &Uuid,
+    ) -> MeowithIoResult<BufStream<File>> {
+        let file = File::open(self.get_path(chunk_id, false))
+            .await
+            .map_err(MeowithIoError::from)?;
+        Ok(BufStream::new(file))
+    }
+
+    pub async fn fragment_read_omni_stream(
+        &self,
+        chunk_id: &Uuid,
+    ) -> MeowithIoResult<FragmentReadOmniStream> {
+        Ok(Arc::new(Mutex::new(Box::pin(
+            self.raw_fragment_read_omni_stream(chunk_id).await?,
+        ))))
     }
 
     pub async fn fragment_write_stream(
@@ -231,11 +275,11 @@ impl FragmentLedger {
     }
 
     pub async fn try_reserve(&self, size: u64, durable: bool) -> MeowithIoResult<Uuid> {
-        debug!("Fragment ledger Try Reseve {size} {durable}");
         let mut reservations = self._internal.reservation_map.write().await;
 
         let available = self.get_available_space();
-        if available - AVAILABLE_BUFFER < size {
+        debug!("Fragment ledger Try Reserve size={size} durable={durable} available={available}");
+        if available < size {
             return Err(MeowithIoError::InsufficientDiskSpace);
         }
 
@@ -382,8 +426,8 @@ impl FragmentLedger {
     }
 
     pub fn get_available_space(&self) -> u64 {
-        let used = self._internal.disk_physical_size.load(ORDERING_DISK_LOAD)
-            + self._internal.disk_reserved_size.load(ORDERING_DISK_LOAD);
+        let reserved = self._internal.disk_reserved_size.load(ORDERING_DISK_LOAD);
+        let used = self._internal.disk_physical_size.load(ORDERING_DISK_LOAD) + reserved;
         let current = self._internal.max_physical_size.load(ORDERING_MAX_LOAD);
 
         if used > current {

@@ -58,7 +58,9 @@ pub async fn reserve_chunks(
                 target_list.push((state.req_ctx.id, size));
                 rem = 0;
             } else {
-                rem = push_most_used(&state.node_storage_map, &mut target_list, size).await;
+                target_list.push((state.req_ctx.id, self_free));
+                rem = push_most_used(&state.node_storage_map, &mut target_list, size - self_free)
+                    .await;
             }
         }
         ReservationMode::PreferMostFree => {
@@ -155,6 +157,10 @@ async fn push_most_used(
     for (uuid, &node_size) in nodes {
         if size == 0 {
             break;
+        }
+
+        if target_list.iter().filter(|it| it.0 == *uuid).count() > 0 {
+            continue;
         }
 
         if size >= node_size {

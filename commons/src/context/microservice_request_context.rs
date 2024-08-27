@@ -1,7 +1,10 @@
 use crate::context::request_context::RequestContext;
 use data::dto::config::PortConfiguration;
-use data::dto::controller::{ValidatePeerRequest, ValidatePeerResponse};
+use data::dto::controller::{
+    UpdateStorageNodeProperties, ValidatePeerRequest, ValidatePeerResponse,
+};
 use data::model::microservice_node_model::MicroserviceType;
+use derive_more::AsRef;
 use openssl::x509::X509;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use reqwest::{Certificate, Client, ClientBuilder};
@@ -14,7 +17,7 @@ use uuid::Uuid;
 pub type NodeAddrMap = Arc<RwLock<HashMap<Uuid, String>>>;
 pub type NodeStorageMap = Arc<RwLock<HashMap<Uuid, u64>>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AsRef)]
 pub struct MicroserviceRequestContext {
     pub controller_addr: String,
     pub node_addr: NodeAddrMap,
@@ -113,6 +116,20 @@ impl MicroserviceRequestContext {
             .client()
             .await
             .post(self.controller("/api/internal/health/heartbeat"))
+            .send()
+            .await?;
+        Ok(())
+    }
+
+    pub async fn update_storage(
+        &self,
+        req: UpdateStorageNodeProperties,
+    ) -> Result<(), Box<dyn Error>> {
+        let _ = self
+            .client()
+            .await
+            .post(self.controller("/api/internal/health/storage"))
+            .json(&req)
             .send()
             .await?;
         Ok(())

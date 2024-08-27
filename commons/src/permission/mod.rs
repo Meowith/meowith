@@ -69,9 +69,9 @@ mod tests {
         ])
         .into();
 
-        assert_eq!(check_permission(req1, allowance), false);
-        assert_eq!(check_permission(req2, allowance), true);
-        assert_eq!(check_permission(req3, allowance), true);
-        assert_eq!(check_permission(127, 2), true);
+        assert!(!check_permission(req1, allowance));
+        assert!(check_permission(req2, allowance));
+        assert!(check_permission(req3, allowance));
+        assert!(check_permission(127, 2));
     }
 }

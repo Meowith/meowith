@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod int_tests {
     use std::collections::HashMap;
     use std::io::Write;
     use std::net::IpAddr;
@@ -21,7 +21,9 @@ mod tests {
 
     use crate::mdsftp::authenticator::ConnectionAuthContext;
     use crate::mdsftp::channel::MDSFTPChannel;
-    use crate::mdsftp::data::{CommitFlags, LockAcquireResult, LockKind, PutFlags, ReserveFlags};
+    use crate::mdsftp::data::{
+        ChunkRange, CommitFlags, LockAcquireResult, LockKind, PutFlags, ReserveFlags,
+    };
     use crate::mdsftp::handler::{Channel, ChannelPacketHandler, PacketHandler};
     use crate::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
     use crate::mdsftp::server::MDSFTPServer;
@@ -113,7 +115,7 @@ mod tests {
                 }
                 Some(buf) => {
                     let mut buf = buf.lock().await;
-                    buf.write(chunk).expect("write fail");
+                    buf.write_all(chunk).expect("write fail");
                     if is_last {
                         channel.close(Ok(())).await;
                     }
@@ -127,6 +129,7 @@ mod tests {
             channel: Channel,
             _chunk_id: Uuid,
             _chunk_buffer: u16,
+            _a: Option<ChunkRange>,
         ) -> MDSFTPResult<()> {
             channel.close(Ok(())).await;
             Ok(())

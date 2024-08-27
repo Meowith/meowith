@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod int_tests {
     use uuid::Uuid;
 
     use crate::locking::error::FileLockError;

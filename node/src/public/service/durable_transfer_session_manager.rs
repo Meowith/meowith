@@ -20,6 +20,7 @@ pub const DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS: usize = 3600;
 
 pub type SessionWeakRef = Arc<RwLock<Option<Weak<AppState>>>>;
 
+#[derive(Debug)]
 pub struct DurableTransferSessionManager {
     session: SessionWeakRef,
 }
