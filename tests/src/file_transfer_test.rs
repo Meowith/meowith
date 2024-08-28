@@ -1,7 +1,7 @@
 use crate::test_configs::{
     TEST_CONTROLLER_CONFIG, TEST_DASHBOARD_1_CONFIG, TEST_NODE_1_CONFIG, TEST_NODE_2_CONFIG,
 };
-use crate::utils::{compare_files, file_to_body, Logger};
+use crate::utils::{file_to_body, test_files, Logger};
 use commons::permission::{AppTokenPermit, PermissionList};
 use controller_lib::start_controller;
 use dashboard_lib::public::auth::auth_routes::{AuthResponse, RegisterRequest};
@@ -185,6 +185,7 @@ async fn download_file(
     while let Some(chunk) = response.chunk().await.unwrap() {
         file.write_all(&chunk).await.unwrap()
     }
+    file.shutdown().await.unwrap()
 }
 
 macro_rules! header {
@@ -225,6 +226,7 @@ async fn download_file_ranged(
     while let Some(chunk) = response.chunk().await.unwrap() {
         file.write_all(&chunk).await.unwrap()
     }
+    file.shutdown().await.unwrap()
 }
 
 pub async fn test_file_transfer() {
@@ -307,9 +309,7 @@ pub async fn test_file_transfer() {
     .await;
     header!("Small File downloaded from origin");
 
-    let comparison = compare_files("test_data/test1.txt", "test_data/test1-dl-1.txt", None)
-        .expect("Unable to compare files");
-    assert!(comparison);
+    test_files("test_data/test1.txt", "test_data/test1-dl-1.txt", None).await;
 
     download_file(
         "test_data/test1-dl-2.txt",
@@ -323,9 +323,7 @@ pub async fn test_file_transfer() {
     .await;
     header!("Small File downloaded from remote");
 
-    let comparison = compare_files("test_data/test1.txt", "test_data/test1-dl-2.txt", None)
-        .expect("Unable to compare files");
-    assert!(comparison);
+    test_files("test_data/test1.txt", "test_data/test1-dl-2.txt", None).await;
 
     upload_file(
         "test_data/test2.txt",
@@ -351,9 +349,7 @@ pub async fn test_file_transfer() {
     .await;
     header!("Big File downloaded from remote");
 
-    let comparison = compare_files("test_data/test2.txt", "test_data/test2-dl-1.txt", None)
-        .expect("Unable to compare files");
-    assert!(comparison);
+    test_files("test_data/test2.txt", "test_data/test2-dl-1.txt", None).await;
 
     download_file(
         "test_data/test2-dl-2.txt",
@@ -367,9 +363,7 @@ pub async fn test_file_transfer() {
     .await;
     header!("Big File downloaded from origin");
 
-    let comparison = compare_files("test_data/test2.txt", "test_data/test2-dl-2.txt", None)
-        .expect("Unable to compare files");
-    assert!(comparison);
+    test_files("test_data/test2.txt", "test_data/test2-dl-2.txt", None).await;
 
     let range = 1000..1700 * 1024 - 1000;
     download_file_ranged(
@@ -385,13 +379,12 @@ pub async fn test_file_transfer() {
     .await;
     header!("Big ranged File downloaded");
 
-    let comparison = compare_files(
+    test_files(
         "test_data/test2.txt",
         "test_data/test3-dl.txt",
         Some((range.start, range.end)),
     )
-    .expect("Unable to compare files");
-    assert!(comparison);
+    .await;
 
     info!("Shutting down all nodes.");
     node_1_stop_handle.shutdown().await;

@@ -6,6 +6,7 @@ use reqwest_middleware::{Middleware, Next};
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
+use tokio::io::AsyncReadExt;
 use tokio_util::codec::{BytesCodec, FramedRead};
 
 pub fn compare_files<P: AsRef<Path>>(
@@ -87,4 +88,28 @@ impl Middleware for Logger {
         info!("Result: {:?}", res);
         res
     }
+}
+
+pub async fn test_files(template: &str, target: &str, range: Option<(u64, u64)>) {
+    let comparison = compare_files(template, target, range).expect("Unable to compare files");
+
+    let mut file = tokio::fs::File::open(template).await.unwrap();
+    let mut buffer = [0; 100];
+    let n = file.read(&mut buffer).await.unwrap();
+    println!(
+        "len={} start={}",
+        file.metadata().await.unwrap().len(),
+        String::from_utf8_lossy(&buffer[..n])
+    );
+
+    let mut file = tokio::fs::File::open(target).await.unwrap();
+    let mut buffer = [0; 100];
+    let n = file.read(&mut buffer).await.unwrap();
+    println!(
+        "len={} start={}",
+        file.metadata().await.unwrap().len(),
+        String::from_utf8_lossy(&buffer[..n])
+    );
+
+    assert!(comparison);
 }
