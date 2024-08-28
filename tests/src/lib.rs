@@ -80,6 +80,7 @@ mod tests {
 
     // The tests need to be run in a specific order
     #[tokio::test]
+    #[ntest::timeout(80000)]
     async fn integration_test_runner() {
         info!("TEST controller boot");
         integration_test_controller_boot().await;

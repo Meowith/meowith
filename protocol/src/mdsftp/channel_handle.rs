@@ -84,4 +84,8 @@ impl MDSFTPHandlerChannel {
     define_respond_method!(close(result: MDSFTPResult<()>) -> () {
         mark_handler_closed(result)
     });
+
+    define_respond_method!(flush_io() -> MDSFTPResult<()> {
+        flush_io()
+    });
 }

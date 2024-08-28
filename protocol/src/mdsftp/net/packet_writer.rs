@@ -2,6 +2,7 @@ use crate::mdsftp::net::packet_type::MDSFTPPacketType;
 use crate::mdsftp::net::wire::{
     write_header, MDSFTPHeader, MDSFTPRawPacket, HEADER_SIZE, PAYLOAD_SIZE,
 };
+use log::trace;
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
 use tokio::time::Instant;
@@ -38,7 +39,13 @@ impl PacketWriter {
 
         self.last_write = Instant::now();
         self.stream.write_all(&self.header_buf).await?;
-        self.stream.write_all(&data.payload).await
+        self.stream.write_all(&data.payload).await?;
+        trace!(
+            "Packet writer -> RAW: type={:?} len={}",
+            data.packet_type,
+            data.payload.len()
+        );
+        Ok(())
     }
 
     // Avoid creating a secondary payload buffer.
@@ -48,11 +55,12 @@ impl PacketWriter {
         payload_header: &[u8],
         payload: &[u8],
     ) -> std::io::Result<()> {
+        let total_size = (payload_header.len() + payload.len()) as u32;
         write_header(
             &MDSFTPHeader {
                 packet_id: MDSFTPPacketType::FileChunk.into(),
                 stream_id,
-                payload_size: (payload_header.len() + payload.len()) as u32,
+                payload_size: total_size,
             },
             &mut self.header_buf,
         );
@@ -60,7 +68,16 @@ impl PacketWriter {
         self.last_write = Instant::now();
         self.stream.write_all(&self.header_buf).await?;
         self.stream.write_all(payload_header).await?;
-        self.stream.write_all(payload).await
+        self.stream.write_all(payload).await?;
+        trace!(
+            "Packet writer -> CHUNK: type={:?} len={total_size}",
+            MDSFTPPacketType::FileChunk
+        );
+        Ok(())
+    }
+
+    pub(crate) async fn flush(&mut self) -> std::io::Result<()> {
+        self.stream.flush().await
     }
 
     pub(crate) async fn last_write(&self) -> Instant {

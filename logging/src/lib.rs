@@ -8,7 +8,7 @@ use log4rs::encode::pattern::PatternEncoder;
 
 pub fn initialize_test_logging() {
     #[cfg(feature = "test_logging")]
-    initialize_default(LevelFilter::Debug)
+    initialize_default(LevelFilter::Trace)
 }
 
 /// Looks for the config in the provided path.

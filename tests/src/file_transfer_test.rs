@@ -12,7 +12,7 @@ use dashboard_lib::start_dashboard;
 use data::dto::entity::{AppDto, BucketDto};
 use data::model::permission_model::UserPermission;
 use http::header::{CONTENT_LENGTH, RANGE};
-use log::info;
+use log::{error, info};
 use node_lib::start_node;
 use rand::{distributions::Alphanumeric, Rng};
 use reqwest::header::AUTHORIZATION;
@@ -187,6 +187,18 @@ async fn download_file(
     }
 }
 
+macro_rules! header {
+    ($message:expr) => {
+        info!(
+            "====================================================================================="
+        );
+        info!($message);
+        info!(
+            "====================================================================================="
+        );
+    };
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn download_file_ranged(
     path: &str,
@@ -216,6 +228,21 @@ async fn download_file_ranged(
 }
 
 pub async fn test_file_transfer() {
+    let default_panic = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        default_panic(info);
+        if let Some(location) = info.location() {
+            error!(
+                "panic occurred in file '{}' at line {}",
+                location.file(),
+                location.line(),
+            );
+        } else {
+            error!("panic occurred but can't get location information...");
+        }
+        std::process::exit(1);
+    }));
+
     setup_test_files().await.unwrap();
     let reqwest_client = reqwest::Client::builder().build().unwrap();
     let client = ClientBuilder::new(reqwest_client).with(Logger).build();
@@ -254,7 +281,7 @@ pub async fn test_file_transfer() {
     )
     .await
     .token;
-    info!("Token issued {}", token);
+    header!("Token issued");
 
     upload_file(
         "test_data/test1.txt",
@@ -266,7 +293,7 @@ pub async fn test_file_transfer() {
         &client,
     )
     .await;
-    info!("File uploaded");
+    header!("Small File uploaded");
 
     download_file(
         "test_data/test1-dl-1.txt",
@@ -278,7 +305,7 @@ pub async fn test_file_transfer() {
         &client,
     )
     .await;
-    info!("File downloaded");
+    header!("Small File downloaded from origin");
 
     let comparison = compare_files("test_data/test1.txt", "test_data/test1-dl-1.txt", None)
         .expect("Unable to compare files");
@@ -294,7 +321,7 @@ pub async fn test_file_transfer() {
         &client,
     )
     .await;
-    info!("File downloaded");
+    header!("Small File downloaded from remote");
 
     let comparison = compare_files("test_data/test1.txt", "test_data/test1-dl-2.txt", None)
         .expect("Unable to compare files");
@@ -310,7 +337,7 @@ pub async fn test_file_transfer() {
         &client,
     )
     .await;
-    info!("Big File uploaded");
+    header!("Big File uploaded");
 
     download_file(
         "test_data/test2-dl-1.txt",
@@ -322,7 +349,7 @@ pub async fn test_file_transfer() {
         &client,
     )
     .await;
-    info!("File downloaded");
+    header!("Big File downloaded from remote");
 
     let comparison = compare_files("test_data/test2.txt", "test_data/test2-dl-1.txt", None)
         .expect("Unable to compare files");
@@ -338,7 +365,7 @@ pub async fn test_file_transfer() {
         &client,
     )
     .await;
-    info!("File downloaded");
+    header!("Big File downloaded from origin");
 
     let comparison = compare_files("test_data/test2.txt", "test_data/test2-dl-2.txt", None)
         .expect("Unable to compare files");
@@ -356,7 +383,7 @@ pub async fn test_file_transfer() {
         range.clone(),
     )
     .await;
-    info!("File downloaded");
+    header!("Big ranged File downloaded");
 
     let comparison = compare_files(
         "test_data/test2.txt",

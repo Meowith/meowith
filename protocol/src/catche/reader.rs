@@ -1,4 +1,4 @@
-use log::debug;
+use log::{debug, trace};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -71,7 +71,7 @@ impl PacketReader {
                     .await;
                 *last_read.lock().await = Instant::now();
             }
-            debug!("Reader loop close");
+            trace!("Reader loop close");
         })
     }
 

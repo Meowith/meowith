@@ -3,7 +3,7 @@ use std::sync::Arc;
 use actix_web::http::header::{ContentDisposition, ContentLength, Header, Range, CONTENT_LENGTH};
 use actix_web::{get, post, put, web, HttpRequest, HttpResponse};
 use futures_util::StreamExt;
-use log::error;
+use log::warn;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncWriteExt, BufReader, BufWriter};
 use tokio::sync::Mutex;
@@ -83,7 +83,7 @@ pub async fn upload_oneshot(
         )
         .await;
         if let Err(err) = err {
-            error!("ONESHOT UPLOAD ERR: {err:?}");
+            warn!("Oneshot upload error: {err:?}");
             return Err(err);
         }
         Ok(())

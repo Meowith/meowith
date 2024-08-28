@@ -1,5 +1,5 @@
 use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
-use log::warn;
+use log::{trace, warn};
 use protocol::mdsftp::data::ChunkRange;
 use protocol::mdsftp::handler::Channel;
 use protocol::mdsftp::handler::{AbstractFileStream, AbstractReadStream};
@@ -42,11 +42,11 @@ macro_rules! transfer_fragments {
         $receiver:expr,
         $transfer_tracker:expr
     ) => {
+        trace!("Transfer fragments started");
+
         for id in 0..$fragments {
-            $read
-                .read_exact(&mut $upload_buffer)
-                .await
-                .map_err(MDSFTPError::from)?;
+            $read.read_exact(&mut $upload_buffer).await?;
+
             $channel
                 .respond_chunk(id + 1 == $fragments && $last == 0, id, &$upload_buffer)
                 .await?;
@@ -54,17 +54,15 @@ macro_rules! transfer_fragments {
             $transfer_tracker.fetch_add($fragment_size, Ordering::SeqCst);
 
             while id >= $recv + $chunk_buffer as u32 {
-                $recv = $receiver.recv().await.ok_or(MDSFTPError::Interrupted)?;
+                $recv = $receiver.recv().await.ok_or(MDSFTPError::Interrupted)? + 1;
             }
         }
 
         let send_last = $last != 0 || $fragments == 0;
-
         if send_last {
             $read
                 .read_exact(&mut $upload_buffer[0..$last as usize])
-                .await
-                .map_err(MDSFTPError::from)?;
+                .await?;
 
             $channel
                 .respond_chunk(true, $fragments, &$upload_buffer[0..$last as usize])
@@ -72,10 +70,13 @@ macro_rules! transfer_fragments {
 
             $transfer_tracker.fetch_add($last, Ordering::SeqCst);
         }
-
         let sent = $fragments + if send_last { 1 } else { 0 };
+        trace!("Fragments sent");
 
-        while $recv + 1 != sent + 1 {
+        $channel.flush_io().await?;
+
+        trace!("Flushed. Awaiting ack {} {}", $recv, sent);
+        while $recv != sent {
             $recv = $receiver.recv().await.ok_or(MDSFTPError::Interrupted)? + 1;
         }
     };
@@ -104,6 +105,8 @@ pub async fn mdsftp_upload(
     let last = size % fragment_size;
     let mut upload_buffer = vec![0u8; fragment_size as usize];
 
+    trace!("mdsftp_upload commencing fragments={fragments} last={last}");
+
     match read {
         Either::Left(read_stream) => {
             if offset > 0 {
@@ -126,6 +129,7 @@ pub async fn mdsftp_upload(
         }
         Either::Right(seekable_stream) => {
             let mut read_stream = seekable_stream.lock().await;
+
             if offset > 0 {
                 read_stream.seek(SeekFrom::Start(offset)).await?;
             }

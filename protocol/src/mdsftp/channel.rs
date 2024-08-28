@@ -356,6 +356,19 @@ impl InternalMDSFTPChannel {
         { lock.recv().await.ok_or(MDSFTPError::Interrupted)? }
     });
 
+    pub(crate) async fn flush_io(&self) -> MDSFTPResult<()> {
+        let writer = self
+            .writer_ref
+            .upgrade()
+            .expect("Attempted to use a dead connection");
+        let mut writer = writer.lock().await;
+        writer
+            .flush()
+            .await
+            .map_err(|_| MDSFTPError::ConnectionError)?;
+        Ok(())
+    }
+
     pub(super) async fn send_chunk(
         &self,
         is_last: bool,

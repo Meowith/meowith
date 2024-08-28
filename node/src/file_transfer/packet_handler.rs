@@ -1,7 +1,7 @@
 use crate::file_transfer::channel_handler::MeowithMDSFTPChannelPacketHandler;
 use crate::io::fragment_ledger::FragmentLedger;
 use async_trait::async_trait;
-use log::debug;
+use log::{debug, trace};
 use protocol::mdsftp::channel::MDSFTPChannel;
 use protocol::mdsftp::handler::PacketHandler;
 use uuid::Uuid;
@@ -40,10 +40,10 @@ impl PacketHandler for MeowithMDSFTPPacketHandler {
     }
 
     async fn channel_close(&mut self, _channel_id: u32, _conn_id: Uuid) {
-        debug!("Channel close");
+        trace!("Channel close");
     }
 
     async fn channel_err(&mut self, _channel_id: u32, _conn_id: Uuid) {
-        debug!("Channel err")
+        trace!("Channel err")
     }
 }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 
-use log::{debug, error, warn};
+use log::{debug, error, trace, warn};
 use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::TcpStream;
 use tokio::sync::{Mutex, MutexGuard, RwLock};
@@ -78,7 +78,10 @@ impl PacketReader {
             let mut stream = stream_ref.lock().await;
             let mut header_buf: [u8; HEADER_SIZE] = [0; HEADER_SIZE];
 
+            trace!("Packet reader {conn_id} start");
+
             while running.load(Ordering::Relaxed) {
+                trace!("Packet reader {conn_id} <- awaiting head");
                 if let Err(e) = stream.read_exact(&mut header_buf).await {
                     error!("Header read failed {e} {conn_id}");
                     Self::close_map(&conn_map, &channels, &running).await;
@@ -99,6 +102,10 @@ impl PacketReader {
                     break;
                 }
 
+                trace!(
+                    "Packet reader {conn_id} <- awaiting payload type={packet_type:?} len={}",
+                    header.payload_size
+                );
                 let mut payload = vec![0u8; header.payload_size as usize];
                 if let Err(e) = stream.read_exact(&mut payload).await {
                     error!("Packet payload read failed {e}");
@@ -124,6 +131,7 @@ impl PacketReader {
                 }
 
                 if packet_type.is_system() {
+                    trace!("Packet reader {conn_id} awaiting handle global");
                     Self::handle_global(
                         raw,
                         &conn_map,
@@ -133,12 +141,14 @@ impl PacketReader {
                     )
                     .await
                 } else {
+                    trace!("Packet reader {conn_id} awaiting internal ref get");
                     let channel: Option<Arc<InternalMDSFTPChannel>> = {
                         let map = conn_map.read().await;
                         map.get(&header.stream_id).cloned()
                     };
 
                     if channel.is_some() {
+                        trace!("Packet reader {conn_id} awaiting channel handle packet");
                         let channel = channel.unwrap();
                         match channel.handle_packet(raw).await {
                             Err(MDSFTPError::ConnectionError) => {
@@ -160,7 +170,7 @@ impl PacketReader {
                 }
             }
 
-            debug!("Reader loop close");
+            trace!("Reader loop close");
         })
     }
 
