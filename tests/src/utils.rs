@@ -110,7 +110,7 @@ pub async fn test_files(template: &str, target: &str, range: Option<(u64, u64)>)
     let mut file = tokio::fs::File::open(template).await.unwrap();
     let mut buffer = [0; 100];
     let n = file.read(&mut buffer).await.unwrap();
-    println!(
+    info!(
         "len={} start={}",
         file.metadata().await.unwrap().len(),
         String::from_utf8_lossy(&buffer[..n])
@@ -119,7 +119,7 @@ pub async fn test_files(template: &str, target: &str, range: Option<(u64, u64)>)
     let mut file = tokio::fs::File::open(target).await.unwrap();
     let mut buffer = [0; 100];
     let n = file.read(&mut buffer).await.unwrap();
-    println!(
+    info!(
         "len={} start={}",
         file.metadata().await.unwrap().len(),
         String::from_utf8_lossy(&buffer[..n])
