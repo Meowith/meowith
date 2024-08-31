@@ -1,3 +1,5 @@
+use filesize::PathExt;
+use log::{error, info, trace, warn};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs;
@@ -6,9 +8,6 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-
-use filesize::PathExt;
-use log::{error, info, trace, warn};
 use tokio::fs::{File, OpenOptions};
 use tokio::io::{BufReader, BufStream, BufWriter};
 use tokio::sync::{Mutex, RwLock};
@@ -348,6 +347,10 @@ impl FragmentLedger {
         let is_uncommited = uncommited.contains_key(id);
         let path = &self.get_path(id, is_uncommited);
 
+        trace!(
+            "Fragment ledger releasing reservation completed: {transfer_completed} durable: {}",
+            reservation.durable
+        );
         if transfer_completed {
             let physical_size = Path::new(path)
                 .size_on_disk()
@@ -372,8 +375,13 @@ impl FragmentLedger {
                     disk_physical_size: physical_size,
                 },
             );
+            trace!("Fragment ledger Transfer finished");
         } else if !transfer_completed && reservation.durable {
-            let mut reservation = reservations.remove(id).unwrap();
+            trace!(
+                "Fragment ledger Durable transfer interrupted @ {size_actual} / {}",
+                reservation.file_space
+            );
+            let reservation = reservations.get_mut(id).unwrap();
             reservation.completed += size_actual;
             reservation.last_update = Instant::now();
         } else if !transfer_completed && !reservation.durable {

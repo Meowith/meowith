@@ -3,7 +3,7 @@ use std::path::Path;
 
 use log::{debug, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
-use log4rs::config::{Appender, Config, Root};
+use log4rs::config::{Appender, Config, Logger, Root};
 use log4rs::encode::pattern::PatternEncoder;
 
 pub fn initialize_test_logging() {
@@ -28,13 +28,24 @@ pub fn initialize_logging(config_path: Option<&Path>) {
 fn initialize_default(level: LevelFilter) {
     let stdout = ConsoleAppender::builder()
         .encoder(Box::new(PatternEncoder::new(
-            "\x1b[94m{d}\x1b[0m - {h({l})} - {m}{n}",
+            "\x1b[94m{d(%Y-%m-%d %H:%M:%S.%6f)}\x1b[0m - {h({l})} - {m}{n}",
         )))
         .build();
 
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(level))
+        .logger(Logger::builder().build("protocol", level))
+        .logger(Logger::builder().build("node", level))
+        .logger(Logger::builder().build("node_lib", level))
+        .logger(Logger::builder().build("dashboard", level))
+        .logger(Logger::builder().build("dashboard_lib", level))
+        .logger(Logger::builder().build("controller", level))
+        .logger(Logger::builder().build("controller_lib", level))
+        .logger(Logger::builder().build("data", level))
+        .logger(Logger::builder().build("tests", level))
+        .logger(Logger::builder().build("commons", level))
+        .logger(Logger::builder().build("auth_framework", level))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Info))
         .unwrap();
 
     let _ = log4rs::init_config(config);

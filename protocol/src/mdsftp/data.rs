@@ -194,7 +194,7 @@ pub struct ChunkRange {
 impl ChunkRange {
     pub fn new(start: u64, end: u64) -> MDSFTPResult<Self> {
         if start >= end {
-            Err(MDSFTPError::RemoteError)
+            Err(MDSFTPError::BadChunkRange)
         } else {
             Ok(Self { start, end })
         }

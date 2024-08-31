@@ -7,7 +7,7 @@ use actix_web::web;
 use actix_web::web::Data;
 use chrono::Utc;
 use futures_util::future::try_join_all;
-use log::{debug, error};
+use log::{debug, error, info, trace, warn};
 use mime_guess::mime;
 use scylla::CachingSession;
 use tokio::io::AsyncWriteExt;
@@ -24,7 +24,6 @@ use protocol::mdsftp::data::{ChunkRange, CommitFlags, ReserveFlags};
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 
 use crate::public::middleware::user_middleware::BucketAccessor;
-use crate::public::routes::file_transfer::{UploadSessionRequest, UploadSessionStartResponse};
 use crate::public::routes::EntryPath;
 use crate::public::service::chunk_service::{commit_chunk, query_chunk, ChunkInfo};
 use crate::public::service::durable_transfer_session_manager::DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS;
@@ -36,6 +35,7 @@ use crate::public::service::reservation_service::{
 use crate::public::service::{DOWNLOAD_ALLOWANCE, UPLOAD_ALLOWANCE, UPLOAD_OVERWRITE_ALLOWANCE};
 use crate::AppState;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
+use data::dto::entity::{UploadSessionRequest, UploadSessionStartResponse};
 use data::pathlib::split_path;
 
 pub struct DlInfo {
@@ -247,6 +247,8 @@ pub async fn start_upload_session(
         last_access: Utc::now(),
     };
 
+    trace!("Starting upload session {bucket_upload_session:?}");
+
     let session_id = app_state
         .upload_manager
         .start_session(&bucket_upload_session)
@@ -266,6 +268,7 @@ pub async fn handle_upload_durable(
     reader: AbstractReadStream,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {
+    trace!("Handle upload durable");
     let session = app_state
         .upload_manager
         .get_session(app_id, bucket_id, session_id)
@@ -273,7 +276,7 @@ pub async fn handle_upload_durable(
     let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
 
     let mut sorted_chunks: Vec<FileChunk> = session.fragments.clone().into_iter().collect();
-    sorted_chunks.sort_by_key(|c| c.chunk_id);
+    sorted_chunks.sort_by_key(|c| c.chunk_order);
 
     let mut futures = vec![];
     for chunk in &sorted_chunks {
@@ -310,6 +313,7 @@ pub async fn handle_upload_durable(
             i = idx;
             let uploaded_chunk_current = curr - already_uploaded;
             skip = frag.chunk_size - uploaded_chunk_current;
+            break;
         }
     }
 
@@ -328,8 +332,10 @@ pub async fn handle_upload_durable(
 
     let transfer_result: NodeClientResponse<()> = async {
         let mut first = already_uploaded > 0; // TODO handle user vs internal mdsftp_error. same for oneshot.
-        let skip = if first { skip as u64 } else { 0 };
+        let mut skip = if first { skip as u64 } else { 0 };
+        trace!("Transferring to {sorted_chunks:?} curr={i} skip={skip}");
         for chunk in sorted_chunks.iter().skip(i.try_into().unwrap()) {
+            trace!("Durable inbound transfer {chunk:?} append={first}");
             inbound_transfer(
                 reader.clone(),
                 skip,
@@ -345,6 +351,7 @@ pub async fn handle_upload_durable(
             )
             .await?;
             first = false;
+            skip = 0;
         }
         Ok(())
     }
@@ -353,6 +360,7 @@ pub async fn handle_upload_durable(
     notifier.abort();
 
     if transfer_result.is_err() {
+        warn!("Durable upload interrupted");
         app_state
             .upload_manager
             .update_session(session.app_id, session.bucket, session.id)
@@ -385,7 +393,9 @@ pub async fn resume_upload_session(
         .await?;
 
     let mut sorted_chunks: Vec<FileChunk> = session.fragments.clone().into_iter().collect();
-    sorted_chunks.sort_by_key(|c| c.chunk_id);
+    sorted_chunks.sort_by_key(|c| c.chunk_order);
+
+    info!("Resuming upload session");
 
     let mut futures = vec![];
     for chunk in &sorted_chunks {

@@ -3,6 +3,7 @@ use crate::public::service::chunk_service::ChunkInfo;
 use crate::AppState;
 use actix_web::web::Data;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
+use log::trace;
 use protocol::mdsftp::channel::MDSFTPChannel;
 use protocol::mdsftp::data::{ChunkRange, PutFlags};
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
@@ -22,45 +23,53 @@ pub async fn inbound_transfer(
     state: &Data<AppState>,
 ) -> NodeClientResponse<()> {
     if node_id == state.req_ctx.id {
+        trace!("Inbound transfer to current");
         let res: NodeClientResponse<()> = async {
             let writer = if chunk.append {
-                state.fragment_ledger.fragment_write_stream(&chunk_id).await
-            } else {
                 state
                     .fragment_ledger
                     .fragment_append_stream(&chunk_id)
                     .await
+            } else {
+                state.fragment_ledger.fragment_write_stream(&chunk_id).await
             }
             .map_err(|_| NodeClientError::InternalError)?;
+
             let mut writer = writer.lock().await;
             let reader = reader.lock().await;
             let mut reader = Pin::new(reader).take(chunk.size - skip);
-            io::copy(&mut reader, &mut *writer)
+            let copied = io::copy(&mut reader, &mut *writer)
                 .await
                 .map_err(|_| NodeClientError::InternalError)?;
+            if copied != chunk.size - skip {
+                return Err(NodeClientError::BadRequest);
+            }
             Ok(())
         }
         .await;
         match res {
             Ok(_) => {
+                trace!("releasing completed transfer");
                 state
                     .fragment_ledger
                     .release_reservation(&chunk_id, chunk.size)
                     .await
                     .map_err(|_| NodeClientError::InternalError)?;
+                Ok(())
             }
-            Err(_) => {
+            Err(e) => {
+                trace!("releasing interrupted transfer {e}");
                 let size = state.fragment_ledger.stat_chunk(&chunk_id).await?;
                 state
                     .fragment_ledger
                     .release_reservation(&chunk_id, size)
                     .await
                     .map_err(|_| NodeClientError::InternalError)?;
+                Err(e)
             }
         }
-
-        Ok(())
     } else {
+        trace!("Inbound transfer to remote");
         let eff_channel: MDSFTPChannel;
         let mut eff_chunk_buf: u16 = chunk.chunk_buffer;
         let pool = state.mdsftp_server.pool();
@@ -73,7 +82,7 @@ pub async fn inbound_transfer(
                             append: chunk.append,
                         },
                         chunk_id,
-                        chunk.size,
+                        chunk.size - skip,
                     )
                     .await?;
                 eff_chunk_buf = res.chunk_buffer;

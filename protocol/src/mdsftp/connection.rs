@@ -1,8 +1,3 @@
-use std::cmp::max;
-use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-
 use crate::mdsftp::authenticator::ConnectionAuthContext;
 use crate::mdsftp::channel::{InternalMDSFTPChannel, MDSFTPChannel};
 use crate::mdsftp::net::packet_reader::{GlobalHandler, PacketReader};
@@ -10,10 +5,15 @@ use crate::mdsftp::net::packet_type::MDSFTPPacketType;
 use crate::mdsftp::net::packet_writer::PacketWriter;
 use crate::mdsftp::net::wire::MDSFTPRawPacket;
 use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
+use log::trace;
 use rand::prelude::StdRng;
 use rand::{Rng, SeedableRng};
 use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
 use rustls::{ClientConfig, RootCertStore};
+use std::cmp::max;
+use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
@@ -245,6 +245,7 @@ impl ChannelFactory {
         id: u32,
         alert: bool,
     ) -> MDSFTPResult<MDSFTPChannel> {
+        trace!("Materializing channel {id} {alert}");
         let internal_ref = Arc::new(InternalMDSFTPChannel::new(
             id,
             Arc::downgrade(&self.writer),

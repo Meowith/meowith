@@ -74,9 +74,9 @@ impl MeowithMDSFTPChannelPacketHandler {
         ));
         self.receive_file_stream = Some(
             if append {
-                self.fragment_ledger.fragment_write_stream(&id).await
-            } else {
                 self.fragment_ledger.fragment_append_stream(&id).await
+            } else {
+                self.fragment_ledger.fragment_write_stream(&id).await
             }
             .map_err(|_| MDSFTPError::RemoteError)?,
         );
@@ -117,18 +117,19 @@ impl MeowithMDSFTPChannelPacketHandler {
                     match upload {
                         Ok(_) => {
                             trace!("mdsftp_upload finished");
+                            channel.close(Ok(())).await;
                         }
                         Err(err) => {
                             warn!("File upload mdsftp_error {}", err);
+                            channel.close(Err(err)).await;
                         }
                     }
                 }
                 _ = cancellation_token.cancelled() => {
-                    trace!("mdsftp_upload cancelled")
+                    trace!("mdsftp_upload cancelled");
+                    channel.close(Ok(())).await;
                 }
             }
-
-            channel.close(Ok(())).await;
         });
 
         Ok(())
@@ -160,11 +161,12 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
                 trace!("Receiving MDSFTP chunk {id} {is_last}");
                 let mut stream = stream.lock().await;
                 if let Err(e) = stream.write_all(chunk).await {
+                    drop(stream);
                     channel.close(Err(MDSFTPError::from(e))).await;
                     return Err(MDSFTPError::Internal);
                 }
                 self.data_transferred
-                    .fetch_and(chunk.len() as u64, Ordering::SeqCst);
+                    .fetch_add(chunk.len() as u64, Ordering::SeqCst);
 
                 trace!("Written MDSFTP chunk to target");
 
@@ -173,12 +175,17 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
                     // the writer is closed.
                     if self.auto_close.load(Ordering::Relaxed) {
                         if let Err(e) = stream.shutdown().await {
+                            drop(stream);
                             channel.close(Err(MDSFTPError::from(e))).await;
                             return Err(MDSFTPError::Internal);
                         }
+                    } else if let Err(e) = stream.flush().await {
                         drop(stream);
-                        self.receive_file_stream = None;
+                        channel.close(Err(MDSFTPError::from(e))).await;
+                        return Err(MDSFTPError::Internal);
                     }
+                    drop(stream);
+                    self.receive_file_stream = None;
 
                     if let Some(details) = self.reservation_details.as_ref() {
                         trace!("Releasing reservation {:?}", &details);
@@ -191,6 +198,7 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
                     trace!("MDSFTP chunk ack resp sent");
                     channel.close(Ok(())).await;
                 } else {
+                    drop(stream);
                     channel.respond_receive_ack(id).await?;
                     trace!("MDSFTP chunk ack resp sent");
                 }
@@ -245,9 +253,15 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         match self.fragment_ledger.resume_reservation(&chunk_id).await {
             Ok(reservation) => {
                 if content_size == reservation.file_space - reservation.completed {
+                    self.reservation_details = Some(ReservationDetails {
+                        id: chunk_id,
+                        size: reservation.file_space,
+                        durable: reservation.durable,
+                    });
                     self.start_receiving(chunk_id, flags.append).await?;
                     channel.respond_put_ok(self.chunk_buffer).await?;
                 } else {
+                    trace!("ChunkErrorKind::NotAvailable invalid content size");
                     channel
                         .respond_put_err(ChunkErrorKind::NotAvailable)
                         .await?;
@@ -259,6 +273,7 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
                 channel.close(Ok(())).await;
             }
             Err(_) => {
+                trace!("ChunkErrorKind::NotAvailable invalid reservation");
                 channel
                     .respond_put_err(ChunkErrorKind::NotAvailable)
                     .await?;
@@ -410,20 +425,17 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
     }
 
     async fn handle_interrupt(&mut self) -> MDSFTPResult<()> {
-        if let Some(details) = self.reservation_details.as_ref() {
-            self.fragment_ledger
-                .release_reservation(&details.id, self.data_transferred.load(Ordering::SeqCst))
-                .await
-                .map_err(|_| MDSFTPError::ReservationError)?;
-        }
+        trace!("handle_interrupt called {:?}", self.reservation_details);
 
         if let Some(token) = self.upload_cancel.as_ref() {
+            trace!("Cancelling upload, interrupted");
             token.cancel();
         }
         match self.receive_file_stream.as_ref() {
             None => {}
             Some(stream) => {
                 {
+                    trace!("Cancelling upload, interrupted");
                     // Ignoring auto-close as the stream will be killed anyway.
                     let mut stream = stream.lock().await;
                     let _ = stream.shutdown().await;
@@ -432,6 +444,13 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
             }
         }
         self.upload_file_stream = None;
+
+        if let Some(details) = self.reservation_details.as_ref() {
+            self.fragment_ledger
+                .release_reservation(&details.id, self.data_transferred.load(Ordering::SeqCst))
+                .await
+                .map_err(|_| MDSFTPError::ReservationError)?;
+        }
 
         Ok(())
     }

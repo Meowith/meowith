@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 
-use log::{debug, error, trace, warn};
+use log::{error, trace, warn};
 use tokio::io::{AsyncReadExt, ReadHalf};
 use tokio::net::TcpStream;
 use tokio::sync::{Mutex, MutexGuard, RwLock};
@@ -60,6 +60,7 @@ impl PacketReader {
             internal_channel.1.interrupt().await;
         }
         map_mut.clear();
+        trace!("Close map call");
         channels.store(0, Ordering::SeqCst);
         running.store(false, Ordering::SeqCst);
     }
@@ -162,7 +163,7 @@ impl PacketReader {
                             _ => {}
                         };
                     } else {
-                        debug!(
+                        trace!(
                             "Received a packet for a non-existing channel {}",
                             header.stream_id
                         );
@@ -192,9 +193,19 @@ impl PacketReader {
                 }
             }
             MDSFTPPacketType::ChannelClose => {
-                handler.channel_close(packet.stream_id, conn_id).await;
                 let mut map = conn_map.write().await;
-                let _ = map.remove(&packet.stream_id);
+                let removed = map.remove(&packet.stream_id);
+                if let Some(removed) = removed {
+                    trace!("removed connection due to remote {}", &packet.stream_id);
+                    removed.interrupt().await;
+                    handler.channel_close(packet.stream_id, conn_id).await;
+                } else {
+                    trace!(
+                        "received a close packet for a non existing channel {}, {:?}",
+                        &packet.stream_id,
+                        map.keys()
+                    );
+                }
             }
             MDSFTPPacketType::ChannelErr => handler.channel_err(packet.stream_id, conn_id).await,
             _ => {}
@@ -218,8 +229,16 @@ impl PacketReader {
     pub(crate) async fn remove_channel(&self, channel_id: u32) {
         let mut map = self.conn_map.write().await;
         let removed = map.remove(&channel_id);
-        if removed.is_some() {
+        if let Some(removed) = removed {
+            trace!("removed connection due to drop {}", channel_id);
+            removed.interrupt().await;
             self.channel_count.fetch_sub(1, Ordering::Relaxed);
+        } else {
+            trace!(
+                "non existing channel tried to close itself {}, {:?}",
+                channel_id,
+                map.keys()
+            );
         }
     }
 
@@ -228,7 +247,7 @@ impl PacketReader {
     }
 
     pub(crate) async fn close(&self) {
-        debug!("Closing the packet reader.");
+        trace!("Closing the packet reader.");
         Self::close_map(&self.conn_map, &self.channel_count, &self.running).await;
     }
 

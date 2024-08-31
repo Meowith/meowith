@@ -2,6 +2,7 @@ use crate::AppState;
 use actix_web::web::Data;
 use commons::error::mdsftp_error::MDSFTPError;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
+use log::trace;
 use protocol::mdsftp::data::CommitFlags;
 use uuid::Uuid;
 
@@ -48,19 +49,24 @@ pub async fn query_chunk(
     node_id: Uuid,
     state: &Data<AppState>,
 ) -> NodeClientResponse<Option<u64>> {
-    if node_id == state.req_ctx.id {
-        Ok(state
-            .fragment_ledger
-            .fragment_meta_ex(&chunk_id)
-            .await
-            .map(|c| c.disk_content_size))
-    } else {
-        let pool = state.mdsftp_server.pool();
-        let channel = pool.channel(&node_id).await?;
-        match channel.query_chunk(chunk_id).await {
-            Ok(res) => Ok(Some(res.size)),
-            Err(MDSFTPError::NoSuchChunkId) => Ok(None),
-            Err(e) => Err(e)?,
+    let chunk = {
+        if node_id == state.req_ctx.id {
+            Ok(state
+                .fragment_ledger
+                .fragment_meta_ex(&chunk_id)
+                .await
+                .map(|c| c.disk_content_size))
+        } else {
+            let pool = state.mdsftp_server.pool();
+            let channel = pool.channel(&node_id).await?;
+            match channel.query_chunk(chunk_id).await {
+                Ok(res) => Ok(Some(res.size)),
+                Err(MDSFTPError::NoSuchChunkId) => Ok(None),
+                Err(e) => Err(e)?,
+            }
         }
-    }
+    };
+
+    trace!("Query chunk {chunk_id} on {node_id} = {chunk:?}");
+    chunk
 }

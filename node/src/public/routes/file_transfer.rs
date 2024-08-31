@@ -3,11 +3,12 @@ use std::sync::Arc;
 use actix_web::http::header::{ContentDisposition, ContentLength, Header, Range, CONTENT_LENGTH};
 use actix_web::{get, post, put, web, HttpRequest, HttpResponse};
 use futures_util::StreamExt;
-use log::warn;
-use serde::{Deserialize, Serialize};
+use log::{trace, warn};
 use tokio::io::{AsyncWriteExt, BufReader, BufWriter};
+use tokio::select;
 use tokio::sync::Mutex;
 use tokio_util::io::ReaderStream;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
@@ -20,37 +21,12 @@ use crate::public::service::file_access_service::{
 };
 use crate::AppState;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
+use data::dto::entity::{
+    UploadSessionRequest, UploadSessionResumeRequest, UploadSessionResumeResponse,
+    UploadSessionStartResponse,
+};
 
 const USER_TRANSFER_BUFFER: usize = 8 * 1024;
-
-#[derive(Serialize)]
-
-pub struct UploadSessionStartResponse {
-    /// To be used in the path
-    pub code: String,
-    /// Seconds till the unfinished chunk is dropped when the upload is not reinitialized
-    pub validity: u32,
-    /// The amount already uploaded to meowith.
-    /// The client should resume uploading from there.
-    pub uploaded: u64,
-}
-
-#[derive(Deserialize)]
-pub struct UploadSessionRequest {
-    /// Entry size in bytes
-    pub size: u64,
-}
-
-#[derive(Serialize)]
-pub struct UploadSessionResumeResponse {
-    /// The number of bytes already uploaded to the meowith store.
-    pub uploaded_size: u64,
-}
-
-#[derive(Deserialize)]
-pub struct UploadSessionResumeRequest {
-    pub session_id: Uuid,
-}
 
 #[post("/upload/oneshot/{app_id}/{bucket_id}/{path}")]
 pub async fn upload_oneshot(
@@ -135,23 +111,43 @@ pub async fn upload_durable(
 
     let abstract_reader: AbstractReadStream =
         Arc::new(Mutex::new(Box::pin(BufReader::new(receiver))));
+    let token = CancellationToken::new();
+    let cancel_sender = token.clone();
+
     let channel_handle = tokio::spawn(async move {
-        handle_upload_durable(path.2, path.0, path.1, accessor, abstract_reader, data).await
+        let res =
+            handle_upload_durable(path.2, path.0, path.1, accessor, abstract_reader, data).await;
+        trace!("Durable upload finished {res:?}");
+        cancel_sender.cancel();
+        res
     });
 
-    while let Some(item) = payload.next().await {
-        let item = item.map_err(|_| NodeClientError::BadRequest)?;
-        sender
-            .write_all(&item)
-            .await
-            .map_err(|_| NodeClientError::InternalError)?;
+    let send_res: NodeClientResponse<()> = async {
+        while let Some(item) = select! {
+            _ = token.cancelled() => {
+                return Ok(());
+            },
+            data = payload.next() => { data }
+        } {
+            let item = item.map_err(|_| NodeClientError::BadRequest)?;
+
+            sender
+                .write_all(&item)
+                .await
+                .map_err(|_| NodeClientError::InternalError)?;
+        }
+        Ok(())
     }
+    .await;
+
+    sender.shutdown().await?;
+    drop(sender);
 
     channel_handle
         .await
         .map_err(|_| NodeClientError::InternalError)??;
 
-    Ok(HttpResponse::Ok().finish())
+    send_res.map(|_| HttpResponse::Ok().finish())
 }
 
 #[get("/download/{app_id}/{bucket_id}/{path}")]

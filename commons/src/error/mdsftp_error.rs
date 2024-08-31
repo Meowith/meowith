@@ -17,6 +17,7 @@ pub enum MDSFTPError {
     #[display("ReserveError max_space = {_0}")]
     ReserveError(u64),
     ReservationError,
+    BadChunkRange,
     MaxChannels,
     Interrupted,
     ShuttingDown,

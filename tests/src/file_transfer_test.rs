@@ -1,19 +1,14 @@
-use crate::test_configs::{
-    TEST_CONTROLLER_CONFIG, TEST_DASHBOARD_1_CONFIG, TEST_NODE_1_CONFIG, TEST_NODE_2_CONFIG,
-};
+use crate::header;
 use crate::utils::{file_to_body, test_files, Logger};
 use commons::permission::{AppTokenPermit, PermissionList};
-use controller_lib::start_controller;
 use dashboard_lib::public::auth::auth_routes::{AuthResponse, RegisterRequest};
 use dashboard_lib::public::routes::application::CreateApplicationRequest;
 use dashboard_lib::public::routes::bucket::CreateBucketRequest;
 use dashboard_lib::public::routes::token::{AppTokenResponse, TokenIssueRequest};
-use dashboard_lib::start_dashboard;
 use data::dto::entity::{AppDto, BucketDto};
 use data::model::permission_model::UserPermission;
 use http::header::{CONTENT_LENGTH, RANGE};
-use log::{error, info};
-use node_lib::start_node;
+use log::info;
 use rand::{distributions::Alphanumeric, Rng};
 use reqwest::header::AUTHORIZATION;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
@@ -162,7 +157,7 @@ async fn upload_file(
         .expect("");
 }
 
-async fn download_file(
+pub async fn download_file(
     path: &str,
     remote_path: &str,
     addr: &str,
@@ -188,16 +183,23 @@ async fn download_file(
     file.shutdown().await.unwrap()
 }
 
-macro_rules! header {
-    ($message:expr) => {
-        info!(
-            "====================================================================================="
-        );
-        info!($message);
-        info!(
-            "====================================================================================="
-        );
-    };
+pub async fn delete_file(
+    path: &str,
+    addr: &str,
+    bucket_id: Uuid,
+    app_id: Uuid,
+    token: &str,
+    client: &ClientWithMiddleware,
+) {
+    client
+        .delete(format!(
+            "http://{}/api/file/delete/file/{app_id}/{bucket_id}/{path}",
+            addr
+        ))
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .send()
+        .await
+        .expect("");
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -229,44 +231,10 @@ async fn download_file_ranged(
     file.shutdown().await.unwrap()
 }
 
-pub async fn test_file_transfer() {
-    let default_panic = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        default_panic(info);
-        if let Some(location) = info.location() {
-            error!(
-                "panic occurred in file '{}' at line {}",
-                location.file(),
-                location.line(),
-            );
-        } else {
-            error!("panic occurred but can't get location information...");
-        }
-        std::process::exit(1);
-    }));
-
+pub async fn test_file_transfer() -> (AppDto, BucketDto, String, String) {
     setup_test_files().await.unwrap();
     let reqwest_client = reqwest::Client::builder().build().unwrap();
     let client = ClientBuilder::new(reqwest_client).with(Logger).build();
-
-    let controller_stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
-        .await
-        .expect("Controller boot failed");
-    info!("Controller started");
-
-    let node_1_stop_handle = start_node(TEST_NODE_1_CONFIG.clone())
-        .await
-        .expect("Failed to register node 1");
-    info!("Node started");
-
-    let node_2_stop_handle = start_node(TEST_NODE_2_CONFIG.clone())
-        .await
-        .expect("Failed to register node 2");
-    info!("Node started");
-
-    let dashboard_1_stop_handle = start_dashboard(TEST_DASHBOARD_1_CONFIG.clone())
-        .await
-        .expect("Failed to register dashboard 1");
 
     let user_token = create_user(&client).await;
     info!("Got user_token={user_token}");
@@ -386,19 +354,26 @@ pub async fn test_file_transfer() {
     )
     .await;
 
-    info!("Shutting down all nodes.");
-    node_1_stop_handle.shutdown().await;
-    node_1_stop_handle.join_handle.await.expect("Join fail");
-    info!("Node 1 shutdown awaited");
-    node_2_stop_handle.shutdown().await;
-    node_2_stop_handle.join_handle.await.expect("Join fail");
-    info!("Node 2 shutdown awaited");
-    dashboard_1_stop_handle.shutdown().await;
-    dashboard_1_stop_handle
-        .join_handle
-        .await
-        .expect("Join fail");
-    info!("Dashboard 1 shutdown awaited");
-    controller_stop_handle.shutdown().await;
-    controller_stop_handle.join_handle.await.expect("Join fail");
+    delete_file(
+        "test1",
+        "127.0.0.3:4001",
+        bucket_dto.id,
+        app_dto.id,
+        &token,
+        &client,
+    )
+    .await;
+    delete_file(
+        "test2",
+        "127.0.0.2:4000",
+        bucket_dto.id,
+        app_dto.id,
+        &token,
+        &client,
+    )
+    .await;
+
+    header!("Files deleted");
+
+    (app_dto, bucket_dto, token, user_token)
 }

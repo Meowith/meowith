@@ -5,8 +5,9 @@ use reqwest_middleware::Result;
 use reqwest_middleware::{Middleware, Next};
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom};
+use std::ops::Range;
 use std::path::Path;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio_util::codec::{BytesCodec, FramedRead};
 
 pub fn compare_files<P: AsRef<Path>>(
@@ -73,6 +74,19 @@ pub fn file_to_body(file: tokio::fs::File) -> Body {
     Body::wrap_stream(stream)
 }
 
+pub async fn file_to_body_ranged(mut file: tokio::fs::File, range: Range<u64>) -> Body {
+    file.seek(SeekFrom::Start(range.start)).await.unwrap();
+    let stream = FramedRead::new(file.take(range.end - range.start), BytesCodec::new());
+    Body::wrap_stream(stream)
+}
+
+pub async fn file_to_body_ranged_await(mut file: tokio::fs::File, range: Range<u64>) -> Body {
+    file.seek(SeekFrom::Start(range.start)).await.unwrap();
+    let mut buffer = vec![0; (range.end - range.start) as usize];
+    file.read_exact(&mut buffer).await.unwrap();
+    Body::from(buffer)
+}
+
 pub struct Logger;
 
 #[async_trait::async_trait]
@@ -112,4 +126,26 @@ pub async fn test_files(template: &str, target: &str, range: Option<(u64, u64)>)
     );
 
     assert!(comparison);
+}
+
+#[macro_export]
+macro_rules! header {
+    ($message:expr) => {
+        info!("================================================================================");
+        info!($message);
+        info!("================================================================================");
+    };
+}
+
+#[macro_export]
+macro_rules! big_header {
+    ($message:expr) => {
+        info!("");
+        info!("");
+        info!("");
+        header!($message);
+        info!("");
+        info!("");
+        info!("");
+    };
 }

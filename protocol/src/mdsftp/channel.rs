@@ -15,7 +15,7 @@ use crate::mdsftp::net::packet_type::MDSFTPPacketType;
 use crate::mdsftp::net::packet_writer::PacketWriter;
 use crate::mdsftp::net::wire::MDSFTPRawPacket;
 use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
-use log::debug;
+use log::{debug, trace};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
@@ -676,23 +676,21 @@ impl InternalMDSFTPChannel {
 
     pub(crate) async fn mark_handler_closed(&self, result: MDSFTPResult<()>) {
         let mut sender = self.handler_sender.lock().await;
+
         if let Some(tx) = sender.as_ref() {
+            trace!("Closing the handler {result:?}");
             let _ = tx.send(result).await;
             *sender = None
         }
     }
 
     pub(crate) async fn interrupt(&self) {
-        interrupt_ifs!(self lock_sender, reserve_sender, handler_sender, put_sender, query_sender);
+        interrupt_ifs!(self lock_sender, reserve_sender, put_sender, query_sender);
 
         if let Some(tx) = self.handler_sender.lock().await.as_ref() {
             let _ = tx.send(Ok(())).await;
             if let Some(handler) = self.incoming_handler.lock().await.as_mut() {
                 let _ = handler.handle_interrupt().await;
-                let channel = self.mdsftp_handler_channel.lock().await;
-                if let Some(channel) = channel.as_ref() {
-                    channel.close(Err(MDSFTPError::Interrupted)).await;
-                }
             }
         }
     }
