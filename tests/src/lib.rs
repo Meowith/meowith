@@ -171,7 +171,7 @@ mod tests {
 
     async fn get_code(client: &Client) -> String {
         client
-            .post("http://127.0.0.1:2138/api/public/registerCodes/create")
+            .post("http://127.0.0.1:2138/api/public/register-codes/create")
             .send()
             .await
             .expect("")

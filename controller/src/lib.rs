@@ -12,17 +12,20 @@ use crate::health::routes::{
 };
 use crate::ioutils::read_file;
 use crate::middleware::node_internal::NodeVerify;
+use crate::middleware::user_middleware::UserMiddlewareRequestTransform;
 use crate::public::routes::node_management::create_register_code;
 use actix_cors::Cors;
 use actix_web::dev::{Server, ServerHandle};
 use actix_web::web::Data;
 use actix_web::{web, App, HttpServer};
+use auth_framework::adapter::token::AuthenticationJwtService;
 use commons::autoconfigure::ssl_conf::{generate_csr, generate_private_key, sign_csr, SigningData};
 use commons::context::controller_request_context::ControllerRequestContext;
 use commons::ssl_acceptor::{
     build_autogen_ssl_acceptor_builder, build_provided_ssl_acceptor_builder,
 };
 use data::access::microservice_node_access::get_microservices;
+use data::access::user_access::maybe_get_first_user;
 use data::database_session::{build_session, CACHE_SIZE};
 use data::model::microservice_node_model::MicroserviceNode;
 use futures::future;
@@ -44,6 +47,7 @@ pub mod health;
 pub mod ioutils;
 pub mod middleware;
 pub mod public;
+pub mod setup_procedure;
 pub mod token_service;
 
 pub struct AppState {
@@ -53,6 +57,7 @@ pub struct AppState {
     pub ca_private_key: PKey<Private>,
     req_ctx: ControllerRequestContext,
     catche_server: CatcheServer,
+    auth_jwt_service: AuthenticationJwtService,
 }
 
 pub struct ControllerHandle {
@@ -92,6 +97,14 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
     )
     .await
     .expect("Unable to connect to database");
+
+    if maybe_get_first_user(&session)
+        .await
+        .expect("Failed to fetch first user from the database")
+        .is_none()
+    {
+        setup_procedure::setup_controller(&session).await;
+    }
 
     let ca_cert = X509::from_pem(
         read_file(&config.ca_certificate)
@@ -134,8 +147,7 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
         node_token_map,
         token_node_map,
         nodes,
-        Certificate::from_pem(ca_cert.to_pem().unwrap().as_slice())
-            .expect("Invalid certificate file"),
+        Certificate::from_pem(ca_cert.to_pem()?.as_slice()).expect("Invalid certificate file"),
     );
     let internal_certs = create_internal_certs((ca_cert.clone(), ca_private_key.clone()), &clonfig);
 
@@ -159,6 +171,10 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
         ca_private_key: ca_private_key.clone(),
         req_ctx: req_ctx.clone(),
         catche_server: catche.clone(),
+        auth_jwt_service: AuthenticationJwtService::new(
+            &config.general_configuration.access_token_configuration,
+        )
+        .expect("JWT auth service error"),
     });
 
     let init_app_data = app_data.clone();
@@ -193,12 +209,16 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
     let controller_server = HttpServer::new(move || {
         let controller_app_data = init_app_data.clone();
         let cors = Cors::permissive();
-        let register_codes = web::scope("/api/public/registerCodes").service(create_register_code);
+        let register_codes = web::scope("/register-codes")
+            .service(create_register_code)
+            .wrap(UserMiddlewareRequestTransform);
+
+        let public_scope = web::scope("/api/public").service(register_codes);
 
         App::new()
             .wrap(cors)
             .app_data(controller_app_data)
-            .service(register_codes)
+            .service(public_scope)
     });
 
     let internode_server_future: Server;

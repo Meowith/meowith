@@ -1,5 +1,3 @@
-use crate::auth::method_container::{init_authentication_methods, AuthenticationMethodList};
-use crate::auth::token::AuthenticationJwtService;
 use crate::auth::user_middleware::UserMiddlewareRequestTransform;
 use crate::caching::catche::connect_catche;
 use crate::config::DashboardConfig;
@@ -12,7 +10,11 @@ use actix_cors::Cors;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
 use actix_web::{web, App, HttpServer};
-use auth::r#impl::basic_authenticator::BASIC_TYPE_IDENTIFIER;
+use auth_framework::adapter::method_container::{
+    init_authentication_methods, AuthenticationMethodList,
+};
+use auth_framework::adapter::r#impl::basic_authenticator::BASIC_TYPE_IDENTIFIER;
+use auth_framework::adapter::token::AuthenticationJwtService;
 use commons::access_token_service::AccessTokenJwtService;
 use commons::autoconfigure::general_conf::fetch_general_config;
 use commons::context::microservice_request_context::MicroserviceRequestContext;
@@ -97,7 +99,8 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
     .await
     .expect("Unable to connect to database");
 
-    let auth = init_authentication_methods(&config).expect("Invalid authentication methods");
+    let auth = init_authentication_methods(config.login_methods.clone())
+        .expect("Invalid authentication methods");
     let has_basic = auth.contains_key(BASIC_TYPE_IDENTIFIER);
 
     let app_data = Data::new(AppState {

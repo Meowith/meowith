@@ -10,16 +10,28 @@ use futures::StreamExt;
 use lazy_static::lazy_static;
 use scylla::CachingSession;
 use std::collections::{HashMap, HashSet};
+use uuid::Uuid;
 
 pub mod application_service;
 pub mod bucket_service;
+pub mod role_service;
 pub mod token_service;
 
 lazy_static! {
     static ref CREATE_BUCKET_ALLOWANCE: u64 =
         PermissionList(vec![AppPermission::CreateBucket]).into();
     static ref DELETE_BUCKET_ALLOWANCE: u64 =
-        PermissionList(vec![AppPermission::CreateBucket]).into();
+        PermissionList(vec![AppPermission::DeleteBucket]).into();
+    static ref LIST_ALL_TOKEN_ALLOWANCE: u64 =
+        PermissionList(vec![AppPermission::ListAllTokens]).into();
+    static ref DELETE_ALL_TOKEN_ALLOWANCE: u64 = PermissionList(vec![
+        AppPermission::DeleteAllTokens,
+        AppPermission::ListAllTokens
+    ])
+    .into();
+    static ref MANAGE_ROLES_ALLOWANCE: u64 =
+        PermissionList(vec![AppPermission::ManageRoles]).into();
+    static ref NO_ALLOWANCE: u64 = 0;
 }
 
 pub enum PermCheckScope {
@@ -38,9 +50,9 @@ pub async fn has_app_permission(
     if app.owner_id == user.id {
         return Ok(());
     }
-    // TODO caching member & roles
+    // Note: consider caching member & roles
     let member = get_app_member(app.id, user.id, session).await?;
-    let roles: HashMap<String, HashSet<(String, i64)>> = get_app_roles(app.id, session)
+    let roles: HashMap<String, HashSet<(Uuid, i64)>> = get_app_roles(app.id, session)
         .await?
         .collect::<Vec<UserRoleItem>>()
         .await
@@ -52,17 +64,22 @@ pub async fn has_app_permission(
         .collect();
 
     for role in member.member_roles {
+        // TODO validate the bucket
         let permits = roles.get(&role);
         if let Some(permits) = permits {
             for permit in permits {
                 match scope {
                     PermCheckScope::Application => {
-                        if permit.0.is_empty() && check_permission(permit.1 as u64, requested) {
+                        if permit.0.to_u128_le() == 0
+                            && check_permission(permit.1 as u64, requested)
+                        {
                             return Ok(());
                         }
                     }
                     PermCheckScope::Buckets => {
-                        if !permit.0.is_empty() && check_permission(permit.1 as u64, requested) {
+                        if permit.0.to_u128_le() != 0
+                            && check_permission(permit.1 as u64, requested)
+                        {
                             return Ok(());
                         }
                     }

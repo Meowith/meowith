@@ -419,6 +419,7 @@ pub async fn update_bucket_space(
     space_taken_delta: i64,
     session: &CachingSession,
 ) -> Result<(), MeowithDataError> {
+    // TODO a second table + batch would be nicer
     let update_query = concat!(
         update_bucket_query!("file_count = ?, space_taken = ?"),
         " IF file_count = ? and space_taken = ?"

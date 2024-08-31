@@ -40,7 +40,7 @@ pub async fn do_register(
         session_id: Uuid::new_v4(),
         name: req.username,
         auth_identifier: hash(
-            req.password + crate::auth::r#impl::basic_authenticator::PEPPER,
+            req.password + auth_framework::adapter::r#impl::basic_authenticator::PEPPER,
             DEFAULT_COST,
         )?,
         global_role: GlobalRole::User.into(),

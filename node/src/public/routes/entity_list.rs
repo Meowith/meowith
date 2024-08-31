@@ -7,7 +7,7 @@ use commons::error::std_response::NodeClientResponse;
 use data::dto::entity::EntityList;
 use uuid::Uuid;
 
-#[get("/list/bucket/{app_id}/{bucket_id}")]
+#[get("/list/{app_id}/{bucket_id}")]
 pub async fn list_bucket(
     path: web::Path<(Uuid, Uuid, String)>,
     accessor: BucketAccessor,
@@ -19,7 +19,7 @@ pub async fn list_bucket(
         .map(web::Json)
 }
 
-#[get("/list/dir/{app_id}/{bucket_id}/{path}")]
+#[get("/list/{app_id}/{bucket_id}/{path}")]
 pub async fn list_dir(
     path: web::Path<EntryPath>,
     accessor: BucketAccessor,

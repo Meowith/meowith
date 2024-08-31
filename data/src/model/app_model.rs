@@ -41,10 +41,11 @@ pub struct AppByOwner {
     local_secondary_indexes = [],
     static_columns = []
 )]
+#[derive(PartialEq, Eq)]
 pub struct UserRole {
     pub app_id: Uuid,
     pub name: Text, // non-re-nameable
-    pub scopes: Set<Tuple<Text, BigInt>>,
+    pub scopes: Set<Tuple<Uuid, BigInt>>,
     pub created: Timestamp,
     pub last_modified: Timestamp,
 }

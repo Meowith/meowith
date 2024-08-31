@@ -1,11 +1,11 @@
 use crate::header;
 use crate::utils::{file_to_body, test_files, Logger};
-use commons::permission::{AppTokenPermit, PermissionList};
+use commons::permission::PermissionList;
 use dashboard_lib::public::auth::auth_routes::{AuthResponse, RegisterRequest};
 use dashboard_lib::public::routes::application::CreateApplicationRequest;
 use dashboard_lib::public::routes::bucket::CreateBucketRequest;
-use dashboard_lib::public::routes::token::{AppTokenResponse, TokenIssueRequest};
-use data::dto::entity::{AppDto, BucketDto};
+use dashboard_lib::public::routes::token::AppTokenResponse;
+use data::dto::entity::{AppDto, BucketDto, ScopedPermission, TokenIssueRequest};
 use data::model::permission_model::UserPermission;
 use http::header::{CONTENT_LENGTH, RANGE};
 use log::info;
@@ -105,7 +105,7 @@ async fn issue_token(
     let req = TokenIssueRequest {
         app_id: app.id,
         name,
-        perms: vec![AppTokenPermit {
+        perms: vec![ScopedPermission {
             bucket_id,
             allowance: PermissionList(vec![
                 UserPermission::Read,
@@ -193,7 +193,7 @@ pub async fn delete_file(
 ) {
     client
         .delete(format!(
-            "http://{}/api/file/delete/file/{app_id}/{bucket_id}/{path}",
+            "http://{}/api/file/delete/{app_id}/{bucket_id}/{path}",
             addr
         ))
         .header(AUTHORIZATION, format!("Bearer {}", token))

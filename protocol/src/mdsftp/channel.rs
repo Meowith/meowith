@@ -2,7 +2,10 @@ use std::io::Write;
 use std::sync::{Arc, Weak};
 
 use crate::mdsftp::channel_handle::{ChannelAwaitHandle, MDSFTPHandlerChannel};
-use crate::mdsftp::data::{ChunkErrorKind, ChunkRange, CommitFlags, CommitResult, LockAcquireResult, LockKind, PutFlags, PutResult, QueryResult, ReserveFlags, ReserveResult};
+use crate::mdsftp::data::{
+    ChunkErrorKind, ChunkRange, CommitFlags, CommitResult, LockAcquireResult, LockKind, PutFlags,
+    PutResult, QueryResult, ReserveFlags, ReserveResult,
+};
 use crate::mdsftp::handler::{
     AbstractReadStream, AbstractWriteStream, ChannelPacketHandler, DownloadDelegator,
     UploadDelegator,
@@ -475,8 +478,8 @@ impl InternalMDSFTPChannel {
                         chunk_id,
                         chunk_buffer,
                     }))
-                        .await
-                        .unwrap()
+                    .await
+                    .unwrap()
                 } else {
                     debug!("Received a ReserveOk whilst not awaiting a reservation");
                 }
@@ -508,8 +511,8 @@ impl InternalMDSFTPChannel {
                         kind: packet.payload[0].into(),
                         chunk_id,
                     }))
-                        .await
-                        .unwrap();
+                    .await
+                    .unwrap();
                 } else {
                     debug!("Received a LockAcquire whilst not awaiting a lock");
                 }

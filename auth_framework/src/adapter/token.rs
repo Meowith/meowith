@@ -1,4 +1,4 @@
-use auth_framework::token::DashboardClaims;
+use crate::token::DashboardClaims;
 use data::dto::config::AccessTokenConfiguration;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};

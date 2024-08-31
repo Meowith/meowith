@@ -34,7 +34,7 @@ pub struct DeleteDirectoryRequest {
     pub recursive: bool,
 }
 
-#[delete("/delete/file/{app_id}/{bucket_id}/{path}")]
+#[delete("/delete/{app_id}/{bucket_id}/{path}")]
 pub async fn delete_file(
     path: web::Path<EntryPath>,
     accessor: BucketAccessor,
@@ -44,7 +44,7 @@ pub async fn delete_file(
     Ok(HttpResponse::Ok().finish())
 }
 
-#[post("/rename/file/{app_id}/{bucket_id}/{path}")]
+#[post("/rename/{app_id}/{bucket_id}/{path}")]
 pub async fn rename_file(
     path: web::Path<EntryPath>,
     req: web::Json<RenameEntityRequest>,
@@ -55,7 +55,7 @@ pub async fn rename_file(
     Ok(HttpResponse::Ok().finish())
 }
 
-#[post("/mkdir/{app_id}/{bucket_id}/{path}")]
+#[post("/create/{app_id}/{bucket_id}/{path}")]
 pub async fn create_directory(
     path: web::Path<EntryPath>,
     accessor: BucketAccessor,
@@ -65,7 +65,7 @@ pub async fn create_directory(
     Ok(HttpResponse::Ok().finish())
 }
 
-#[delete("/delete/directory/{app_id}/{bucket_id}/{path}")]
+#[delete("/delete/{app_id}/{bucket_id}/{path}")]
 pub async fn delete_directory(
     path: web::Path<EntryPath>,
     req: web::Json<DeleteDirectoryRequest>,
@@ -79,7 +79,7 @@ pub async fn delete_directory(
     Ok(HttpResponse::Ok().finish())
 }
 
-#[post("/rename/directory/{app_id}/{bucket_id}/{path}")]
+#[post("/rename/{app_id}/{bucket_id}/{path}")]
 pub async fn rename_directory(
     path: web::Path<EntryPath>,
     req: web::Json<RenameEntityRequest>,

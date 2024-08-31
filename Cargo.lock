@@ -454,9 +454,14 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "async-trait",
+ "bcrypt",
+ "commons",
  "data",
+ "jsonwebtoken",
+ "log",
  "scylla",
  "serde",
+ "serde_json",
  "uuid",
 ]
 
@@ -926,6 +931,7 @@ dependencies = [
  "actix-rt",
  "actix-web",
  "async-trait",
+ "auth_framework",
  "charybdis",
  "chrono",
  "commons",
@@ -933,6 +939,7 @@ dependencies = [
  "derive_more 1.0.0",
  "futures",
  "futures-util",
+ "jsonwebtoken",
  "lazy_static",
  "log",
  "logging",
@@ -944,6 +951,7 @@ dependencies = [
  "reqwest",
  "scylla",
  "serde",
+ "serde_json",
  "serde_yaml",
  "strum",
  "tokio",
@@ -1087,7 +1095,6 @@ dependencies = [
  "data",
  "futures",
  "futures-util",
- "jsonwebtoken",
  "lazy_static",
  "log",
  "logging",
@@ -1098,7 +1105,6 @@ dependencies = [
  "scylla",
  "serde",
  "serde_cbor",
- "serde_json",
  "serde_yaml",
  "tokio",
  "uuid",
@@ -2965,9 +2971,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.125"
+version = "1.0.127"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83c8e735a073ccf5be70aa8066aa984eaf2fa000db6c8d0100ae605b366d31ed"
+checksum = "8043c06d9f82bd7271361ed64f415fe5e12a77fdb52e573e7f06a516dea329ad"
 dependencies = [
  "itoa",
  "memchr",
@@ -3212,6 +3218,7 @@ name = "tests"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "auth_framework",
  "charybdis-migrate",
  "commons",
  "controller",

@@ -62,6 +62,9 @@ impl IntoBit for UserPermission {
 pub enum AppPermission {
     CreateBucket = 1i8,
     DeleteBucket = 2i8,
+    ListAllTokens = 3i8,
+    DeleteAllTokens = 4i8,
+    ManageRoles = 5i8,
 }
 
 impl From<&AppPermission> for i8 {

@@ -6,7 +6,12 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.81"
 data = { path = "../data", version = "0.1.0" }
+commons = { path = "../commons", version = "0.1.0" }
 serde = "1.0.208"
 uuid = "1.10.0"
 actix-web = "4.9.0"
+jsonwebtoken = "9.3.0"
+serde_json = "1.0.127"
 scylla = "0.13.2"
+log = "0.4.22"
+bcrypt = "0.15.1"

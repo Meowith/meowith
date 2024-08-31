@@ -3,9 +3,9 @@ use actix_web::web::Data;
 use commons::error::mdsftp_error::MDSFTPError;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use log::trace;
+use logging::log_err;
 use protocol::mdsftp::data::CommitFlags;
 use uuid::Uuid;
-use logging::log_err;
 
 pub async fn commit_chunk(
     flags: CommitFlags,
@@ -16,11 +16,20 @@ pub async fn commit_chunk(
     if node_id == state.req_ctx.id {
         trace!("Trying to commit local chunk {chunk_id}");
         if flags.r#final {
-            log_err("commit fail", state.fragment_ledger.commit_chunk(&chunk_id).await);
+            log_err(
+                "commit fail",
+                state.fragment_ledger.commit_chunk(&chunk_id).await,
+            );
         } else if flags.keep_alive {
-            log_err("commit fail", state.fragment_ledger.commit_alive(&chunk_id).await);
+            log_err(
+                "commit fail",
+                state.fragment_ledger.commit_alive(&chunk_id).await,
+            );
         } else if flags.reject {
-            log_err("commit fail", state.fragment_ledger.delete_chunk(&chunk_id).await);
+            log_err(
+                "commit fail",
+                state.fragment_ledger.delete_chunk(&chunk_id).await,
+            );
         }
         Ok(())
     } else {

@@ -30,8 +30,7 @@ data = { path = "../data", version = "0.1.0" }
 commons = { path = "../commons", version = "0.1.0" }
 protocol = { path = "../protocol", version = "0.1.0" }
 reqwest = { version = "0.12.5", features = ["__rustls"] }
-
-
+auth_framework = { path="../auth_framework", version = "0.1.0" }
 
 tokio-rustls = "0.26.0"
 charybdis = "0.7.0"
@@ -45,3 +44,5 @@ rand = "0.8.5"
 log = "0.4.22"
 logging = { path = "../logging", version = "0.1.0" }
 async-trait = "0.1.81"
+jsonwebtoken = "9.3.0"
+serde_json = "1.0.125"

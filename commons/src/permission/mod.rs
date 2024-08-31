@@ -1,6 +1,7 @@
 pub mod check;
 
 use crate::permission::check::PermissionListEntryBounds;
+use data::dto::entity::ScopedPermission;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -17,6 +18,15 @@ pub struct AppTokenData {
     pub name: String,
     pub nonce: Uuid,
     pub perms: Vec<AppTokenPermit>,
+}
+
+impl From<ScopedPermission> for AppTokenPermit {
+    fn from(value: ScopedPermission) -> Self {
+        AppTokenPermit {
+            bucket_id: value.bucket_id,
+            allowance: value.allowance,
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]

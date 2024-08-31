@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use scylla::CachingSession;
 use std::fmt::Debug;
 
+pub mod adapter;
 pub mod credentials;
 pub mod error;
 pub mod token;

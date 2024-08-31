@@ -169,17 +169,25 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
             .service(download)
             .service(rename_file)
             .service(delete_file)
+            .wrap(UserAuthenticate);
+
+        let directory_scope = web::scope("/api/directory")
             .service(create_directory)
             .service(delete_directory)
             .service(rename_directory)
-            .service(list_bucket)
             .service(list_dir)
+            .wrap(UserAuthenticate);
+
+        let bucket_scope = web::scope("/api/bucket")
+            .service(list_bucket)
             .wrap(UserAuthenticate);
 
         App::new()
             .app_data(external_app_data)
             .wrap(cors)
             .service(file_scope)
+            .service(directory_scope)
+            .service(bucket_scope)
     });
 
     let external_server = if external_ssl.is_some() {

@@ -1,9 +1,9 @@
+use crate::credentials::AuthenticationCredentials;
+use crate::error::{AuthCredentialsError, AuthenticateError};
+use crate::token::DashboardClaims;
+use crate::{AuthFacade, Authentication};
 use actix_web::HttpRequest;
 use async_trait::async_trait;
-use auth_framework::credentials::AuthenticationCredentials;
-use auth_framework::error::{AuthCredentialsError, AuthenticateError};
-use auth_framework::token::DashboardClaims;
-use auth_framework::{AuthFacade, Authentication};
 use bcrypt::{hash, DEFAULT_COST};
 use data::access::user_access::get_user_from_name;
 use scylla::CachingSession;

@@ -79,7 +79,7 @@ impl MeowithMDSFTPChannelPacketHandler {
             } else {
                 self.fragment_ledger.fragment_write_stream(&id).await
             }
-                .map_err(|_| MDSFTPError::RemoteError)?,
+            .map_err(|_| MDSFTPError::RemoteError)?,
         );
 
         Ok(())
@@ -404,11 +404,20 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         flags: CommitFlags,
     ) -> MDSFTPResult<()> {
         if flags.r#final {
-            log_err("commit fail", self.fragment_ledger.commit_chunk(&chunk_id).await);
+            log_err(
+                "commit fail",
+                self.fragment_ledger.commit_chunk(&chunk_id).await,
+            );
         } else if flags.keep_alive {
-            log_err("commit fail", self.fragment_ledger.commit_alive(&chunk_id).await);
+            log_err(
+                "commit fail",
+                self.fragment_ledger.commit_alive(&chunk_id).await,
+            );
         } else if flags.reject {
-            log_err("commit fail", self.fragment_ledger.delete_chunk(&chunk_id).await);
+            log_err(
+                "commit fail",
+                self.fragment_ledger.delete_chunk(&chunk_id).await,
+            );
         }
 
         channel.respond_commit_ok().await?;
