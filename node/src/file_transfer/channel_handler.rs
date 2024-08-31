@@ -26,6 +26,7 @@ use crate::io::fragment_ledger::FragmentLedger;
 use crate::locking::file_read_guard::FileReadGuard;
 use crate::locking::file_write_guard::FileWriteGuard;
 use commons::error::io_error::MeowithIoError;
+use logging::log_err;
 
 pub struct MeowithMDSFTPChannelPacketHandler {
     fragment_ledger: FragmentLedger,
@@ -78,7 +79,7 @@ impl MeowithMDSFTPChannelPacketHandler {
             } else {
                 self.fragment_ledger.fragment_write_stream(&id).await
             }
-            .map_err(|_| MDSFTPError::RemoteError)?,
+                .map_err(|_| MDSFTPError::RemoteError)?,
         );
 
         Ok(())
@@ -403,13 +404,14 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         flags: CommitFlags,
     ) -> MDSFTPResult<()> {
         if flags.r#final {
-            let _ = self.fragment_ledger.commit_chunk(&chunk_id).await;
+            log_err("commit fail", self.fragment_ledger.commit_chunk(&chunk_id).await);
         } else if flags.keep_alive {
-            let _ = self.fragment_ledger.commit_alive(&chunk_id).await;
+            log_err("commit fail", self.fragment_ledger.commit_alive(&chunk_id).await);
         } else if flags.reject {
-            let _ = self.fragment_ledger.delete_chunk(&chunk_id).await;
+            log_err("commit fail", self.fragment_ledger.delete_chunk(&chunk_id).await);
         }
 
+        channel.respond_commit_ok().await?;
         channel.close(Ok(())).await;
         Ok(())
     }

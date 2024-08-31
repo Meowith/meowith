@@ -2,10 +2,7 @@ use std::io::Write;
 use std::sync::{Arc, Weak};
 
 use crate::mdsftp::channel_handle::{ChannelAwaitHandle, MDSFTPHandlerChannel};
-use crate::mdsftp::data::{
-    ChunkErrorKind, ChunkRange, CommitFlags, LockAcquireResult, LockKind, PutFlags, PutResult,
-    QueryResult, ReserveFlags, ReserveResult,
-};
+use crate::mdsftp::data::{ChunkErrorKind, ChunkRange, CommitFlags, CommitResult, LockAcquireResult, LockKind, PutFlags, PutResult, QueryResult, ReserveFlags, ReserveResult};
 use crate::mdsftp::handler::{
     AbstractReadStream, AbstractWriteStream, ChannelPacketHandler, DownloadDelegator,
     UploadDelegator,
@@ -98,7 +95,7 @@ impl MDSFTPChannel {
         self._internal_channel.delete_chunk(id).await
     }
 
-    pub async fn commit(&self, id: Uuid, flags: CommitFlags) -> MDSFTPResult<()> {
+    pub async fn commit(&self, id: Uuid, flags: CommitFlags) -> MDSFTPResult<CommitResult> {
         self._internal_channel.commit(flags, id).await
     }
 
@@ -171,6 +168,7 @@ pub(crate) struct InternalMDSFTPChannel {
     reserve_sender: Mutex<Option<Sender<MDSFTPResult<ReserveResult>>>>,
     put_sender: Mutex<Option<Sender<MDSFTPResult<PutResult>>>>,
     query_sender: Mutex<Option<Sender<MDSFTPResult<QueryResult>>>>,
+    commit_sender: Mutex<Option<Sender<MDSFTPResult<CommitResult>>>>,
 }
 
 macro_rules! interrupt_ifs {
@@ -200,6 +198,7 @@ impl InternalMDSFTPChannel {
             handler_sender: Mutex::new(None),
             put_sender: Mutex::new(None),
             query_sender: Mutex::new(None),
+            commit_sender: Mutex::new(None),
         }
     }
 
@@ -335,11 +334,27 @@ impl InternalMDSFTPChannel {
         { Ok(()) }
     });
 
-    internal_sender_method!(payload_buffer this none commit(MDSFTPPacketType::Commit, flags: CommitFlags, chunk_id: Uuid) -> MDSFTPResult<()> {
+    internal_sender_method!(payload_buffer this lock commit(MDSFTPPacketType::Commit, flags: CommitFlags, chunk_id: Uuid) -> MDSFTPResult<CommitResult> {
         {
             payload_buffer.push(flags.into());
             let _ = payload_buffer.write(chunk_id.as_bytes().as_slice());
+            let (tx, rx) = mpsc::channel(1);
+            *this.commit_sender.lock().await = Some(tx);
+            rx
         }
+        { lock.recv().await.ok_or(MDSFTPError::Interrupted)? }
+    });
+
+    internal_sender_method!(payload_buffer this none respond_commit_err(MDSFTPPacketType::CommitErr, err: ChunkErrorKind) -> MDSFTPResult<()> {
+        {
+            let kind: u8 = err.into();
+            payload_buffer.push(kind);
+        }
+        { Ok(()) }
+    });
+
+    internal_sender_method!(payload_buffer this none respond_commit_ok(MDSFTPPacketType::CommitOk, ) -> MDSFTPResult<()> {
+        {}
         { Ok(()) }
     });
 
@@ -460,8 +475,8 @@ impl InternalMDSFTPChannel {
                         chunk_id,
                         chunk_buffer,
                     }))
-                    .await
-                    .unwrap()
+                        .await
+                        .unwrap()
                 } else {
                     debug!("Received a ReserveOk whilst not awaiting a reservation");
                 }
@@ -493,8 +508,8 @@ impl InternalMDSFTPChannel {
                         kind: packet.payload[0].into(),
                         chunk_id,
                     }))
-                    .await
-                    .unwrap();
+                        .await
+                        .unwrap();
                 } else {
                     debug!("Received a LockAcquire whilst not awaiting a lock");
                 }
@@ -530,6 +545,25 @@ impl InternalMDSFTPChannel {
                     debug!("Received a PutOk whilst not awaiting a lock");
                 }
                 *self.put_sender.lock().await = None;
+                return Ok(());
+            }
+            MDSFTPPacketType::CommitErr => {
+                if let Some(tx) = self.commit_sender.lock().await.as_ref() {
+                    let err_kind: ChunkErrorKind = packet.payload[0].into();
+                    tx.send(Err(err_kind.into())).await.unwrap()
+                } else {
+                    debug!("Received a CommitErr whilst not awaiting a lock");
+                }
+                *self.commit_sender.lock().await = None;
+                return Ok(());
+            }
+            MDSFTPPacketType::CommitOk => {
+                if let Some(tx) = self.commit_sender.lock().await.as_ref() {
+                    tx.send(Ok(CommitResult)).await.unwrap()
+                } else {
+                    debug!("Received a CommitOk whilst not awaiting a lock");
+                }
+                *self.commit_sender.lock().await = None;
                 return Ok(());
             }
             MDSFTPPacketType::QueryResponse => {
@@ -685,7 +719,7 @@ impl InternalMDSFTPChannel {
     }
 
     pub(crate) async fn interrupt(&self) {
-        interrupt_ifs!(self lock_sender, reserve_sender, put_sender, query_sender);
+        interrupt_ifs!(self lock_sender, reserve_sender, put_sender, query_sender, commit_sender);
 
         if let Some(tx) = self.handler_sender.lock().await.as_ref() {
             let _ = tx.send(Ok(())).await;

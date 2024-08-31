@@ -77,6 +77,14 @@ impl MDSFTPHandlerChannel {
         respond_put_err(err)
     });
 
+    define_respond_method!(respond_commit_ok() -> MDSFTPResult<()> {
+        respond_commit_ok()
+    });
+
+    define_respond_method!(respond_commit_err(err: ChunkErrorKind) -> MDSFTPResult<()> {
+        respond_commit_err(err)
+    });
+
     define_respond_method!(respond_query(size: u64, exists: bool) -> MDSFTPResult<()> {
         respond_query(size, exists)
     });

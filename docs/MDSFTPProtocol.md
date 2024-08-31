@@ -128,6 +128,14 @@ Flags: `lock_kind` (read/write) `error_kind` (not_found/internal)
 
 Flags: `reject` (yes/no) `keep-alive` (yes/no) `final` (yes/no)
 
+- **Commit Ok** (`lock_err` Packet ID: 0x10)
+
+- **Commit Err** (`commit` Packet ID: 0x11)
+
+| Err type |
+|----------|
+| 1 Byte   |
+
 ## Query
 
 - **Query** (`query` Packet ID: 0x10)

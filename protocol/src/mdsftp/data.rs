@@ -183,6 +183,9 @@ pub struct QueryResult {
     pub size: u64,
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub struct CommitResult;
+
 #[derive(Debug, Eq, PartialEq, Default, Clone)]
 pub struct ChunkRange {
     /// Inclusive

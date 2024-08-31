@@ -5,6 +5,7 @@ use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use log::trace;
 use protocol::mdsftp::data::CommitFlags;
 use uuid::Uuid;
+use logging::log_err;
 
 pub async fn commit_chunk(
     flags: CommitFlags,
@@ -13,21 +14,24 @@ pub async fn commit_chunk(
     state: &Data<AppState>,
 ) -> NodeClientResponse<()> {
     if node_id == state.req_ctx.id {
+        trace!("Trying to commit local chunk {chunk_id}");
         if flags.r#final {
-            let _ = state.fragment_ledger.commit_chunk(&chunk_id).await;
+            log_err("commit fail", state.fragment_ledger.commit_chunk(&chunk_id).await);
         } else if flags.keep_alive {
-            let _ = state.fragment_ledger.commit_alive(&chunk_id).await;
+            log_err("commit fail", state.fragment_ledger.commit_alive(&chunk_id).await);
         } else if flags.reject {
-            let _ = state.fragment_ledger.delete_chunk(&chunk_id).await;
+            log_err("commit fail", state.fragment_ledger.delete_chunk(&chunk_id).await);
         }
         Ok(())
     } else {
+        trace!("Trying to commit remote chunk {chunk_id}");
         let pool = state.mdsftp_server.pool();
         let channel = pool.channel(&node_id).await?;
         channel
             .commit(chunk_id, flags)
             .await
-            .map_err(NodeClientError::from)
+            .map_err(NodeClientError::from)?;
+        Ok(())
     }
 }
 
