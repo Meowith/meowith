@@ -1,8 +1,8 @@
-use actix_web::{HttpRequest, post, web};
-use serde::{Deserialize, Serialize};
-use commons::error::std_response::NodeClientResponse;
 use crate::setup::auth_service::{do_login, do_register};
 use crate::setup_procedure::SetupAppState;
+use actix_web::{post, web, HttpRequest};
+use commons::error::std_response::NodeClientResponse;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct EmptyResponse;
@@ -15,8 +15,7 @@ pub async fn login(
 ) -> NodeClientResponse<web::Json<EmptyResponse>> {
     let authenticator_method = path.into_inner();
 
-    do_login(req, authenticator_method, &state)
-        .await?;
+    do_login(req, authenticator_method, &state).await?;
 
     Ok(web::Json(EmptyResponse))
 }

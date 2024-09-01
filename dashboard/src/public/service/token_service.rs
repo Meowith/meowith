@@ -6,6 +6,8 @@ use crate::AppState;
 use actix_web::web;
 use actix_web::web::Data;
 use chrono::Utc;
+use commons::access_token_service::ClaimKey;
+use commons::cache::CacheId;
 use commons::error::std_response::NodeClientResponse;
 use commons::permission::{AppTokenData, AppTokenPermit};
 use data::access::app_access::{
@@ -21,8 +23,6 @@ use data::model::user_model::User;
 use futures_util::StreamExt;
 use scylla::CachingSession;
 use uuid::Uuid;
-use commons::access_token_service::ClaimKey;
-use commons::cache::CacheId;
 
 pub async fn do_issue_app_token(
     req: TokenIssueRequest,
@@ -113,7 +113,7 @@ pub async fn do_delete_token(
     user: User,
     state: &AppState,
 ) -> NodeClientResponse<()> {
-    let session  = &state.session;
+    let session = &state.session;
 
     if req.issuer_id != user.id {
         let app = get_app_by_id(req.app_id, session).await?;
@@ -132,12 +132,20 @@ pub async fn do_delete_token(
 
     let cache_id: u8 = CacheId::ValidateNonce.into();
 
-    state.catche_client.write_invalidate_packet(cache_id as u32, serde_cbor::to_vec(&ClaimKey {
-        app_id: token.app_id,
-        issuer_id: token.issuer_id,
-        name: token.name,
-        nonce: token.nonce,
-    }).unwrap().as_slice()).await?;
+    state
+        .catche_client
+        .write_invalidate_packet(
+            cache_id as u32,
+            serde_cbor::to_vec(&ClaimKey {
+                app_id: token.app_id,
+                issuer_id: token.issuer_id,
+                name: token.name,
+                nonce: token.nonce,
+            })
+            .unwrap()
+            .as_slice(),
+        )
+        .await?;
 
     Ok(())
 }

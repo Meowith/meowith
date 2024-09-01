@@ -1,7 +1,7 @@
-use std::io::ErrorKind;
 use controller_lib::config::controller_config::ControllerConfig;
 use controller_lib::{start_controller, ControllerHandle};
 use logging::initialize_logging;
+use std::io::ErrorKind;
 use std::path::Path;
 
 #[actix_rt::main]
@@ -17,7 +17,13 @@ async fn main() -> std::io::Result<()> {
 
     let handle: ControllerHandle = match start_controller(config.clone()).await {
         Ok(handle) => Ok(handle),
-        Err(e) => if e.kind() == ErrorKind::Other { Ok(start_controller(config).await?) } else { Err(e) },
+        Err(e) => {
+            if e.kind() == ErrorKind::Other {
+                Ok(start_controller(config).await?)
+            } else {
+                Err(e)
+            }
+        }
     }?;
 
     handle.join_handle.await?;

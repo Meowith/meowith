@@ -4,7 +4,7 @@ pub struct GeneralConfiguration {
     pub access_token_configuration: AccessTokenConfiguration,
     pub max_readers: u32,
     pub default_application_quota: u64,
-    pub login_methods: Vec<String>
+    pub login_methods: Vec<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]

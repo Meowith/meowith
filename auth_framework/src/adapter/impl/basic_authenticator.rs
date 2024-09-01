@@ -75,10 +75,14 @@ impl Authentication for BasicAuthenticator {
                 .ok_or(AuthenticateError::InvalidCredentials)?,
             session,
         )
-        .await.map_err(|_| AuthenticateError::InvalidCredentials)?;
+        .await
+        .map_err(|_| AuthenticateError::InvalidCredentials)?;
 
-        if !bcrypt::verify(credentials.get_authentication_identifier() + PEPPER, user.auth_identifier.as_str())
-            .map_err(|_| AuthenticateError::InternalError)?
+        if !bcrypt::verify(
+            credentials.get_authentication_identifier() + PEPPER,
+            user.auth_identifier.as_str(),
+        )
+        .map_err(|_| AuthenticateError::InternalError)?
         {
             return Err(AuthenticateError::InvalidCredentials);
         }

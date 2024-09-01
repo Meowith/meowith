@@ -11,24 +11,24 @@ mod tests {
     use crate::test_configs::{
         TEST_CONTROLLER_CONFIG, TEST_DASHBOARD_1_CONFIG, TEST_NODE_1_CONFIG, TEST_NODE_2_CONFIG,
     };
+    use auth_framework::adapter::r#impl::basic_authenticator::BASIC_TYPE_IDENTIFIER;
     use controller_lib::public::routes::node_management::RegisterCodeCreateRequest;
+    use controller_lib::setup::auth_routes::RegisterRequest;
     use controller_lib::start_controller;
+    use dashboard_lib::public::auth::auth_routes::AuthResponse;
     use dashboard_lib::start_dashboard;
     use data::database_session::build_raw_session;
+    use http::header::AUTHORIZATION;
     use log::{error, info};
     use logging::initialize_test_logging;
     use migrate::MigrationBuilder;
     use node_lib::start_node;
     use reqwest::{Client, ClientBuilder};
+    use std::io::ErrorKind;
     use std::path::{Path, PathBuf};
     use std::time::Duration;
     use std::{env, io};
-    use std::io::ErrorKind;
-    use http::header::AUTHORIZATION;
     use tokio::time::sleep;
-    use auth_framework::adapter::r#impl::basic_authenticator::BASIC_TYPE_IDENTIFIER;
-    use controller_lib::setup::auth_routes::RegisterRequest;
-    use dashboard_lib::public::auth::auth_routes::AuthResponse;
 
     async fn initialize_database() {
         let cfg = TEST_CONTROLLER_CONFIG.clone();
@@ -177,11 +177,7 @@ mod tests {
             .code
     }
 
-    async fn register(
-        username: &str,
-        password: &str,
-        client: &Client
-    ) {
+    async fn register(username: &str, password: &str, client: &Client) {
         let req = RegisterRequest {
             username: username.to_string(),
             password: password.to_string(),
@@ -195,21 +191,27 @@ mod tests {
             .expect("");
     }
 
-    async fn login(
-        username: &str,
-        password: &str,
-        client: &Client
-    ) -> String {
+    async fn login(username: &str, password: &str, client: &Client) -> String {
         client
-            .post(format!("http://127.0.0.1:2138/api/public/login/{}", BASIC_TYPE_IDENTIFIER))
-            .header(auth_framework::adapter::r#impl::basic_authenticator::USERNAME_HEADER, username)
-            .header(auth_framework::adapter::r#impl::basic_authenticator::PASSWORD_HEADER, password)
+            .post(format!(
+                "http://127.0.0.1:2138/api/public/login/{}",
+                BASIC_TYPE_IDENTIFIER
+            ))
+            .header(
+                auth_framework::adapter::r#impl::basic_authenticator::USERNAME_HEADER,
+                username,
+            )
+            .header(
+                auth_framework::adapter::r#impl::basic_authenticator::PASSWORD_HEADER,
+                password,
+            )
             .send()
             .await
             .expect("")
             .json::<AuthResponse>()
             .await
-            .expect("").token
+            .expect("")
+            .token
     }
 
     async fn integration_test_register() {
@@ -220,15 +222,20 @@ mod tests {
 
             match start_controller(config.clone()).await {
                 Ok(handle) => Ok(handle),
-                Err(e) => if e.kind() == ErrorKind::Other { start_controller(config).await } else { Err(e) },
-            }.expect("Failed to start the server")
+                Err(e) => {
+                    if e.kind() == ErrorKind::Other {
+                        start_controller(config).await
+                    } else {
+                        Err(e)
+                    }
+                }
+            }
+            .expect("Failed to start the server")
         });
         info!("Controller started, Registering...");
 
         sleep(Duration::from_secs(1)).await;
         register("admin", "password", &client).await;
-
-
 
         sleep(Duration::from_secs(1)).await;
         let token = login("admin", "password", &client).await;

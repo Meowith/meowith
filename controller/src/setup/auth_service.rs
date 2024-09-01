@@ -1,18 +1,18 @@
+use crate::setup::auth_routes::RegisterRequest;
+use crate::setup_procedure::SetupAppState;
 use actix_web::HttpRequest;
+use auth_framework::adapter::r#impl::basic_authenticator::BASIC_TYPE_IDENTIFIER;
+use auth_framework::credentials::AuthenticationCredentials;
 use bcrypt::{hash, DEFAULT_COST};
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use data::access::user_access::insert_user;
 use data::model::permission_model::GlobalRole;
 use data::model::user_model::User;
 use uuid::Uuid;
-use auth_framework::adapter::r#impl::basic_authenticator::BASIC_TYPE_IDENTIFIER;
-use auth_framework::credentials::AuthenticationCredentials;
-use crate::setup::auth_routes::{RegisterRequest};
-use crate::setup_procedure::SetupAppState;
 
 #[derive(Debug)]
 pub struct SetupCredentials {
-    credentials: Box<dyn AuthenticationCredentials>
+    credentials: Box<dyn AuthenticationCredentials>,
 }
 
 impl AuthenticationCredentials for SetupCredentials {
@@ -38,17 +38,12 @@ pub async fn do_login(
         return Err(NodeClientError::BadRequest);
     }
 
-    let facade = state
-        .auth
-        .get(&method)
-        .ok_or(NodeClientError::BadRequest)?;
+    let facade = state.auth.get(&method).ok_or(NodeClientError::BadRequest)?;
 
     let credentials = facade.convert(&req).map_err(|_| NodeClientError::BadAuth)?;
 
     facade
-        .authenticate(Box::new(SetupCredentials {
-            credentials,
-        }), &state.session)
+        .authenticate(Box::new(SetupCredentials { credentials }), &state.session)
         .await
         .map_err(|_| NodeClientError::BadAuth)?;
 
@@ -57,11 +52,7 @@ pub async fn do_login(
     Ok(())
 }
 
-pub async fn do_register(
-    req: RegisterRequest,
-    state: &SetupAppState,
-) -> NodeClientResponse<()> {
-
+pub async fn do_register(req: RegisterRequest, state: &SetupAppState) -> NodeClientResponse<()> {
     // First user is admin, amazing
     let user = User {
         id: Uuid::new_v4(),

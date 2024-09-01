@@ -24,7 +24,7 @@ pub struct DashboardConfig {
     pub database_nodes: Vec<String>,
     pub db_username: String,
     pub db_password: String,
-    pub keyspace: String
+    pub keyspace: String,
 }
 
 impl DashboardConfig {
@@ -57,7 +57,7 @@ impl DashboardConfig {
             database_nodes: vec!["127.0.0.1".to_string()],
             db_username: "root".to_string(),
             db_password: "root".to_string(),
-            keyspace: "none".to_string()
+            keyspace: "none".to_string(),
         };
         let mut new_file = OpenOptions::new()
             .write(true)

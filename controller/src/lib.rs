@@ -14,11 +14,13 @@ use crate::health::routes::{
 use crate::ioutils::read_file;
 use crate::middleware::node_internal::NodeVerify;
 use crate::middleware::user_middleware::UserMiddlewareRequestTransform;
+use crate::public::routes::auth::login;
 use crate::public::routes::node_management::create_register_code;
 use actix_cors::Cors;
 use actix_web::dev::{Server, ServerHandle};
 use actix_web::web::Data;
 use actix_web::{web, App, HttpServer};
+use auth_framework::adapter::method_container::{init_authentication_methods, AuthMethodMap};
 use auth_framework::adapter::token::AuthenticationJwtService;
 use commons::autoconfigure::ssl_conf::{generate_csr, generate_private_key, sign_csr, SigningData};
 use commons::context::controller_request_context::ControllerRequestContext;
@@ -39,8 +41,6 @@ use reqwest::Certificate;
 use scylla::CachingSession;
 use tokio::task;
 use tokio::task::JoinHandle;
-use auth_framework::adapter::method_container::{AuthMethodMap, init_authentication_methods};
-use crate::public::routes::auth::login;
 
 pub mod catche;
 pub mod config;
@@ -50,9 +50,9 @@ pub mod health;
 pub mod ioutils;
 pub mod middleware;
 pub mod public;
+pub mod setup;
 pub mod setup_procedure;
 pub mod token_service;
-pub mod setup;
 
 pub struct AppState {
     session: CachingSession,
@@ -62,7 +62,7 @@ pub struct AppState {
     req_ctx: ControllerRequestContext,
     catche_server: CatcheServer,
     auth_jwt_service: AuthenticationJwtService,
-    auth: AuthMethodMap
+    auth: AuthMethodMap,
 }
 
 pub struct ControllerHandle {
@@ -111,7 +111,8 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
         .expect("Failed to fetch first user from the database")
         .is_none()
     {
-        setup_procedure::setup_controller(clonfig, auth, controller_ssl, session).await
+        setup_procedure::setup_controller(clonfig, auth, controller_ssl, session)
+            .await
             .expect("Failed to start setup server");
 
         return Err(ErrorKind::Other.into());
