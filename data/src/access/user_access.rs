@@ -37,7 +37,7 @@ pub async fn maybe_get_user_from_id(
 pub async fn maybe_get_first_user(
     session: &CachingSession,
 ) -> Result<Option<User>, MeowithDataError> {
-    User::maybe_find_first("", ())
+    User::maybe_find_first("select id, session_id, name, auth_identifier, global_role, created, last_modified from users", ())
         .execute(session)
         .await
         .map_err(|e| e.into())

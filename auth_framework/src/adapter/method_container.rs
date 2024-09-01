@@ -5,10 +5,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 pub type AuthenticationMethodList = Arc<HashMap<String, Box<dyn AuthFacade>>>;
+pub type AuthMethodMap = HashMap<String, Box<dyn AuthFacade>>;
 
 pub fn init_authentication_methods(
     config_login_methods: Vec<String>,
-) -> NodeClientResponse<HashMap<String, Box<dyn AuthFacade>>> {
+) -> NodeClientResponse<AuthMethodMap> {
     let login_methods: Vec<Box<dyn AuthFacade>> = vec![Box::new(BasicAuthenticator)];
 
     let mut method_map: HashMap<String, Box<dyn AuthFacade>> = HashMap::new();

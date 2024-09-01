@@ -24,6 +24,7 @@ openssl = "0.10.64"
 actix-cors = "0.7.0"
 rand_chacha = { version = "0.9.0-alpha.1", features = ["default"] }
 lazy_static = "1.5.0"
+bcrypt = "0.15.1"
 
 # Data dependencies
 data = { path = "../data", version = "0.1.0" }
@@ -46,3 +47,4 @@ logging = { path = "../logging", version = "0.1.0" }
 async-trait = "0.1.81"
 jsonwebtoken = "9.3.0"
 serde_json = "1.0.125"
+tokio-util = "0.7.11"

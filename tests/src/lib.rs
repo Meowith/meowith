@@ -23,7 +23,12 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::time::Duration;
     use std::{env, io};
+    use std::io::ErrorKind;
+    use http::header::AUTHORIZATION;
     use tokio::time::sleep;
+    use auth_framework::adapter::r#impl::basic_authenticator::BASIC_TYPE_IDENTIFIER;
+    use controller_lib::setup::auth_routes::RegisterRequest;
+    use dashboard_lib::public::auth::auth_routes::AuthResponse;
 
     async fn initialize_database() {
         let cfg = TEST_CONTROLLER_CONFIG.clone();
@@ -99,8 +104,8 @@ mod tests {
             std::process::exit(1);
         }));
 
-        big_header!("TEST controller boot");
-        integration_test_controller_boot().await;
+        big_header!("TEST data init");
+        integration_test_init_data().await;
 
         big_header!("TEST node register");
         integration_test_register().await;
@@ -147,7 +152,7 @@ mod tests {
         controller_stop_handle.join_handle.await.expect("Join fail");
     }
 
-    async fn integration_test_controller_boot() {
+    async fn integration_test_init_data() {
         initialize_test_logging();
 
         info!("Initializing dirs");
@@ -157,21 +162,12 @@ mod tests {
 
         info!("Database initialization");
         initialize_database().await;
-
-        info!("Server initialization");
-        let stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
-            .await
-            .expect("Controller boot failed");
-        sleep(Duration::from_secs(1)).await;
-
-        info!("Shutting down...");
-        stop_handle.shutdown().await;
-        stop_handle.join_handle.await.expect("Join fail");
     }
 
-    async fn get_code(client: &Client) -> String {
+    async fn get_code(client: &Client, token: &String) -> String {
         client
             .post("http://127.0.0.1:2138/api/public/register-codes/create")
+            .header(AUTHORIZATION, token)
             .send()
             .await
             .expect("")
@@ -181,29 +177,77 @@ mod tests {
             .code
     }
 
+    async fn register(
+        username: &str,
+        password: &str,
+        client: &Client
+    ) {
+        let req = RegisterRequest {
+            username: username.to_string(),
+            password: password.to_string(),
+        };
+
+        client
+            .post("http://127.0.0.1:2139/api/auth/register")
+            .json(&req)
+            .send()
+            .await
+            .expect("");
+    }
+
+    async fn login(
+        username: &str,
+        password: &str,
+        client: &Client
+    ) -> String {
+        client
+            .post(format!("http://127.0.0.1:2138/api/public/login/{}", BASIC_TYPE_IDENTIFIER))
+            .header(auth_framework::adapter::r#impl::basic_authenticator::USERNAME_HEADER, username)
+            .header(auth_framework::adapter::r#impl::basic_authenticator::PASSWORD_HEADER, password)
+            .send()
+            .await
+            .expect("")
+            .json::<AuthResponse>()
+            .await
+            .expect("").token
+    }
+
     async fn integration_test_register() {
         let client = ClientBuilder::new().build().unwrap();
 
-        let controller_stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
-            .await
-            .expect("Controller boot failed");
-        info!("Controller started");
+        let controller_stop_handle = tokio::spawn(async {
+            let config = TEST_CONTROLLER_CONFIG.clone();
 
-        env::set_var("REGISTER_CODE", get_code(&client).await);
+            match start_controller(config.clone()).await {
+                Ok(handle) => Ok(handle),
+                Err(e) => if e.kind() == ErrorKind::Other { start_controller(config).await } else { Err(e) },
+            }.expect("Failed to start the server")
+        });
+        info!("Controller started, Registering...");
+
+        sleep(Duration::from_secs(1)).await;
+        register("admin", "password", &client).await;
+
+
+
+        sleep(Duration::from_secs(1)).await;
+        let token = login("admin", "password", &client).await;
+
+        env::set_var("REGISTER_CODE", get_code(&client, &token).await);
 
         let node_1_stop_handle = start_node(TEST_NODE_1_CONFIG.clone())
             .await
             .expect("Failed to register node 1");
         info!("Node started");
 
-        env::set_var("REGISTER_CODE", get_code(&client).await);
+        env::set_var("REGISTER_CODE", get_code(&client, &token).await);
 
         let node_2_stop_handle = start_node(TEST_NODE_2_CONFIG.clone())
             .await
             .expect("Failed to register node 2");
         info!("Node started");
 
-        env::set_var("REGISTER_CODE", get_code(&client).await);
+        env::set_var("REGISTER_CODE", get_code(&client, &token).await);
         let dashboard_1_stop_handle = start_dashboard(TEST_DASHBOARD_1_CONFIG.clone())
             .await
             .expect("Failed to register dashboard 1");
@@ -222,6 +266,7 @@ mod tests {
             .await
             .expect("Join fail");
         info!("Dashboard 1 shutdown awaited");
+        let controller_stop_handle = controller_stop_handle.await.unwrap();
         controller_stop_handle.shutdown().await;
         controller_stop_handle.join_handle.await.expect("Join fail");
     }

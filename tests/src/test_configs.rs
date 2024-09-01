@@ -15,6 +15,8 @@ lazy_static! {
         discovery_port: 2137,
         controller_addr: "127.0.0.1".to_string(),
         controller_port: 2138,
+        setup_addr: "127.0.0.1".to_string(),
+        setup_port: 2139,
         ssl_certificate: None,
         ssl_private_key: None,
         ca_certificate: "resources/ca_cert.pem".to_string(),
@@ -38,6 +40,7 @@ lazy_static! {
             },
             max_readers: 256,
             default_application_quota: 256 * 1024 * 1024,
+            login_methods: vec![BASIC_TYPE_IDENTIFIER.to_string()]
         },
     };
     pub static ref TEST_NODE_1_CONFIG: NodeConfigInstance = NodeConfigInstance {
@@ -90,6 +93,5 @@ lazy_static! {
         db_username: "cassandra".to_string(),
         db_password: "cassandra".to_string(),
         keyspace: "meowith_test".to_string(),
-        login_methods: vec![BASIC_TYPE_IDENTIFIER.to_string()],
     };
 }

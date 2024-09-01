@@ -1,3 +1,4 @@
+use std::io::ErrorKind;
 use controller_lib::config::controller_config::ControllerConfig;
 use controller_lib::{start_controller, ControllerHandle};
 use logging::initialize_logging;
@@ -14,7 +15,10 @@ async fn main() -> std::io::Result<()> {
     )
     .expect("Failed to init config");
 
-    let handle: ControllerHandle = start_controller(config).await?;
+    let handle: ControllerHandle = match start_controller(config.clone()).await {
+        Ok(handle) => Ok(handle),
+        Err(e) => if e.kind() == ErrorKind::Other { Ok(start_controller(config).await?) } else { Err(e) },
+    }?;
 
     handle.join_handle.await?;
 

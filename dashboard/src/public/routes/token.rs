@@ -39,6 +39,6 @@ pub async fn delete_token(
     user: User,
     req: web::Path<TokenDeleteRequest>,
 ) -> NodeClientResponse<HttpResponse> {
-    do_delete_token(req.into_inner(), user, &app_state.session).await?;
+    do_delete_token(req.into_inner(), user, &app_state).await?;
     Ok(HttpResponse::Ok().finish())
 }

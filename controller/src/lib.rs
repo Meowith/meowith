@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::ErrorKind;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -38,6 +39,8 @@ use reqwest::Certificate;
 use scylla::CachingSession;
 use tokio::task;
 use tokio::task::JoinHandle;
+use auth_framework::adapter::method_container::{AuthMethodMap, init_authentication_methods};
+use crate::public::routes::auth::login;
 
 pub mod catche;
 pub mod config;
@@ -49,6 +52,7 @@ pub mod middleware;
 pub mod public;
 pub mod setup_procedure;
 pub mod token_service;
+pub mod setup;
 
 pub struct AppState {
     session: CachingSession,
@@ -58,6 +62,7 @@ pub struct AppState {
     req_ctx: ControllerRequestContext,
     catche_server: CatcheServer,
     auth_jwt_service: AuthenticationJwtService,
+    auth: AuthMethodMap
 }
 
 pub struct ControllerHandle {
@@ -98,12 +103,18 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
     .await
     .expect("Unable to connect to database");
 
+    let auth = init_authentication_methods(clonfig.general_configuration.login_methods.clone())
+        .expect("Invalid authentication methods");
+
     if maybe_get_first_user(&session)
         .await
         .expect("Failed to fetch first user from the database")
         .is_none()
     {
-        setup_procedure::setup_controller(&session).await;
+        setup_procedure::setup_controller(clonfig, auth, controller_ssl, session).await
+            .expect("Failed to start setup server");
+
+        return Err(ErrorKind::Other.into());
     }
 
     let ca_cert = X509::from_pem(
@@ -175,6 +186,7 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
             &config.general_configuration.access_token_configuration,
         )
         .expect("JWT auth service error"),
+        auth,
     });
 
     let init_app_data = app_data.clone();
@@ -213,7 +225,9 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
             .service(create_register_code)
             .wrap(UserMiddlewareRequestTransform);
 
-        let public_scope = web::scope("/api/public").service(register_codes);
+        let public_scope = web::scope("/api/public")
+            .service(register_codes)
+            .service(login);
 
         App::new()
             .wrap(cors)

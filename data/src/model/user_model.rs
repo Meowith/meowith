@@ -31,6 +31,7 @@ pub struct User {
     partition_keys = [name],
     clustering_keys = [id]
 )]
+#[derive(Debug)]
 pub struct UsersByName {
     pub name: Text,
     pub id: Uuid,

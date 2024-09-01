@@ -11,6 +11,8 @@ pub struct ControllerConfig {
     pub discovery_port: u16,
     pub controller_addr: String,
     pub controller_port: u16,
+    pub setup_addr: String,
+    pub setup_port: u16,
     pub ssl_certificate: Option<String>,
     pub ssl_private_key: Option<String>,
 
@@ -50,6 +52,8 @@ impl ControllerConfig {
             discovery_port: 8090,
             controller_addr: "127.0.0.1".to_string(),
             controller_port: 8080,
+            setup_addr: "127.0.0.1".to_string(),
+            setup_port: 8081,
             ssl_certificate: None,
             ssl_private_key: None,
 

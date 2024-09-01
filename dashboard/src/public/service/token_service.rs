@@ -21,6 +21,8 @@ use data::model::user_model::User;
 use futures_util::StreamExt;
 use scylla::CachingSession;
 use uuid::Uuid;
+use commons::access_token_service::ClaimKey;
+use commons::cache::CacheId;
 
 pub async fn do_issue_app_token(
     req: TokenIssueRequest,
@@ -109,8 +111,10 @@ pub async fn do_list_tokens(
 pub async fn do_delete_token(
     req: TokenDeleteRequest,
     user: User,
-    session: &CachingSession,
+    state: &AppState,
 ) -> NodeClientResponse<()> {
+    let session  = &state.session;
+
     if req.issuer_id != user.id {
         let app = get_app_by_id(req.app_id, session).await?;
         has_app_permission(
@@ -125,5 +129,15 @@ pub async fn do_delete_token(
 
     let token = get_app_token(req.app_id, req.issuer_id, req.name, session).await?;
     delete_app_token(&token, session).await?;
+
+    let cache_id: u8 = CacheId::ValidateNonce.into();
+
+    state.catche_client.write_invalidate_packet(cache_id as u32, serde_cbor::to_vec(&ClaimKey {
+        app_id: token.app_id,
+        issuer_id: token.issuer_id,
+        name: token.name,
+        nonce: token.nonce,
+    }).unwrap().as_slice()).await?;
+
     Ok(())
 }

@@ -4,15 +4,14 @@ use crate::token::DashboardClaims;
 use crate::{AuthFacade, Authentication};
 use actix_web::HttpRequest;
 use async_trait::async_trait;
-use bcrypt::{hash, DEFAULT_COST};
 use data::access::user_access::get_user_from_name;
 use scylla::CachingSession;
 
 pub const PEPPER: &str = "x{2G-ki+*";
 
 pub const BASIC_TYPE_IDENTIFIER: &str = "BASIC";
-const USERNAME_HEADER: &str = "username";
-const PASSWORD_HEADER: &str = "password";
+pub const USERNAME_HEADER: &str = "username";
+pub const PASSWORD_HEADER: &str = "password";
 
 #[derive(Debug)]
 pub struct BasicAuthenticator;
@@ -76,14 +75,9 @@ impl Authentication for BasicAuthenticator {
                 .ok_or(AuthenticateError::InvalidCredentials)?,
             session,
         )
-        .await
-        .map_err(|_| AuthenticateError::InvalidCredentials)?;
+        .await.map_err(|_| AuthenticateError::InvalidCredentials)?;
 
-        if user.auth_identifier
-            != hash(
-                credentials.get_authentication_identifier() + PEPPER,
-                DEFAULT_COST,
-            )
+        if !bcrypt::verify(credentials.get_authentication_identifier() + PEPPER, user.auth_identifier.as_str())
             .map_err(|_| AuthenticateError::InternalError)?
         {
             return Err(AuthenticateError::InvalidCredentials);
