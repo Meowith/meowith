@@ -1,5 +1,5 @@
 use crate::public::middleware::user_middleware::BucketAccessor;
-use crate::public::routes::entity_action::{DeleteDirectoryRequest, RenameEntityRequest};
+use crate::public::routes::entity_action::RenameEntityRequest;
 use crate::public::routes::EntryPath;
 use crate::public::service::file_access_service::try_mkdir;
 use crate::public::service::{
@@ -12,6 +12,7 @@ use data::access::file_access::{
     delete_directory, get_directory, maybe_get_first_child_from_directory,
     maybe_get_first_file_from_directory, update_directory_path, DirectoryIterator,
 };
+use data::dto::entity::DeleteDirectoryRequest;
 use data::model::file_model::Directory;
 use data::pathlib::{join_parent_name, normalize, split_path};
 use futures::pin_mut;
@@ -54,12 +55,12 @@ pub async fn do_delete_directory(
         }
 
         for dir in children {
-            dir_empty(&directory, &app_state).await?;
+            dir_empty(&directory, &app_state, false).await?;
 
             delete_directory(&dir, &app_state.session).await?;
         }
     } else {
-        dir_empty(&directory, &app_state).await?;
+        dir_empty(&directory, &app_state, true).await?;
     }
 
     delete_directory(&directory, &app_state.session).await?;
@@ -67,14 +68,19 @@ pub async fn do_delete_directory(
     Ok(())
 }
 
-async fn dir_empty(directory: &Directory, app_state: &Data<AppState>) -> NodeClientResponse<()> {
-    if maybe_get_first_child_from_directory(
-        directory.bucket_id,
-        Some(directory.full_path()),
-        &app_state.session,
-    )
-    .await?
-    .is_some()
+async fn dir_empty(
+    directory: &Directory,
+    app_state: &Data<AppState>,
+    check_dir: bool,
+) -> NodeClientResponse<()> {
+    if check_dir
+        && maybe_get_first_child_from_directory(
+            directory.bucket_id,
+            Some(directory.full_path()),
+            &app_state.session,
+        )
+        .await?
+        .is_some()
     {
         return Err(NodeClientError::NotEmpty);
     }

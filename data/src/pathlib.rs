@@ -28,7 +28,7 @@ pub fn split_path(file_path: &str) -> (Option<String>, String) {
     (parent, normalize(&file_name))
 }
 
-pub fn join_parent_name(parent: &String, name: &String) -> String {
+pub fn join_parent_name(parent: &str, name: &String) -> String {
     if parent.is_empty() {
         name.to_string()
     } else {

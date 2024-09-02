@@ -182,3 +182,13 @@ pub struct TokenIssueRequest {
     pub name: String,
     pub perms: Vec<ScopedPermission>,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RenameEntityRequest {
+    pub to: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DeleteDirectoryRequest {
+    pub recursive: bool,
+}

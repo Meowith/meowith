@@ -5,10 +5,12 @@ use crate::AppState;
 use actix_web::web;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use data::access::file_access::{
-    get_directory, get_files_from_bucket, get_files_from_bucket_and_directory,
-    get_files_from_bucket_paginated, get_sub_dirs, FileItem,
+    get_directories_from_bucket, get_directories_from_bucket_paginated, get_directory,
+    get_files_from_bucket, get_files_from_bucket_and_directory, get_files_from_bucket_paginated,
+    get_sub_dirs, DirectoryListItem, FileItem,
 };
 use data::dto::entity::{Entity, EntityList};
+use data::error::MeowithDataError;
 use futures::Stream;
 use futures_util::StreamExt;
 use serde::Deserialize;
@@ -46,7 +48,7 @@ impl PaginationInfo {
     }
 }
 
-pub async fn do_list_bucket(
+pub async fn do_list_bucket_files(
     app_id: Uuid,
     bucket_id: Uuid,
     accessor: BucketAccessor,
@@ -71,6 +73,47 @@ pub async fn do_list_bucket(
     };
 
     collect_files(files, true).await
+}
+
+pub async fn do_list_bucket_directories(
+    app_id: Uuid,
+    bucket_id: Uuid,
+    accessor: BucketAccessor,
+    app_data: web::Data<AppState>,
+    pagination_info: PaginationInfo,
+) -> NodeClientResponse<EntityList> {
+    pagination_info.validate()?;
+    accessor.has_permission(&app_id, &bucket_id, *LIST_BUCKET_ALLOWANCE)?;
+    let mut sub_dirs: Box<dyn Stream<Item = DirectoryListItem> + Unpin> =
+        if pagination_info.is_paginated() {
+            let complete = pagination_info.completed();
+            Box::new(
+                get_directories_from_bucket_paginated(
+                    bucket_id,
+                    &app_data.session,
+                    complete.start.unwrap(),
+                    complete.end.unwrap(),
+                )
+                .await?,
+            )
+        } else {
+            Box::new(get_directories_from_bucket(bucket_id, &app_data.session).await?)
+        };
+
+    let mut entries = Vec::new();
+    while let Some(dir) = sub_dirs.next().await {
+        let dir = dir.map_err(MeowithDataError::from)?;
+        entries.push(Entity {
+            name: dir.full_path(),
+            dir: None,
+            dir_id: Some(dir.id),
+            size: 0,
+            is_dir: true,
+            created: dir.created,
+            last_modified: dir.last_modified,
+        })
+    }
+    Ok(EntityList { entities: entries })
 }
 
 pub async fn do_list_dir(

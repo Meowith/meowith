@@ -25,6 +25,7 @@ use crate::pathlib::split_path;
 pub type FileItem = Result<File, CharybdisError>;
 pub type BucketItem = Result<Bucket, CharybdisError>;
 pub type DirectoryItem = Result<Directory, MeowithDataError>;
+pub type DirectoryListItem = Result<Directory, CharybdisError>;
 pub type FileDir = (File, Option<Directory>);
 pub type MaybeFileDir = (Option<File>, Option<Directory>);
 
@@ -164,6 +165,30 @@ pub async fn insert_directory(
         .map_err(MeowithDataError::from)?;
 
     Ok(())
+}
+
+pub async fn get_directories_from_bucket(
+    bucket_id: Uuid,
+    session: &CachingSession,
+) -> Result<CharybdisModelStream<Directory>, MeowithDataError> {
+    Directory::find_by_bucket_id(bucket_id)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
+pub async fn get_directories_from_bucket_paginated(
+    bucket_id: Uuid,
+    session: &CachingSession,
+    start: u64,
+    end: u64,
+) -> Result<Take<Skip<CharybdisModelStream<Directory>>>, MeowithDataError> {
+    Ok(Directory::find_by_bucket_id(bucket_id)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)?
+        .skip(start as usize)
+        .take((end - start) as usize))
 }
 
 pub async fn get_files_from_bucket(

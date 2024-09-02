@@ -10,7 +10,7 @@ pub mod file_transfer;
 pub struct EntryPath {
     pub app_id: Uuid,
     pub bucket_id: Uuid,
-    path: String,
+    path: Option<String>,
     #[serde(skip)]
     cached_path: Option<String>,
 }
@@ -20,7 +20,7 @@ impl EntryPath {
         if let Some(val) = &self.cached_path {
             val.clone()
         } else {
-            self.cached_path = Some(normalize(&self.path));
+            self.cached_path = Some(normalize(&self.path.clone().unwrap_or_default()));
             self.cached_path.as_ref().unwrap().clone()
         }
     }

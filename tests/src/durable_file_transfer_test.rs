@@ -1,4 +1,4 @@
-use crate::file_transfer_test::download_file;
+use crate::file_transfer_test::{delete_file, download_file};
 use crate::utils::{file_to_body_ranged, file_to_body_ranged_await, test_files, Logger};
 use data::dto::entity::{
     AppDto, BucketDto, UploadSessionRequest, UploadSessionResumeRequest,
@@ -175,4 +175,14 @@ pub async fn test_durable_upload(data: (AppDto, BucketDto, String, String)) {
     header!("Big Durable File downloaded from remote");
 
     test_files("test_data/test2.txt", "test_data/test3-dl-1.txt", None).await;
+
+    delete_file(
+        "test3",
+        "127.0.0.2:4000",
+        bucket_dto.id,
+        app_dto.id,
+        &token,
+        &client,
+    )
+    .await;
 }

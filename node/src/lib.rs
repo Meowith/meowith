@@ -8,7 +8,9 @@ use crate::public::middleware::user_middleware::UserAuthenticate;
 use crate::public::routes::entity_action::{
     create_directory, delete_directory, delete_file, rename_directory, rename_file,
 };
-use crate::public::routes::entity_list::{list_bucket, list_dir};
+use crate::public::routes::entity_list::{
+    list_bucket_directories, list_bucket_files, list_directory,
+};
 use crate::public::routes::file_transfer::{
     download, resume_durable_upload, start_upload_durable, upload_durable, upload_oneshot,
 };
@@ -175,11 +177,12 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
             .service(create_directory)
             .service(delete_directory)
             .service(rename_directory)
-            .service(list_dir)
+            .service(list_directory)
             .wrap(UserAuthenticate);
 
         let bucket_scope = web::scope("/api/bucket")
-            .service(list_bucket)
+            .service(list_bucket_files)
+            .service(list_bucket_directories)
             .wrap(UserAuthenticate);
 
         App::new()

@@ -505,7 +505,7 @@ pub async fn try_mkdir(
     for (i, directory) in (0..).zip(directories_to_create) {
         let new_dir = Directory {
             bucket_id,
-            parent: directory.0.unwrap(),
+            parent: directory.0.unwrap_or_default(),
             name: directory.1,
             id: Uuid::new_v4(),
             created: Utc::now(),

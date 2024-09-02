@@ -19,7 +19,7 @@ pub struct FileChunk {
     local_secondary_indexes = [],
     static_columns = []
 )]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct File {
     pub bucket_id: Uuid,
     pub directory: Uuid, // Uuid::from_u128(0) for root dir
@@ -28,6 +28,12 @@ pub struct File {
     pub chunk_ids: Set<Frozen<FileChunk>>,
     pub created: Timestamp,
     pub last_modified: Timestamp,
+}
+
+impl File {
+    pub fn full_path(&self, parent: &str) -> String {
+        join_parent_name(parent, &self.name)
+    }
 }
 
 #[charybdis_model(

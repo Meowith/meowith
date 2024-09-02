@@ -28,7 +28,7 @@ use data::dto::entity::{
 
 const USER_TRANSFER_BUFFER: usize = 8 * 1024;
 
-#[post("/upload/oneshot/{app_id}/{bucket_id}/{path}")]
+#[post("/upload/oneshot/{app_id}/{bucket_id}/{path:.*}")]
 pub async fn upload_oneshot(
     path: web::Path<EntryPath>,
     accessor: BucketAccessor,
@@ -75,7 +75,7 @@ pub async fn upload_oneshot(
     Ok(HttpResponse::Ok().finish())
 }
 
-#[post("/upload/durable/{app_id}/{bucket_id}/{path}")]
+#[post("/upload/durable/{app_id}/{bucket_id}/{path:.*}")]
 pub async fn start_upload_durable(
     path: web::Path<EntryPath>,
     accessor: BucketAccessor,
@@ -150,7 +150,7 @@ pub async fn upload_durable(
     send_res.map(|_| HttpResponse::Ok().finish())
 }
 
-#[get("/download/{app_id}/{bucket_id}/{path}")]
+#[get("/download/{app_id}/{bucket_id}/{path:.*}")]
 pub async fn download(
     path: web::Path<EntryPath>,
     accessor: BucketAccessor,

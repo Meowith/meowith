@@ -2,10 +2,12 @@ pub mod file_transfer_test;
 pub mod test_configs;
 #[macro_use]
 pub mod utils;
+pub mod directory_test;
 pub mod durable_file_transfer_test;
 
 #[cfg(test)]
 mod tests {
+    use crate::directory_test::directory_test;
     use crate::durable_file_transfer_test::test_durable_upload;
     use crate::file_transfer_test::test_file_transfer;
     use crate::test_configs::{
@@ -133,7 +135,10 @@ mod tests {
         let user_setup = test_file_transfer().await;
 
         big_header!("TEST durable file transfer");
-        test_durable_upload(user_setup).await;
+        test_durable_upload(user_setup.clone()).await;
+
+        big_header!("TEST directory management");
+        directory_test(user_setup).await;
 
         info!("Shutting down all nodes.");
         node_1_stop_handle.shutdown().await;

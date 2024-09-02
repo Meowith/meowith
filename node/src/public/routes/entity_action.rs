@@ -7,7 +7,9 @@ use crate::public::service::file_action_service::{delete_file_srv, rename_file_s
 use crate::AppState;
 use actix_web::{delete, post, web, HttpResponse};
 use commons::error::std_response::NodeClientResponse;
+use data::dto::entity::DeleteDirectoryRequest;
 use data::pathlib::normalize;
+use log::info;
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
@@ -28,23 +30,18 @@ impl RenameEntityRequest {
     }
 }
 
-#[derive(Deserialize, Debug)]
-pub struct DeleteDirectoryRequest {
-    #[allow(unused)]
-    pub recursive: bool,
-}
-
-#[delete("/delete/{app_id}/{bucket_id}/{path}")]
+#[delete("/delete/{app_id}/{bucket_id}/{path:.*}")]
 pub async fn delete_file(
     path: web::Path<EntryPath>,
     accessor: BucketAccessor,
     app_data: web::Data<AppState>,
 ) -> NodeClientResponse<HttpResponse> {
+    info!("DELETE FILE {path:?}");
     delete_file_srv(path.into_inner(), accessor, app_data).await?;
     Ok(HttpResponse::Ok().finish())
 }
 
-#[post("/rename/{app_id}/{bucket_id}/{path}")]
+#[post("/rename/{app_id}/{bucket_id}/{path:.*}")]
 pub async fn rename_file(
     path: web::Path<EntryPath>,
     req: web::Json<RenameEntityRequest>,
@@ -55,7 +52,7 @@ pub async fn rename_file(
     Ok(HttpResponse::Ok().finish())
 }
 
-#[post("/create/{app_id}/{bucket_id}/{path}")]
+#[post("/create/{app_id}/{bucket_id}/{path:.*}")]
 pub async fn create_directory(
     path: web::Path<EntryPath>,
     accessor: BucketAccessor,
@@ -65,7 +62,7 @@ pub async fn create_directory(
     Ok(HttpResponse::Ok().finish())
 }
 
-#[delete("/delete/{app_id}/{bucket_id}/{path}")]
+#[delete("/delete/{app_id}/{bucket_id}/{path:.*}")]
 pub async fn delete_directory(
     path: web::Path<EntryPath>,
     req: web::Json<DeleteDirectoryRequest>,
@@ -73,13 +70,13 @@ pub async fn delete_directory(
     app_data: web::Data<AppState>,
 ) -> NodeClientResponse<HttpResponse> {
     let path = path.into_inner();
-
+    info!("do_delete_directory");
     do_delete_directory(path, req.0, accessor, app_data).await?;
 
     Ok(HttpResponse::Ok().finish())
 }
 
-#[post("/rename/{app_id}/{bucket_id}/{path}")]
+#[post("/rename/{app_id}/{bucket_id}/{path:.*}")]
 pub async fn rename_directory(
     path: web::Path<EntryPath>,
     req: web::Json<RenameEntityRequest>,
