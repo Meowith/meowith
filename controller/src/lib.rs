@@ -30,7 +30,7 @@ use commons::ssl_acceptor::{
 use data::access::microservice_node_access::get_microservices;
 use data::access::user_access::maybe_get_first_user;
 use data::database_session::{build_session, CACHE_SIZE};
-use data::model::microservice_node_model::MicroserviceNode;
+use data::model::microservice_node_model::{MicroserviceNode, MicroserviceNodeItem};
 use futures::future;
 use log::{debug, error, info};
 use openssl::pkey::{PKey, Private};
@@ -53,6 +53,7 @@ pub mod public;
 pub mod setup;
 pub mod setup_procedure;
 pub mod token_service;
+use futures_util::StreamExt;
 
 pub struct AppState {
     session: CachingSession,
@@ -141,10 +142,12 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
     let mut node_token_map = HashMap::new();
     let mut token_node_map = HashMap::new();
 
-    let mut nodes: Vec<MicroserviceNode> = Vec::new();
-    for node in microservices_iter {
-        nodes.push(node.unwrap());
-    }
+    let nodes: Vec<MicroserviceNode> = microservices_iter
+        .collect::<Vec<MicroserviceNodeItem>>()
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .expect("Unable to fetch service nodes");
 
     for node in &nodes {
         node_addr_map.insert(node.id, node.address.clone().to_string());

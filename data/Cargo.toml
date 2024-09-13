@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-charybdis = "0.7.0"
-scylla = "0.13.0"
+charybdis = "0.7.7"
+scylla = "0.14.0"
 strum = { version = "0.26.2", features = ["derive"] }
 uuid = "1.8.0"
 serde = { version = "1.0.203", features = ["derive"] }
@@ -17,4 +17,4 @@ num_enum = "0.7.3"
 regex = "1.10.5"
 lazy_static = "1.5.0"
 async-stream = "0.3.5"
-log = "0.4.22"
+log = { version = "0.4.22", features = ["release_max_level_debug"] }

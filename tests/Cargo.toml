@@ -14,7 +14,7 @@ dashboard = { path = "../dashboard", version = "0.1.0" }
 tokio = "1.39.3"
 lazy_static = "1.5.0"
 charybdis-migrate = "0.7.5"
-log = "0.4.22"
+log = { version = "0.4.22", features = ["release_max_level_debug"] }
 reqwest = { version = "0.12.7", features = ["stream"] }
 rand = "0.8.5"
 uuid = { version = "1.10.0", features = ["v4"] }

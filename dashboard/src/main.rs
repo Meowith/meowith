@@ -1,4 +1,4 @@
-use dashboard_lib::config::DashboardConfig;
+use dashboard_lib::dashboard_config::DashboardConfig;
 use dashboard_lib::{start_dashboard, DashboardHandle};
 use logging::initialize_logging;
 use std::path::Path;

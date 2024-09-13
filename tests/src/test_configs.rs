@@ -3,7 +3,7 @@ use data::dto::config::{AccessTokenConfiguration, GeneralConfiguration, PortConf
 use lazy_static::lazy_static;
 
 use auth_framework::adapter::r#impl::basic_authenticator::BASIC_TYPE_IDENTIFIER;
-use dashboard_lib::config::DashboardConfig;
+use dashboard_lib::dashboard_config::DashboardConfig;
 use node_lib::config::node_config::NodeConfigInstance;
 use std::net::{IpAddr, Ipv4Addr};
 use std::str::FromStr;

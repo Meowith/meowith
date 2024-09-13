@@ -1,6 +1,7 @@
 use crate::config::error::ConfigError;
 use crate::config::size_parser::parse_size;
 use crate::io::get_space;
+use log::info;
 use protocol::mdsftp::MAX_CHUNK_SIZE;
 use serde::{Deserialize, Serialize};
 use std::cmp::max;
@@ -10,7 +11,7 @@ use std::net::IpAddr;
 use std::path::Path;
 use std::str::FromStr;
 
-const MIN_STORAGE_VALUE: u64 = 2 * 1024 * 1024 * 1024;
+const MIN_STORAGE_VALUE: u64 = 100 * 1024 * 1024;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct NodeConfig {
@@ -77,7 +78,7 @@ impl NodeConfig {
     pub fn create_default(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let default_config = NodeConfig {
             cnc_addr: "127.0.0.1".to_string(),
-            cnc_port: 9000,
+            cnc_port: 8090,
             ca_certificate: "ca_cert.pem".to_string(),
             max_space: "100mb".to_string(),
             external_server_bind_address: "127.0.0.1".to_string(),
@@ -89,9 +90,9 @@ impl NodeConfig {
             data_save_path: "/var/meowith/data/".to_string(),
             net_fragment_size: 256 * 1024,
             database_nodes: vec!["127.0.0.1".to_string()],
-            db_username: "root".to_string(),
-            db_password: "root".to_string(),
-            keyspace: "none".to_string(),
+            db_username: "cassandra".to_string(),
+            db_password: "cassandra".to_string(),
+            keyspace: "meowith".to_string(),
         };
         let mut new_file = OpenOptions::new()
             .write(true)
@@ -138,8 +139,10 @@ impl NodeConfig {
         let max_space_bytes = parse_size(&self.max_space)?;
 
         let available_space = get_space(path).await.expect("Disk usage fetch failed");
+        let requested_space = max(MIN_STORAGE_VALUE, max_space_bytes);
+        info!("Available disk space: {available_space:?} Requested: {requested_space}");
 
-        if available_space.total < max(MIN_STORAGE_VALUE, max_space_bytes) {
+        if available_space.total < requested_space {
             return Err(ConfigError::InsufficientDiskSpace);
         }
 

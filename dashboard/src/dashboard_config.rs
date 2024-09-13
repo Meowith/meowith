@@ -46,7 +46,7 @@ impl DashboardConfig {
     pub fn create_default(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let default_config = DashboardConfig {
             cnc_addr: "127.0.0.1".to_string(),
-            cnc_port: 9000,
+            cnc_port: 8090,
             ca_certificate: "ca_cert.pem".to_string(),
             external_server_bind_address: "127.0.0.1".to_string(),
             external_server_port: 8080,
@@ -55,9 +55,9 @@ impl DashboardConfig {
             ssl_certificate: None,
             ssl_private_key: None,
             database_nodes: vec!["127.0.0.1".to_string()],
-            db_username: "root".to_string(),
-            db_password: "root".to_string(),
-            keyspace: "none".to_string(),
+            db_username: "cassandra".to_string(),
+            db_password: "cassandra".to_string(),
+            keyspace: "meowith".to_string(),
         };
         let mut new_file = OpenOptions::new()
             .write(true)

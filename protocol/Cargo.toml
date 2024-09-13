@@ -15,7 +15,7 @@ data = { path = "../data", version = "0.1.0" }
 logging = { path = "../logging", version = "0.1.0", features = ["test_logging"] }
 regex = "1.10.5"
 derive_more = { version="1.0.0", features = ["full"] }
-log = "0.4.22"
+log = { version = "0.4.22", features = ["release_max_level_debug"] }
 tokio = "1.38.0"
 tokio-openssl = "0.6.4"
 rustls = "0.23.10"

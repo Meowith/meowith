@@ -1,6 +1,6 @@
 use crate::auth::user_middleware::UserMiddlewareRequestTransform;
 use crate::caching::catche::connect_catche;
-use crate::config::DashboardConfig;
+use crate::dashboard_config::DashboardConfig;
 use crate::init_procedure::register_node;
 use crate::public::auth::auth_routes::{login, register};
 use crate::public::routes::application::{create_application, delete_application};
@@ -31,7 +31,7 @@ use tokio::task::JoinHandle;
 
 pub mod auth;
 pub mod caching;
-pub mod config;
+pub mod dashboard_config;
 pub mod init_procedure;
 pub mod public;
 

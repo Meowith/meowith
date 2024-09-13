@@ -84,7 +84,6 @@ impl MicroserviceRequestContext {
         let mut headers = HeaderMap::new();
         headers.insert(AUTHORIZATION, access_token.parse().unwrap());
         ClientBuilder::new()
-            .use_rustls_tls()
             .add_root_certificate(root_certificate.clone())
             .default_headers(headers)
             .build()

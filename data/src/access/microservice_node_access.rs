@@ -6,7 +6,7 @@ use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
 use charybdis::types::{BigInt, Text, Timestamp, TinyInt, Uuid};
 use chrono::Utc;
-use scylla::transport::session::TypedRowIter;
+use scylla::transport::iterator::TypedRowIterator;
 use scylla::{CachingSession, QueryResult};
 
 static GET_ALL_NODES_QUERY: &str = "SELECT microservice_type, id, max_space, used_space, access_token, access_token_issued_at, renewal_token, address, created, register_code FROM microservice_nodes";
@@ -29,13 +29,12 @@ partial_microservice_node!(
 
 pub async fn get_microservices(
     session: &CachingSession,
-) -> Result<TypedRowIter<MicroserviceNode>, MeowithDataError> {
-    session
-        .execute(GET_ALL_NODES_QUERY, &[])
+) -> Result<TypedRowIterator<MicroserviceNode>, MeowithDataError> {
+    Ok(session
+        .execute_iter(GET_ALL_NODES_QUERY, &[])
         .await
         .map_err(<scylla::transport::errors::QueryError as Into<MeowithDataError>>::into)?
-        .rows_typed::<MicroserviceNode>()
-        .map_err(|_| MeowithDataError::NotFound)
+        .into_typed::<MicroserviceNode>())
 }
 
 pub async fn get_microservice_from_type<'a>(

@@ -22,13 +22,13 @@ logging = { path = "../logging", version = "0.1.0" }
 commons = { path = "../commons", version = "0.1.0"}
 data = { path = "../data", version = "0.1.0" }
 protocol = { path = "../protocol", version = "0.1.0" }
-reqwest = "0.12.5"
+reqwest = { version = "0.12.5", features = ["__rustls"] }
 tokio = { version = "1.38.0", features = ["fs"] }
 uuid = { version = "1.9.1", features = ["v4"] }
 tokio-rustls = "0.26.0"
 async-trait = "0.1.80"
 actix-cors = "0.7.0"
-log = "0.4.22"
+log = { version = "0.4.22", features = ["release_max_level_debug"] }
 derive_more = { version="1.0.0", features = ["full"] }
 filesize = "0.2.0"
 heim = { version = "0.0.11", features = ["disk"], default-features = false }
@@ -38,7 +38,7 @@ tokio-util = "0.7.11"
 futures-util = "0.3.30"
 futures = "0.3.30"
 cached = { version = "0.53.0", features = ["tokio", "async"] }
-scylla = "0.13.1"
+scylla = "0.14.0"
 regex = "1.10.5"
 lazy_static = "1.5.0"
 mime_guess = "2.0.5"

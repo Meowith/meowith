@@ -2,14 +2,12 @@ use crate::error::DataResponseError;
 use actix_web::dev::Payload;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use charybdis::macros::charybdis_model;
-use charybdis::scylla::CqlValue;
 use charybdis::types::{BigInt, Boolean, Inet, Text, Timestamp, TinyInt, Uuid};
-use scylla::_macro_internal::{
-    CellWriter, ColumnType, FromCqlValError, SerializationError, SerializeCql, WrittenCellProof,
-};
-use scylla::cql_to_rust::FromCqlVal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+use scylla::transport::iterator::NextRowError;
+
+pub type MicroserviceNodeItem = Result<MicroserviceNode, NextRowError>;
 
 #[charybdis_model(
     table_name = microservice_nodes,
@@ -66,28 +64,6 @@ impl Default for MicroserviceNode {
             address: Inet::from_str("0.0.0.0").unwrap(),
             created: Default::default(),
             register_code: "".to_string(),
-        }
-    }
-}
-
-impl SerializeCql for MicroserviceType {
-    fn serialize<'b>(
-        &self,
-        _typ: &ColumnType,
-        writer: CellWriter<'b>,
-    ) -> Result<WrittenCellProof<'b>, SerializationError> {
-        let as_i8: i8 = self.into();
-        SerializeCql::serialize(&as_i8, &ColumnType::TinyInt, writer)
-    }
-}
-
-impl FromCqlVal<CqlValue> for MicroserviceType {
-    fn from_cql(cql_val: CqlValue) -> Result<Self, FromCqlValError> {
-        match cql_val {
-            CqlValue::TinyInt(val) => {
-                MicroserviceType::try_from(val).map_err(|_| FromCqlValError::BadVal)
-            }
-            _ => Err(FromCqlValError::BadCqlType),
         }
     }
 }

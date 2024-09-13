@@ -1,4 +1,4 @@
-use crate::config::DashboardConfig;
+use crate::dashboard_config::DashboardConfig;
 use commons::autoconfigure::auth_conf::{register_procedure, RegistrationResult};
 use commons::context::microservice_request_context::{MicroserviceRequestContext, SecurityContext};
 use data::model::microservice_node_model::MicroserviceType;
@@ -14,7 +14,7 @@ pub async fn register_node(
 ) -> (MicroserviceRequestContext, RegistrationResult) {
     let ca_cert = X509::from_pem(
         fs::read(&config.ca_certificate)
-            .expect("Unable to read ca cert file")
+            .unwrap_or_else(|_| panic!("Unable to read ca cert file {}", &config.ca_certificate))
             .as_slice(),
     )
     .expect("Invalid ca cert format");

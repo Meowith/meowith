@@ -61,12 +61,12 @@ impl ControllerConfig {
             ca_private_key: String::from("ca_key.pem"),
             ca_private_key_password: Some("my-password".to_string()),
             autogen_ssl_validity: 30,
-            internal_ip_addr: IpAddr::from_str("1.2.3.4").unwrap(),
+            internal_ip_addr: IpAddr::from_str("127.0.0.1").unwrap(),
 
             database_nodes: vec!["127.0.0.1".to_string()],
-            db_username: "root".to_string(),
-            db_password: "root".to_string(),
-            keyspace: "none".to_string(),
+            db_username: "cassandra".to_string(),
+            db_password: "cassandra".to_string(),
+            keyspace: "meowith".to_string(),
 
             general_configuration: Default::default(),
         };

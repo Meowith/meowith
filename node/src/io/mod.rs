@@ -6,7 +6,7 @@ use commons::error::io_error::{MeowithIoError, MeowithIoResult};
 
 pub mod fragment_ledger;
 
-#[derive(PartialOrd, PartialEq)]
+#[derive(PartialOrd, PartialEq, Debug)]
 pub struct SpaceUsage {
     pub total: u64,
     pub used: u64,

@@ -22,14 +22,14 @@ auth_framework = { path = "../auth_framework", version = "0.1.0" }
 futures = "0.3.30"
 data = { path = "../data", version = "0.1.0" }
 protocol = { path = "../protocol", version = "0.1.0" }
-reqwest = "0.12.7"
+reqwest = { version = "0.12.7", features = ["__rustls"] }
 openssl = "0.10.66"
-scylla = "0.13.2"
+scylla = "0.14.0"
 actix-web = "4.9.0"
 actix-cors = "0.7.0"
 uuid = { version = "1.10.0", features = ["v4"] }
 tokio = "1.39.3"
-log = "0.4.22"
+log = { version = "0.4.22", features = ["release_max_level_debug"] }
 async-trait = "0.1.81"
 serde_cbor = "0.11.2"
 cached = "0.53.1"
@@ -38,3 +38,4 @@ bcrypt = "0.15.1"
 lazy_static = "1.5.0"
 num_enum = "0.7.3"
 futures-util = "0.3.30"
+tokio-rustls = "0.26.0"

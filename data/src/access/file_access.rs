@@ -454,7 +454,7 @@ pub async fn update_bucket_space(
         let query = Query::new(update_query);
 
         let result = session
-            .execute(
+            .execute_unpaged(
                 query,
                 (
                     bucket.file_count + file_count_delta,
