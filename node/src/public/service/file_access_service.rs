@@ -331,7 +331,7 @@ pub async fn handle_upload_durable(
     );
 
     let transfer_result: NodeClientResponse<()> = async {
-        let mut first = already_uploaded > 0; // TODO handle user vs internal mdsftp_error. same for oneshot.
+        let mut first = already_uploaded > 0; // Note handling user vs internal mdsftp_error would be nice.
         let mut skip = if first { skip as u64 } else { 0 };
         trace!("Transferring to {sorted_chunks:?} curr={i} skip={skip}");
         for chunk in sorted_chunks.iter().skip(i.try_into().unwrap()) {

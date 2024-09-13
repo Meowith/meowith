@@ -37,7 +37,7 @@ pub async fn do_issue_app_token(
             &app,
             perm.allowance,
             &app_state.session,
-            PermCheckScope::Buckets,
+            PermCheckScope::Buckets(perm.bucket_id),
         )
         .await?
     }

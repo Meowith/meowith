@@ -36,7 +36,7 @@ lazy_static! {
 
 pub enum PermCheckScope {
     Application,
-    Buckets,
+    Buckets(Uuid),
 }
 
 pub async fn has_app_permission(
@@ -64,7 +64,6 @@ pub async fn has_app_permission(
         .collect();
 
     for role in member.member_roles {
-        // TODO validate the bucket
         let permits = roles.get(&role);
         if let Some(permits) = permits {
             for permit in permits {
@@ -76,8 +75,9 @@ pub async fn has_app_permission(
                             return Ok(());
                         }
                     }
-                    PermCheckScope::Buckets => {
+                    PermCheckScope::Buckets(bucket_id) => {
                         if permit.0.to_u128_le() != 0
+                            && bucket_id == permit.0
                             && check_permission(permit.1 as u64, requested)
                         {
                             return Ok(());

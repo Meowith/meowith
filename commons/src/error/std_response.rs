@@ -15,10 +15,10 @@ pub type NodeClientResponse<T> = Result<T, NodeClientError>;
 
 #[derive(Serialize)]
 pub(crate) struct ErrorResponse {
-    pub(crate) message: String,
+    pub(crate) code: NodeClientError,
 }
 
-#[derive(Debug, Display)]
+#[derive(Clone, Debug, Display, Serialize)]
 pub enum NodeClientError {
     InternalError,
     BadRequest,
@@ -49,9 +49,7 @@ impl error::ResponseError for NodeClientError {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::build(self.status_code())
             .insert_header(ContentType::json())
-            .json(ErrorResponse {
-                message: self.to_string(),
-            })
+            .json(ErrorResponse { code: self.clone() })
     }
 }
 
