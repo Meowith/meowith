@@ -14,8 +14,6 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub const CATID_TYPE_IDENTIFIER: &str = "CATID";
-pub const USERNAME_HEADER: &str = "username";
-pub const PASSWORD_HEADER: &str = "password";
 pub const CATID_API_URL: &str = "https://idapi.michal.cat/api/app/user";
 pub const CATID_TOKEN_URL: &str = "https://idapi.michal.cat/api/app/token";
 
