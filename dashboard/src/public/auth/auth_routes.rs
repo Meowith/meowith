@@ -1,7 +1,7 @@
 use crate::public::auth::auth_service::do_login;
 use crate::public::auth::auth_service::do_register;
 use crate::AppState;
-use actix_web::{post, web, HttpRequest};
+use actix_web::{get, post, web, HttpRequest};
 use commons::error::std_response::NodeClientResponse;
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +21,19 @@ pub async fn login(
     do_login(req, authenticator_method, &state)
         .await
         .map(web::Json)
+}
+
+#[derive(Serialize)]
+pub struct MethodsResponse {
+    pub methods: Vec<String>,
+}
+#[get("/methods")]
+pub async fn get_methods(
+    state: web::Data<AppState>,
+) -> NodeClientResponse<web::Json<MethodsResponse>> {
+    let methods: Vec<String> = state.authentication.keys().cloned().collect();
+
+    Ok(web::Json(MethodsResponse { methods }))
 }
 
 #[derive(Deserialize, Serialize)]

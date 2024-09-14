@@ -2,7 +2,7 @@ use crate::auth::user_middleware::UserMiddlewareRequestTransform;
 use crate::caching::catche::connect_catche;
 use crate::dashboard_config::DashboardConfig;
 use crate::init_procedure::register_node;
-use crate::public::auth::auth_routes::{login, register};
+use crate::public::auth::auth_routes::{get_methods, login, register};
 use crate::public::routes::application::{create_application, delete_application};
 use crate::public::routes::bucket::create_bucket;
 use crate::public::routes::token::issue_app_token;
@@ -123,7 +123,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
     let external_server = HttpServer::new(move || {
         let cors = Cors::permissive();
         let external_app_data = app_data.clone();
-        let mut auth_scope = web::scope("/auth").service(login);
+        let mut auth_scope = web::scope("/auth").service(login).service(get_methods);
         let app_scope = web::scope("/app")
             .wrap(UserMiddlewareRequestTransform)
             .service(create_application)
