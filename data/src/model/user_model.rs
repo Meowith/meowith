@@ -46,7 +46,7 @@ pub struct UsersByName {
     table_name = users_by_auth,
     base_table = users,
     partition_keys = [auth_identifier],
-    clustering_keys = [id]
+    clustering_keys = [id, name]
 )]
 #[derive(Debug)]
 pub struct UsersByAuth {
