@@ -12,7 +12,7 @@ use charybdis::types::{Int, Text, Timestamp, Uuid};
     local_secondary_indexes = [],
     static_columns = []
 )]
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Default)]
 pub struct User {
     pub id: Uuid,
     pub session_id: Uuid,
@@ -42,8 +42,41 @@ pub struct UsersByName {
     pub auth_identifier: Text,
 }
 
+#[charybdis_view_model(
+    table_name = users_by_auth,
+    base_table = users,
+    partition_keys = [auth_identifier],
+    clustering_keys = [id]
+)]
+#[derive(Debug)]
+pub struct UsersByAuth {
+    pub name: Text,
+    pub id: Uuid,
+    pub global_role: Int,
+    pub created: Timestamp,
+    pub last_modified: Timestamp,
+    pub session_id: Uuid,
+    pub auth_identifier: Text,
+}
+
+partial_user!(UpdateUser, id, name);
+
 impl From<UsersByName> for User {
     fn from(value: UsersByName) -> Self {
+        User {
+            id: value.id,
+            name: value.name,
+            global_role: value.global_role,
+            created: value.created,
+            last_modified: value.last_modified,
+            session_id: value.session_id,
+            auth_identifier: value.auth_identifier,
+        }
+    }
+}
+
+impl From<UsersByAuth> for User {
+    fn from(value: UsersByAuth) -> Self {
         User {
             id: value.id,
             name: value.name,

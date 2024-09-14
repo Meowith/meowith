@@ -99,7 +99,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
     .await
     .expect("Unable to connect to database");
 
-    let auth = init_authentication_methods(global_conf.login_methods.clone())
+    let auth = init_authentication_methods(global_conf.login_methods.clone(), global_conf.cat_id_config.clone())
         .expect("Invalid authentication methods");
     let has_basic = auth.contains_key(BASIC_TYPE_IDENTIFIER);
 

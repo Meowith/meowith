@@ -40,8 +40,8 @@ lazy_static! {
             },
             max_readers: 256,
             default_application_quota: 256 * 1024 * 1024,
-            login_methods: vec![BASIC_TYPE_IDENTIFIER.to_string()]
-        },
+            login_methods: vec![BASIC_TYPE_IDENTIFIER.to_string()],
+        cat_id_config: None,},
     };
     pub static ref TEST_NODE_1_CONFIG: NodeConfigInstance = NodeConfigInstance {
         cnc_addr: "127.0.0.1".to_string(),

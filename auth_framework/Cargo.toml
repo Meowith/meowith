@@ -15,3 +15,4 @@ serde_json = "1.0.127"
 scylla = "0.14.0"
 log = { version = "0.4.22", features = ["release_max_level_debug"] }
 bcrypt = "0.15.1"
+reqwest = "0.12.7"

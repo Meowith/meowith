@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct GeneralConfiguration {
     pub port_configuration: PortConfiguration,
@@ -5,6 +7,7 @@ pub struct GeneralConfiguration {
     pub max_readers: u32,
     pub default_application_quota: u64,
     pub login_methods: Vec<String>,
+    pub cat_id_config: Option<CatIdAppConfiguration>
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -12,6 +15,12 @@ pub struct PortConfiguration {
     pub internal_server_port: u16,
     pub mdsftp_server_port: u16,
     pub catche_server_port: u16,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct CatIdAppConfiguration {
+    pub app_id: String,
+    pub secret: String
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -59,6 +68,7 @@ impl GeneralConfiguration {
             max_readers: 2048u32,
             default_application_quota: 512 * 1024 * 1024,
             login_methods: vec!["BASIC".to_string()],
+            cat_id_config: None,
         }
     }
 }

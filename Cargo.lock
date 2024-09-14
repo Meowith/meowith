@@ -453,6 +453,7 @@ dependencies = [
  "data",
  "jsonwebtoken",
  "log",
+ "reqwest",
  "scylla",
  "serde",
  "serde_json",
