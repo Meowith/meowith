@@ -1,17 +1,17 @@
+use crate::credentials::AuthenticationCredentials;
+use crate::error::{AuthCredentialsError, AuthenticateError};
+use crate::token::DashboardClaims;
+use crate::{AuthFacade, Authentication};
 use actix_web::HttpRequest;
 use async_trait::async_trait;
-use reqwest::Client;
-use scylla::CachingSession;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use data::access::user_access::{get_user_from_auth, insert_user, update_user};
 use data::dto::config::CatIdAppConfiguration;
 use data::model::permission_model::GlobalRole;
 use data::model::user_model::User;
-use crate::{Authentication, AuthFacade};
-use crate::credentials::AuthenticationCredentials;
-use crate::error::{AuthCredentialsError, AuthenticateError};
-use crate::token::DashboardClaims;
+use reqwest::Client;
+use scylla::CachingSession;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub const CATID_TYPE_IDENTIFIER: &str = "CATID";
 pub const USERNAME_HEADER: &str = "username";
@@ -19,27 +19,24 @@ pub const PASSWORD_HEADER: &str = "password";
 pub const CATID_API_URL: &str = "https://idapi.michal.cat/api/app/user";
 pub const CATID_TOKEN_URL: &str = "https://idapi.michal.cat/api/app/token";
 
-
 #[derive(Debug)]
 pub struct CatIdAuthenticator {
     client: Client,
-    config: CatIdAppConfiguration
+    config: CatIdAppConfiguration,
 }
 
 impl CatIdAuthenticator {
     pub fn new(config: CatIdAppConfiguration) -> Self {
         Self {
-            client: Client::builder()
-                .build()
-                .unwrap(),
-            config
+            client: Client::builder().build().unwrap(),
+            config,
         }
     }
 }
 
 #[derive(Debug)]
 pub struct CatIdCredentials {
-    code: String
+    code: String,
 }
 
 impl AuthenticationCredentials for CatIdCredentials {
@@ -56,20 +53,19 @@ impl AuthenticationCredentials for CatIdCredentials {
 pub struct AccessTokenRequest {
     app_id: String,
     code: String,
-    secret: String
+    secret: String,
 }
 
 #[derive(Deserialize)]
 pub struct AccessTokenResponse {
-    access_token: String
+    access_token: String,
 }
 
 #[derive(Deserialize)]
 pub struct CatIdUser {
     id: String,
-    name: String
+    name: String,
 }
-
 
 #[async_trait]
 impl Authentication for CatIdAuthenticator {
@@ -80,12 +76,17 @@ impl Authentication for CatIdAuthenticator {
     ) -> Result<DashboardClaims, AuthenticateError> {
         let credentials = credentials;
 
-        let token = self.client.post(CATID_TOKEN_URL)
-            .body(serde_json::to_string(&AccessTokenRequest {
-                app_id: self.config.app_id.clone(),
-                code: credentials.get_authentication_identifier(),
-                secret: self.config.secret.clone()
-            }).unwrap())
+        let token = self
+            .client
+            .post(CATID_TOKEN_URL)
+            .body(
+                serde_json::to_string(&AccessTokenRequest {
+                    app_id: self.config.app_id.clone(),
+                    code: credentials.get_authentication_identifier(),
+                    secret: self.config.secret.clone(),
+                })
+                .unwrap(),
+            )
             .header("Content-Type", "application/json")
             .send()
             .await
@@ -95,7 +96,9 @@ impl Authentication for CatIdAuthenticator {
             .map_err(|_| AuthenticateError::InvalidCredentials)?
             .access_token;
 
-        let cat_user = self.client.get(CATID_API_URL)
+        let cat_user = self
+            .client
+            .get(CATID_API_URL)
             .header("Authorization", token)
             .send()
             .await
@@ -104,13 +107,12 @@ impl Authentication for CatIdAuthenticator {
             .await
             .map_err(|_| AuthenticateError::InvalidCredentials)?;
 
-
-        let user = get_user_from_auth(cat_user.id.clone(), session)
-            .await;
+        let user = get_user_from_auth(cat_user.id.clone(), session).await;
 
         if let Ok(user) = user {
             if cat_user.name != user.name {
-                update_user(user.id, cat_user.name, session).await
+                update_user(user.id, cat_user.name, session)
+                    .await
                     .map_err(|_| AuthenticateError::InternalError)?;
             }
 
@@ -124,12 +126,17 @@ impl Authentication for CatIdAuthenticator {
                 session_id: Uuid::new_v4(),
                 name: cat_user.name,
                 auth_identifier: cat_user.id,
-                global_role: if credentials.is_setup() { GlobalRole::Admin.into() } else { GlobalRole::User.into() } ,
+                global_role: if credentials.is_setup() {
+                    GlobalRole::Admin.into()
+                } else {
+                    GlobalRole::User.into()
+                },
                 created: Default::default(),
                 last_modified: Default::default(),
             };
 
-            insert_user(&user, session).await
+            insert_user(&user, session)
+                .await
                 .map_err(|_| AuthenticateError::InternalError)?;
 
             Ok(DashboardClaims {
@@ -145,8 +152,8 @@ impl AuthFacade for CatIdAuthenticator {
         &self,
         req: &HttpRequest,
     ) -> Result<Box<dyn AuthenticationCredentials>, AuthCredentialsError> {
-        let code = get_code_from_request(req)
-            .ok_or(AuthCredentialsError::InvalidCredentialsFormat)?;
+        let code =
+            get_code_from_request(req).ok_or(AuthCredentialsError::InvalidCredentialsFormat)?;
 
         Ok(Box::new(CatIdCredentials { code }))
     }

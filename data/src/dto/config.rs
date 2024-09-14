@@ -7,7 +7,7 @@ pub struct GeneralConfiguration {
     pub max_readers: u32,
     pub default_application_quota: u64,
     pub login_methods: Vec<String>,
-    pub cat_id_config: Option<CatIdAppConfiguration>
+    pub cat_id_config: Option<CatIdAppConfiguration>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -20,7 +20,7 @@ pub struct PortConfiguration {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CatIdAppConfiguration {
     pub app_id: String,
-    pub secret: String
+    pub secret: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]

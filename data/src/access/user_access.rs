@@ -29,15 +29,9 @@ pub async fn update_user(
     name: String,
     session: &CachingSession,
 ) -> Result<QueryResult, MeowithDataError> {
-    let update = UpdateUser {
-        id,
-        name
-    };
+    let update = UpdateUser { id, name };
 
-    update.update()
-        .execute(session)
-        .await
-        .map_err(|e| e.into())
+    update.update().execute(session).await.map_err(|e| e.into())
 }
 
 pub async fn get_user_from_id(

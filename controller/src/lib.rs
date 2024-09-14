@@ -104,9 +104,11 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
     .await
     .expect("Unable to connect to database");
 
-    let auth = init_authentication_methods(clonfig.general_configuration.login_methods.clone(),
-    clonfig.general_configuration.cat_id_config.clone())
-        .expect("Invalid authentication methods");
+    let auth = init_authentication_methods(
+        clonfig.general_configuration.login_methods.clone(),
+        clonfig.general_configuration.cat_id_config.clone(),
+    )
+    .expect("Invalid authentication methods");
 
     if maybe_get_first_user(&session)
         .await
