@@ -3,11 +3,11 @@ use actix_web::web::Bytes;
 use actix_web::{web, HttpRequest};
 use chrono::prelude::*;
 use futures_util::TryFutureExt;
+use log::{info, warn};
 use openssl::x509::X509Req;
 use scylla::CachingSession;
 use std::net::IpAddr;
 use std::str::FromStr;
-use log::{info, warn};
 use uuid::Uuid;
 
 use commons::autoconfigure::ssl_conf::SigningData;
@@ -34,7 +34,10 @@ pub async fn perform_register_node(
     session: &CachingSession,
     node_addr: IpAddr,
 ) -> Result<NodeRegisterResponse, NodeError> {
-    info!("Attempting node registration. addr={node_addr} code='{}'", req.code);
+    info!(
+        "Attempting node registration. addr={node_addr} code='{}'",
+        req.code
+    );
     let code = get_service_register_code(req.code, session).await;
     if let Err(err) = code {
         warn!("Node registration failed, code not found {err}");

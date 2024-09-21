@@ -1,9 +1,9 @@
-use std::net::IpAddr;
 use crate::model::app_model::{App, AppToken};
 use crate::model::file_model::Bucket;
 use charybdis::types::{BigInt, Boolean, Text, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::net::IpAddr;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -196,7 +196,7 @@ pub struct DeleteDirectoryRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NodeStatusResponse {
-    pub nodes: Vec<NodeStatus>
+    pub nodes: Vec<NodeStatus>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

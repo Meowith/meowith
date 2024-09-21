@@ -69,7 +69,7 @@ pub async fn update_storage_node_properties(
         NodeHealth {
             last_beat: Utc::now(),
             available_storage: Some(free_space),
-            max_storage: Some(max_space)
+            max_storage: Some(max_space),
         },
     );
 
@@ -93,7 +93,7 @@ pub async fn microservice_heart_beat(
             entry.insert(NodeHealth {
                 last_beat: Utc::now(),
                 available_storage: entry.get().available_storage,
-                max_storage: entry.get().max_storage
+                max_storage: entry.get().max_storage,
             });
         }
         Entry::Vacant(entry) => {

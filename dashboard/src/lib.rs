@@ -1,7 +1,7 @@
 use crate::auth::user_middleware::UserMiddlewareRequestTransform;
 use crate::caching::catche::connect_catche;
 use crate::dashboard_config::DashboardConfig;
-use crate::init_procedure::register_node;
+use crate::init_procedure::{initializer_heart, register_node};
 use crate::public::auth::auth_routes::{get_methods, login, register};
 use crate::public::routes::application::{create_application, delete_application};
 use crate::public::routes::bucket::create_bucket;
@@ -27,7 +27,7 @@ use protocol::catche::catche_client::CatcheClient;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::task::JoinHandle;
+use tokio::task::{AbortHandle, JoinHandle};
 
 pub mod auth;
 pub mod caching;
@@ -38,12 +38,14 @@ pub mod public;
 pub struct DashboardHandle {
     external_handle: ServerHandle,
     catche_client: CatcheClient,
+    heart_handle: AbortHandle,
     req_ctx: Arc<MicroserviceRequestContext>,
     pub join_handle: JoinHandle<()>,
 }
 
 impl DashboardHandle {
     pub async fn shutdown(&self) {
+        self.heart_handle.abort();
         self.external_handle.stop(true).await;
         self.catche_client.shutdown().await;
         self.req_ctx.shutdown().await;
@@ -171,10 +173,13 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
         }
     });
 
+    let heart_handle = initializer_heart(req_ctx_handle.clone());
+
     Ok(DashboardHandle {
         external_handle,
         catche_client,
         req_ctx: req_ctx_handle,
         join_handle,
+        heart_handle,
     })
 }

@@ -5,7 +5,10 @@ use reqwest::Certificate;
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio::task::AbortHandle;
+use tokio::time;
 use uuid::Uuid;
 
 use commons::autoconfigure::auth_conf::{register_procedure, RegistrationResult};
@@ -62,6 +65,20 @@ pub async fn register_node(
     );
 
     (ctx, reg_res)
+}
+
+pub fn initializer_heart(
+    req_ctx: Arc<MicroserviceRequestContext>,
+    fragment_ledger: FragmentLedger,
+) -> AbortHandle {
+    tokio::spawn(async move {
+        let mut interval = time::interval(Duration::from_secs(60u64));
+        loop {
+            interval.tick().await;
+            let _ = req_ctx.update_storage(fragment_ledger.update_req()).await;
+        }
+    })
+    .abort_handle()
 }
 
 pub async fn initialize_io(

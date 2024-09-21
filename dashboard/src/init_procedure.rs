@@ -7,6 +7,10 @@ use reqwest::Certificate;
 use std::fs;
 use std::net::IpAddr;
 use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::task::AbortHandle;
+use tokio::time;
 use uuid::Uuid;
 
 pub async fn register_node(
@@ -44,4 +48,15 @@ pub async fn register_node(
     .await;
 
     (ctx, reg_res)
+}
+
+pub fn initializer_heart(req_ctx: Arc<MicroserviceRequestContext>) -> AbortHandle {
+    tokio::spawn(async move {
+        let mut interval = time::interval(Duration::from_secs(60u64));
+        loop {
+            interval.tick().await;
+            let _ = req_ctx.heartbeat().await;
+        }
+    })
+    .abort_handle()
 }

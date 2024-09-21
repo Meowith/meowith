@@ -1,5 +1,5 @@
 use crate::config::node_config::NodeConfigInstance;
-use crate::init_procedure::{initialize_io, register_node};
+use crate::init_procedure::{initialize_io, initializer_heart, register_node};
 use std::collections::HashMap;
 
 use crate::caching::catche::connect_catche;
@@ -32,7 +32,7 @@ use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tokio::task::JoinHandle;
+use tokio::task::{AbortHandle, JoinHandle};
 use uuid::Uuid;
 
 pub mod caching;
@@ -48,12 +48,14 @@ pub struct NodeHandle {
     external_handle: ServerHandle,
     mdsftp_server: MDSFTPServer,
     catche_client: CatcheClient,
+    heart_handle: AbortHandle,
     req_ctx: Arc<MicroserviceRequestContext>,
     pub join_handle: JoinHandle<()>,
 }
 
 impl NodeHandle {
     pub async fn shutdown(&self) {
+        self.heart_handle.abort();
         self.external_handle.stop(true).await;
         self.catche_client.shutdown().await;
         self.mdsftp_server.shutdown().await;
@@ -147,6 +149,8 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
     )
     .await
     .expect("Catche connection failed");
+    let heart_req_ctx = req_ctx.clone();
+    let heart_ledger = fragment_ledger.clone();
     let app_data = Data::new(AppState {
         session,
         mdsftp_server,
@@ -219,11 +223,14 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         }
     });
 
+    let heart_handle = initializer_heart(heart_req_ctx, heart_ledger);
+
     Ok(NodeHandle {
         external_handle,
         catche_client,
         mdsftp_server: mdsftp_server_clone,
         req_ctx: req_ctx_handle,
         join_handle,
+        heart_handle,
     })
 }
