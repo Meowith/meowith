@@ -48,7 +48,7 @@ pub struct ServiceRegisterCode {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum MicroserviceType {
     StorageNode,
-    PanelApi,
+    Dashboard,
 }
 
 impl Default for MicroserviceNode {
@@ -72,7 +72,7 @@ impl From<&MicroserviceType> for i8 {
     fn from(value: &MicroserviceType) -> Self {
         match value {
             MicroserviceType::StorageNode => 1i8,
-            MicroserviceType::PanelApi => 2i8,
+            MicroserviceType::Dashboard => 2i8,
         }
     }
 }
@@ -81,7 +81,7 @@ impl From<MicroserviceType> for i8 {
     fn from(value: MicroserviceType) -> Self {
         match value {
             MicroserviceType::StorageNode => 1i8,
-            MicroserviceType::PanelApi => 2i8,
+            MicroserviceType::Dashboard => 2i8,
         }
     }
 }
@@ -92,7 +92,7 @@ impl TryFrom<i8> for MicroserviceType {
     fn try_from(value: i8) -> Result<Self, Self::Error> {
         match value {
             1i8 => Ok(MicroserviceType::StorageNode),
-            2i8 => Ok(MicroserviceType::PanelApi),
+            2i8 => Ok(MicroserviceType::Dashboard),
             _ => Err(()),
         }
     }

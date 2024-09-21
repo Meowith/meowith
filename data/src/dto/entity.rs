@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use crate::model::app_model::{App, AppToken};
 use crate::model::file_model::Bucket;
 use charybdis::types::{BigInt, Boolean, Text, Timestamp};
@@ -191,4 +192,21 @@ pub struct RenameEntityRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DeleteDirectoryRequest {
     pub recursive: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NodeStatusResponse {
+    pub nodes: Vec<NodeStatus>
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NodeStatus {
+    pub microservice_type: i8,
+    pub id: Uuid,
+    pub address: IpAddr,
+    pub max_space: Option<u64>,
+    pub used_space: Option<u64>,
+    pub created: DateTime<Utc>,
+    pub last_beat: DateTime<Utc>,
+    pub access_token_issued_at: DateTime<Utc>,
 }

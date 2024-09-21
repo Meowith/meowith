@@ -1,7 +1,8 @@
 use crate::public::node_management_service::do_create_register_code;
 use crate::AppState;
-use actix_web::{post, web};
+use actix_web::{get, post, web};
 use commons::error::std_response::NodeClientResponse;
+use data::dto::entity::{NodeStatus, NodeStatusResponse};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -23,4 +24,40 @@ pub async fn create_register_code(
     .await?;
 
     Ok(web::Json(RegisterCodeCreateRequest { code }))
+}
+
+#[get("/status")]
+pub async fn status(
+    state: web::Data<AppState>,
+) -> NodeClientResponse<web::Json<NodeStatusResponse>> {
+    let mut statuses: Vec<NodeStatus> = Vec::new();
+    let nodes = state.req_ctx.nodes.read().await;
+    let node_health = state.req_ctx.node_health.read().await;
+
+    for node in &*nodes {
+        let assoc_health = node_health.get(&node.id);
+        let mut status = NodeStatus {
+            microservice_type: node.microservice_type,
+            id: node.id,
+            address: node.address,
+            max_space: None,
+            used_space: None,
+            created: node.created,
+            last_beat: Default::default(),
+            access_token_issued_at: node.access_token_issued_at,
+        };
+
+        if let Some(health) = assoc_health {
+            status.max_space = health.max_storage;
+            status.used_space = if let Some(max) = health.max_storage {
+                health.available_storage.map(|avail| max - avail)
+            } else {
+                None
+            };
+            status.last_beat = health.last_beat;
+            statuses.push(status);
+        }
+    }
+
+    Ok(web::Json(NodeStatusResponse { nodes: statuses }))
 }

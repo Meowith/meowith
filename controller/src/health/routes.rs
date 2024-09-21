@@ -60,6 +60,7 @@ pub async fn update_storage_node_properties(
         &req.0
     );
     let free_space = req.0.max_space - req.0.used_space;
+    let max_space = req.0.max_space;
     perform_storage_node_properties_update(req.0, &state.session, node.clone()).await?;
 
     let mut map = state.req_ctx.node_health.write().await;
@@ -68,6 +69,7 @@ pub async fn update_storage_node_properties(
         NodeHealth {
             last_beat: Utc::now(),
             available_storage: Some(free_space),
+            max_storage: Some(max_space)
         },
     );
 
@@ -91,12 +93,14 @@ pub async fn microservice_heart_beat(
             entry.insert(NodeHealth {
                 last_beat: Utc::now(),
                 available_storage: entry.get().available_storage,
+                max_storage: entry.get().max_storage
             });
         }
         Entry::Vacant(entry) => {
             entry.insert(NodeHealth {
                 last_beat: Utc::now(),
                 available_storage: None,
+                max_storage: None,
             });
         }
     }

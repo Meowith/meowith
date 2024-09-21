@@ -7,6 +7,7 @@ use openssl::x509::X509Req;
 use scylla::CachingSession;
 use std::net::IpAddr;
 use std::str::FromStr;
+use log::{info, warn};
 use uuid::Uuid;
 
 use commons::autoconfigure::ssl_conf::SigningData;
@@ -33,8 +34,10 @@ pub async fn perform_register_node(
     session: &CachingSession,
     node_addr: IpAddr,
 ) -> Result<NodeRegisterResponse, NodeError> {
+    info!("Attempting node registration. addr={node_addr} code='{}'", req.code);
     let code = get_service_register_code(req.code, session).await;
     if let Err(err) = code {
+        warn!("Node registration failed, code not found {err}");
         return match err {
             MeowithDataError::NotFound => Err(NodeError::BadRequest),
             _ => Err(NodeError::InternalError),
@@ -42,6 +45,7 @@ pub async fn perform_register_node(
     }
     let mut code = code.unwrap();
     if !code.valid {
+        warn!("Node registration failed, code not valid");
         return Err(NodeError::BadRequest);
     }
 
@@ -73,6 +77,8 @@ pub async fn perform_register_node(
         let mut nodes = ctx.nodes.write().await;
         nodes.push(service);
     }
+
+    info!("Node registration successful");
 
     Ok(NodeRegisterResponse {
         renewal_token: token,

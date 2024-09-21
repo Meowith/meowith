@@ -26,6 +26,7 @@ pub struct ControllerRequestContext {
 pub struct NodeHealth {
     pub last_beat: DateTime<Utc>,
     pub available_storage: Option<u64>,
+    pub max_storage: Option<u64>
 }
 
 impl RequestContext for ControllerRequestContext {

@@ -31,7 +31,7 @@ pub async fn register_node(
         format!("{}:{}", config.cnc_addr.clone(), config.cnc_port.clone()),
         std::collections::HashMap::new(),
         security_ctx,
-        MicroserviceType::StorageNode,
+        MicroserviceType::Dashboard,
         Default::default(),
         Uuid::new_v4(),
     );

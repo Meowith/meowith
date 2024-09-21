@@ -15,7 +15,7 @@ use crate::ioutils::read_file;
 use crate::middleware::node_internal::NodeVerify;
 use crate::middleware::user_middleware::UserMiddlewareRequestTransform;
 use crate::public::routes::auth::login;
-use crate::public::routes::node_management::create_register_code;
+use crate::public::routes::node_management::{create_register_code, status};
 use actix_cors::Cors;
 use actix_web::dev::{Server, ServerHandle};
 use actix_web::web::Data;
@@ -232,8 +232,13 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
             .service(create_register_code)
             .wrap(UserMiddlewareRequestTransform);
 
+        let node_scope = web::scope("/node")
+            .service(status)
+            .wrap(UserMiddlewareRequestTransform);
+
         let public_scope = web::scope("/api/public")
             .service(register_codes)
+            .service(node_scope)
             .service(login);
 
         App::new()
