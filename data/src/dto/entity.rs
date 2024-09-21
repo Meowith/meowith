@@ -1,5 +1,6 @@
 use crate::model::app_model::{App, AppToken};
 use crate::model::file_model::Bucket;
+use crate::model::user_model::User;
 use charybdis::types::{BigInt, Boolean, Text, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -209,4 +210,25 @@ pub struct NodeStatus {
     pub created: DateTime<Utc>,
     pub last_beat: DateTime<Utc>,
     pub access_token_issued_at: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OwnUserInfo {
+    pub id: Uuid,
+    pub name: String,
+    pub global_role: i32,
+    pub created: DateTime<Utc>,
+    pub last_modified: DateTime<Utc>,
+}
+
+impl From<User> for OwnUserInfo {
+    fn from(value: User) -> Self {
+        OwnUserInfo {
+            id: value.id,
+            name: value.name,
+            global_role: value.global_role,
+            created: value.created,
+            last_modified: value.last_modified,
+        }
+    }
 }

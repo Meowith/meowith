@@ -8,6 +8,7 @@ use actix_web::{
 use commons::error::std_response::NodeClientError;
 use commons::middleware_actions::remove_bearer_prefix;
 use data::access::user_access::get_user_from_id;
+use data::model::permission_model::GlobalRole;
 use futures_util::future::LocalBoxFuture;
 use std::future::{ready, Ready};
 use std::rc::Rc;
@@ -77,6 +78,10 @@ where
             }
 
             let user = user.unwrap();
+
+            if user.global_role != <GlobalRole as Into<i32>>::into(GlobalRole::Admin) {
+                return Err(Error::from(NodeClientError::BadAuth));
+            }
 
             req.extensions_mut().insert(user);
 

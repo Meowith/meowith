@@ -2,7 +2,7 @@ use crate::auth::user_middleware::UserMiddlewareRequestTransform;
 use crate::caching::catche::connect_catche;
 use crate::dashboard_config::DashboardConfig;
 use crate::init_procedure::{initializer_heart, register_node};
-use crate::public::auth::auth_routes::{get_methods, login, register};
+use crate::public::auth::auth_routes::{get_methods, login, own_user_info, register};
 use crate::public::routes::application::{create_application, delete_application};
 use crate::public::routes::bucket::create_bucket;
 use crate::public::routes::token::issue_app_token;
@@ -135,6 +135,10 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
             .wrap(UserMiddlewareRequestTransform)
             .service(create_bucket);
 
+        let user_scope = web::scope("/public/user")
+            .service(own_user_info)
+            .wrap(UserMiddlewareRequestTransform);
+
         if has_basic {
             auth_scope = auth_scope.service(register);
         }
@@ -143,7 +147,8 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
             web::scope("/api")
                 .service(auth_scope)
                 .service(app_scope)
-                .service(bucket_scope),
+                .service(bucket_scope)
+                .service(user_scope),
         )
     });
 

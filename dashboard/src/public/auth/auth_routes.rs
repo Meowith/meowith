@@ -3,6 +3,8 @@ use crate::public::auth::auth_service::do_register;
 use crate::AppState;
 use actix_web::{get, post, web, HttpRequest};
 use commons::error::std_response::NodeClientResponse;
+use data::dto::entity::OwnUserInfo;
+use data::model::user_model::User;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -21,6 +23,11 @@ pub async fn login(
     do_login(req, authenticator_method, &state)
         .await
         .map(web::Json)
+}
+
+#[get("/me")]
+pub async fn own_user_info(user: User) -> NodeClientResponse<web::Json<OwnUserInfo>> {
+    Ok(web::Json(OwnUserInfo::from(user)))
 }
 
 #[derive(Serialize)]
