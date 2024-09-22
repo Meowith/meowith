@@ -3,7 +3,7 @@ use crate::caching::catche::connect_catche;
 use crate::dashboard_config::DashboardConfig;
 use crate::init_procedure::{initializer_heart, register_node};
 use crate::public::auth::auth_routes::{get_methods, login, own_user_info, register};
-use crate::public::routes::application::{create_application, delete_application};
+use crate::public::routes::application::{create_application, delete_application, list_owned};
 use crate::public::routes::bucket::create_bucket;
 use crate::public::routes::token::issue_app_token;
 use actix_cors::Cors;
@@ -130,6 +130,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
             .wrap(UserMiddlewareRequestTransform)
             .service(create_application)
             .service(delete_application)
+            .service(list_owned)
             .service(web::scope("/token").service(issue_app_token));
         let bucket_scope = web::scope("/bucket")
             .wrap(UserMiddlewareRequestTransform)

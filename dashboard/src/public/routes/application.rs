@@ -1,10 +1,10 @@
 use crate::public::service::application_service::{
-    do_add_member, do_create_app, do_delete_app, do_delete_member,
+    do_add_member, do_create_app, do_delete_app, do_delete_member, do_list_apps,
 };
 use crate::AppState;
-use actix_web::{delete, post, web, HttpResponse};
+use actix_web::{delete, get, post, web, HttpResponse};
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
-use data::dto::entity::{AppDto, MemberIdRequest};
+use data::dto::entity::{AppDto, AppList, MemberIdRequest};
 use data::model::user_model::User;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -26,6 +26,14 @@ impl CreateApplicationRequest {
 #[derive(Serialize, Deserialize)]
 struct DeleteApplicationRequest {
     id: Uuid,
+}
+
+#[get("/list")]
+pub async fn list_owned(
+    user: User,
+    state: web::Data<AppState>,
+) -> NodeClientResponse<web::Json<AppList>> {
+    do_list_apps(user, &state.session).await
 }
 
 #[post("/create")]

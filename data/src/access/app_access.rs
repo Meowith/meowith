@@ -1,5 +1,5 @@
 use crate::error::MeowithDataError;
-use crate::model::app_model::{App, AppByOwner, AppMember, AppToken, UserRole};
+use crate::model::app_model::{App, AppByOwner, AppMember, AppToken, MemberByUser, UserRole};
 use charybdis::errors::CharybdisError;
 use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
@@ -119,16 +119,6 @@ pub async fn update_app_role(
     role.update().execute(session).await.map_err(|e| e.into())
 }
 
-pub async fn get_apps_from_owner(
-    owner_id: Uuid,
-    session: &CachingSession,
-) -> Result<CharybdisModelStream<AppByOwner>, MeowithDataError> {
-    AppByOwner::find_by_owner_id(owner_id)
-        .execute(session)
-        .await
-        .map_err(|e| e.into())
-}
-
 pub async fn get_app_by_id(id: Uuid, session: &CachingSession) -> Result<App, MeowithDataError> {
     App::find_by_id(id)
         .execute(session)
@@ -196,6 +186,26 @@ pub async fn delete_app_token(
 ) -> Result<QueryResult, MeowithDataError> {
     token
         .delete()
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
+pub async fn get_apps_by_owner(
+    owner_id: Uuid,
+    session: &CachingSession,
+) -> Result<CharybdisModelStream<AppByOwner>, MeowithDataError> {
+    AppByOwner::find_by_owner_id(owner_id)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
+pub async fn get_members_by_id(
+    user_id: Uuid,
+    session: &CachingSession,
+) -> Result<CharybdisModelStream<MemberByUser>, MeowithDataError> {
+    MemberByUser::find_by_member_id(user_id)
         .execute(session)
         .await
         .map_err(MeowithDataError::from)

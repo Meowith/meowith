@@ -64,6 +64,18 @@ pub struct AppMember {
     pub member_roles: Set<Text>,
 }
 
+#[charybdis_view_model(
+    table_name = app_members_by_user,
+    base_table = app_members,
+    partition_keys = [member_id],
+    clustering_keys = [app_id]
+)]
+pub struct MemberByUser {
+    pub member_id: Uuid,
+    pub app_id: Uuid,
+    pub member_roles: Set<Text>,
+}
+
 #[charybdis_model(
     table_name = app_tokens,
     partition_keys = [app_id],

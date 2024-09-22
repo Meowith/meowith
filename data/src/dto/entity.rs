@@ -1,9 +1,10 @@
-use crate::model::app_model::{App, AppToken};
+use crate::model::app_model::{App, AppByOwner, AppMember, AppToken, MemberByUser};
 use crate::model::file_model::Bucket;
 use crate::model::user_model::User;
 use charybdis::types::{BigInt, Boolean, Text, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::net::IpAddr;
 use uuid::Uuid;
 
@@ -36,8 +37,59 @@ pub struct AppDto {
     pub last_modified: DateTime<Utc>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MemberDto {
+    pub app_id: Uuid,
+    pub member_id: Uuid,
+    pub member_roles: HashSet<String>,
+}
+
+impl From<AppMember> for MemberDto {
+    fn from(value: AppMember) -> Self {
+        MemberDto {
+            app_id: value.app_id,
+            member_id: value.member_id,
+            member_roles: value.member_roles,
+        }
+    }
+}
+
+impl From<MemberByUser> for MemberDto {
+    fn from(value: MemberByUser) -> Self {
+        MemberDto {
+            app_id: value.app_id,
+            member_id: value.member_id,
+            member_roles: value.member_roles,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MemberedApp {
+    pub app: AppDto,
+    pub member: MemberDto,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AppList {
+    pub owned: Vec<AppDto>,
+    pub member_of: Vec<MemberedApp>,
+}
+
 impl From<App> for AppDto {
     fn from(value: App) -> Self {
+        AppDto {
+            id: value.id,
+            name: value.name,
+            quota: value.quota,
+            created: value.created,
+            last_modified: value.last_modified,
+        }
+    }
+}
+
+impl From<AppByOwner> for AppDto {
+    fn from(value: AppByOwner) -> Self {
         AppDto {
             id: value.id,
             name: value.name,

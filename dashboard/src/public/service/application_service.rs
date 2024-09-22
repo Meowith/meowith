@@ -3,13 +3,14 @@ use actix_web::web;
 use chrono::Utc;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use data::access::app_access::{
-    delete_app, delete_app_member, get_app_by_id, insert_app, insert_app_member,
-    maybe_get_app_member,
+    delete_app, delete_app_member, get_app_by_id, get_apps_by_owner, get_members_by_id, insert_app,
+    insert_app_member, maybe_get_app_member,
 };
 use data::access::file_access::maybe_get_first_bucket;
 use data::access::user_access::maybe_get_user_from_id;
 use data::dto::config::GeneralConfiguration;
-use data::dto::entity::AppDto;
+use data::dto::entity::{AppDto, AppList, MemberedApp};
+use data::error::MeowithDataError;
 use data::model::app_model::App;
 use data::model::user_model::User;
 use scylla::CachingSession;
@@ -91,4 +92,35 @@ pub async fn do_delete_member(
     } else {
         Err(NodeClientError::NotFound)
     }
+}
+
+pub async fn do_list_apps(
+    user: User,
+    session: &CachingSession,
+) -> NodeClientResponse<web::Json<AppList>> {
+    let owned_apps = get_apps_by_owner(user.id, session)
+        .await?
+        .try_collect()
+        .await
+        .map_err(MeowithDataError::from)?;
+
+    let members = get_members_by_id(user.id, session)
+        .await?
+        .try_collect()
+        .await
+        .map_err(MeowithDataError::from)?;
+
+    let mut member_of = Vec::new();
+
+    for member in members {
+        member_of.push(MemberedApp {
+            app: get_app_by_id(member.app_id, session).await?.into(),
+            member: member.into(),
+        });
+    }
+
+    Ok(web::Json(AppList {
+        owned: owned_apps.into_iter().map(|x| x.into()).collect(),
+        member_of,
+    }))
 }
