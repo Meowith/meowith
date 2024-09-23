@@ -31,6 +31,7 @@ pub struct Entity {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AppDto {
     pub id: Uuid,
+    pub owner_id: Uuid,
     pub name: String,
     pub quota: i64,
     pub created: DateTime<Utc>,
@@ -80,6 +81,7 @@ impl From<App> for AppDto {
     fn from(value: App) -> Self {
         AppDto {
             id: value.id,
+            owner_id: value.owner_id,
             name: value.name,
             quota: value.quota,
             created: value.created,
@@ -92,6 +94,7 @@ impl From<AppByOwner> for AppDto {
     fn from(value: AppByOwner) -> Self {
         AppDto {
             id: value.id,
+            owner_id: value.owner_id,
             name: value.name,
             quota: value.quota,
             created: value.created,
