@@ -1,8 +1,10 @@
-use crate::public::node_management_service::do_create_register_code;
+use crate::public::node_management_service::{
+    do_create_register_code, do_delete_register_code, do_list_register_codes,
+};
 use crate::AppState;
-use actix_web::{get, post, web};
+use actix_web::{delete, get, post, web, HttpResponse};
 use commons::error::std_response::NodeClientResponse;
-use data::dto::entity::{NodeStatus, NodeStatusResponse};
+use data::dto::entity::{NodeStatus, NodeStatusResponse, ServiceRegisterCodeDto};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -24,6 +26,23 @@ pub async fn create_register_code(
     .await?;
 
     Ok(web::Json(RegisterCodeCreateRequest { code }))
+}
+
+#[delete("/delete/{id}")]
+pub async fn delete_register_code(
+    req: web::Path<String>,
+    state: web::Data<AppState>,
+) -> NodeClientResponse<HttpResponse> {
+    do_delete_register_code(req.into_inner(), &state.session).await?;
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[get("/list")]
+pub async fn list_register_codes(
+    state: web::Data<AppState>,
+) -> NodeClientResponse<web::Json<Vec<ServiceRegisterCodeDto>>> {
+    let codes = do_list_register_codes(&state.session).await?;
+    Ok(web::Json(codes))
 }
 
 #[get("/status")]

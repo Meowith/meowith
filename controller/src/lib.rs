@@ -15,7 +15,9 @@ use crate::ioutils::read_file;
 use crate::middleware::node_internal::NodeVerify;
 use crate::middleware::user_middleware::UserMiddlewareRequestTransform;
 use crate::public::routes::auth::{login, own_user_info};
-use crate::public::routes::node_management::{create_register_code, status};
+use crate::public::routes::node_management::{
+    create_register_code, delete_register_code, list_register_codes, status,
+};
 use actix_cors::Cors;
 use actix_web::dev::{Server, ServerHandle};
 use actix_web::web::Data;
@@ -230,6 +232,8 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
         let cors = Cors::permissive();
         let register_codes = web::scope("/register-codes")
             .service(create_register_code)
+            .service(delete_register_code)
+            .service(list_register_codes)
             .wrap(UserMiddlewareRequestTransform);
 
         let node_scope = web::scope("/node")

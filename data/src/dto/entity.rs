@@ -1,5 +1,6 @@
 use crate::model::app_model::{App, AppByOwner, AppMember, AppToken, MemberByUser};
 use crate::model::file_model::Bucket;
+use crate::model::microservice_node_model::ServiceRegisterCode;
 use crate::model::user_model::User;
 use charybdis::types::{BigInt, Boolean, Text, Timestamp};
 use chrono::{DateTime, Utc};
@@ -284,6 +285,23 @@ impl From<User> for OwnUserInfo {
             global_role: value.global_role,
             created: value.created,
             last_modified: value.last_modified,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ServiceRegisterCodeDto {
+    pub code: String,
+    pub created: DateTime<Utc>,
+    pub valid: bool,
+}
+
+impl From<ServiceRegisterCode> for ServiceRegisterCodeDto {
+    fn from(value: ServiceRegisterCode) -> Self {
+        ServiceRegisterCodeDto {
+            code: value.code,
+            created: value.created,
+            valid: value.valid,
         }
     }
 }

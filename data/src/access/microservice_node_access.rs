@@ -10,6 +10,7 @@ use scylla::transport::iterator::TypedRowIterator;
 use scylla::{CachingSession, QueryResult};
 
 static GET_ALL_NODES_QUERY: &str = "SELECT microservice_type, id, max_space, used_space, access_token, access_token_issued_at, renewal_token, address, created, register_code FROM microservice_nodes";
+static GET_ALL_CODES_QUERY: &str = "SELECT code, created, valid FROM service_register_codes";
 
 partial_microservice_node!(
     UpdateMicroservice,
@@ -109,6 +110,16 @@ pub async fn update_service_register_code(
     session: &CachingSession,
 ) -> Result<QueryResult, MeowithDataError> {
     node.update().execute(session).await.map_err(|e| e.into())
+}
+
+pub async fn get_service_register_codes(
+    session: &CachingSession,
+) -> Result<TypedRowIterator<ServiceRegisterCode>, MeowithDataError> {
+    Ok(session
+        .execute_iter(GET_ALL_CODES_QUERY, &[])
+        .await
+        .map_err(<scylla::transport::errors::QueryError as Into<MeowithDataError>>::into)?
+        .into_typed::<ServiceRegisterCode>())
 }
 
 pub async fn update_service_access_token(
