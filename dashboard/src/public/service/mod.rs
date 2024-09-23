@@ -31,6 +31,8 @@ lazy_static! {
     .into();
     static ref MANAGE_ROLES_ALLOWANCE: u64 =
         PermissionList(vec![AppPermission::ManageRoles]).into();
+    /// Used if the user does not need any addition allowances to access a resource,
+    /// but needs to be a member of the application.
     static ref NO_ALLOWANCE: u64 = 0;
 }
 

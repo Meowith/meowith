@@ -78,6 +78,11 @@ pub struct AppList {
     pub member_of: Vec<MemberedApp>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BucketList {
+    pub buckets: Vec<BucketDto>,
+}
+
 impl From<App> for AppDto {
     fn from(value: App) -> Self {
         AppDto {

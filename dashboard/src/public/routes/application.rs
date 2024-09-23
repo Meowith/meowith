@@ -1,10 +1,10 @@
 use crate::public::service::application_service::{
-    do_add_member, do_create_app, do_delete_app, do_delete_member, do_list_apps,
+    do_add_member, do_create_app, do_delete_app, do_delete_member, do_list_apps, do_list_buckets,
 };
 use crate::AppState;
 use actix_web::{delete, get, post, web, HttpResponse};
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
-use data::dto::entity::{AppDto, AppList, MemberIdRequest};
+use data::dto::entity::{AppDto, AppList, BucketList, MemberIdRequest};
 use data::model::user_model::User;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -34,6 +34,15 @@ pub async fn list_owned(
     state: web::Data<AppState>,
 ) -> NodeClientResponse<web::Json<AppList>> {
     do_list_apps(user, &state.session).await
+}
+
+#[get("/buckets/{id}")]
+pub async fn buckets(
+    user: User,
+    path: web::Path<Uuid>,
+    state: web::Data<AppState>,
+) -> NodeClientResponse<web::Json<BucketList>> {
+    do_list_buckets(path.into_inner(), user, &state.session).await
 }
 
 #[post("/create")]
