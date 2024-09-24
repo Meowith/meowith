@@ -3,8 +3,13 @@ use crate::caching::catche::connect_catche;
 use crate::dashboard_config::DashboardConfig;
 use crate::init_procedure::{initializer_heart, register_node};
 use crate::public::auth::auth_routes::{get_methods, login, own_user_info, register};
-use crate::public::routes::application::{buckets, create_application, delete_application, list_owned};
-use crate::public::routes::bucket::{create_bucket, delete_bucket};
+use crate::public::routes::application::{
+    buckets, create_application, delete_application, list_owned,
+};
+use crate::public::routes::bucket::{create_bucket, delete_bucket_handler};
+use crate::public::routes::role::{
+    create_role, delete_role, get_roles, modify_role, update_roles_for_member,
+};
 use crate::public::routes::token::issue_app_token;
 use actix_cors::Cors;
 use actix_web::dev::ServerHandle;
@@ -136,8 +141,16 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
 
         let bucket_scope = web::scope("/bucket")
             .wrap(UserMiddlewareRequestTransform)
-            .service(create_bucket)
-            .service(delete_bucket);
+            .service(delete_bucket_handler)
+            .service(create_bucket);
+
+        let role_scope = web::scope("/role")
+            .wrap(UserMiddlewareRequestTransform)
+            .service(get_roles)
+            .service(create_role)
+            .service(delete_role)
+            .service(modify_role)
+            .service(update_roles_for_member);
 
         let user_scope = web::scope("/public/user")
             .service(own_user_info)
@@ -152,6 +165,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
                 .service(auth_scope)
                 .service(app_scope)
                 .service(bucket_scope)
+                .service(role_scope)
                 .service(user_scope),
         )
     });

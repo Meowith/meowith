@@ -1,11 +1,23 @@
 use crate::public::service::role_service::{
-    do_create_role, do_delete_role, do_patch_member_roles, do_patch_role,
+    do_create_role, do_delete_role, do_get_roles, do_patch_member_roles, do_patch_role,
 };
 use crate::AppState;
-use actix_web::{delete, patch, post, web, HttpResponse};
+use actix_web::{delete, get, patch, post, web, HttpResponse};
 use commons::error::std_response::NodeClientResponse;
-use data::dto::entity::{AppRolePath, MemberIdRequest, MemberRoleRequest, ModifyRoleRequest};
+use data::dto::entity::{
+    AppRolePath, MemberIdRequest, MemberRoleRequest, ModifyRoleRequest, UserRoleResponse,
+};
 use data::model::user_model::User;
+use uuid::Uuid;
+
+#[get("/{app_id}")]
+pub async fn get_roles(
+    app_state: web::Data<AppState>,
+    user: User,
+    req: web::Path<Uuid>,
+) -> NodeClientResponse<web::Json<UserRoleResponse>> {
+    do_get_roles(req.into_inner(), user, &app_state.session).await
+}
 
 #[post("/{app_id}/{name}")]
 pub async fn create_role(

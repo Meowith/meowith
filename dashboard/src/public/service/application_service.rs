@@ -1,7 +1,5 @@
 use crate::public::routes::application::CreateApplicationRequest;
-use crate::public::service::{
-    has_app_permission, PermCheckScope, NO_ALLOWANCE,
-};
+use crate::public::service::{has_app_permission, PermCheckScope, NO_ALLOWANCE};
 use actix_web::web;
 use chrono::Utc;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};

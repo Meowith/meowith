@@ -45,7 +45,7 @@ pub struct AppByOwner {
 pub struct UserRole {
     pub app_id: Uuid,
     pub name: Text, // non-re-nameable
-    pub scopes: Set<Tuple<Uuid, BigInt>>,
+    pub scopes: Option<Set<Tuple<Uuid, BigInt>>>,
     pub created: Timestamp,
     pub last_modified: Timestamp,
 }

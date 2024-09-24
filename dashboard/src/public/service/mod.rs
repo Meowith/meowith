@@ -62,7 +62,7 @@ pub async fn has_app_permission(
         .collect::<Result<Vec<_>, _>>()
         .map_err(MeowithDataError::from)?
         .into_iter()
-        .map(|entry| (entry.name, entry.scopes))
+        .map(|entry| (entry.name, entry.scopes.unwrap_or_default()))
         .collect();
 
     for role in member.member_roles {

@@ -1,4 +1,4 @@
-use crate::model::app_model::{App, AppByOwner, AppMember, AppToken, MemberByUser};
+use crate::model::app_model::{App, AppByOwner, AppMember, AppToken, MemberByUser, UserRole};
 use crate::model::file_model::Bucket;
 use crate::model::microservice_node_model::ServiceRegisterCode;
 use crate::model::user_model::User;
@@ -172,6 +172,42 @@ pub struct UploadSessionResumeRequest {
 pub struct AppRolePath {
     pub name: String,
     pub app_id: Uuid,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UserRoleResponse {
+    pub roles: Vec<UserRoleDto>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UserRoleDto {
+    pub app_id: Uuid,
+    pub name: String,
+    pub scopes: Vec<ScopedPermission>,
+    pub created: DateTime<Utc>,
+    pub last_modified: DateTime<Utc>,
+}
+
+impl From<UserRole> for UserRoleDto {
+    fn from(value: UserRole) -> Self {
+        UserRoleDto {
+            app_id: value.app_id,
+            name: value.name,
+            scopes: value
+                .scopes
+                .map(|it| {
+                    it.into_iter()
+                        .map(|v| ScopedPermission {
+                            bucket_id: v.0,
+                            allowance: v.1 as u64,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            created: value.created,
+            last_modified: value.last_modified,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
