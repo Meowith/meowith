@@ -61,7 +61,7 @@ pub struct UserRole {
 pub struct AppMember {
     pub app_id: Uuid,
     pub member_id: Uuid,
-    pub member_roles: Set<Text>,
+    pub member_roles: Option<Set<Text>>,
 }
 
 #[charybdis_view_model(
@@ -73,7 +73,7 @@ pub struct AppMember {
 pub struct MemberByUser {
     pub member_id: Uuid,
     pub app_id: Uuid,
-    pub member_roles: Set<Text>,
+    pub member_roles: Option<Set<Text>>,
 }
 
 #[charybdis_model(

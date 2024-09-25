@@ -12,15 +12,18 @@ pub struct AuthResponse {
     pub token: String,
 }
 
-#[post("/login/{method}")]
+#[derive(Serialize, Deserialize)]
+pub struct AuthRequest {
+    pub method: String,
+}
+
+#[post("/login")]
 pub async fn login(
     req: HttpRequest,
     path: web::Path<String>,
     state: web::Data<AppState>,
 ) -> NodeClientResponse<web::Json<AuthResponse>> {
-    let authenticator_method = path.into_inner();
-
-    do_login(req, authenticator_method, &state)
+    do_login(req, method.method.clone(), &state)
         .await
         .map(web::Json)
 }

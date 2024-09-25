@@ -16,6 +16,7 @@ pub mod application_service;
 pub mod bucket_service;
 pub mod role_service;
 pub mod token_service;
+pub mod user_service;
 
 lazy_static! {
     static ref CREATE_BUCKET_ALLOWANCE: u64 =
@@ -65,7 +66,7 @@ pub async fn has_app_permission(
         .map(|entry| (entry.name, entry.scopes.unwrap_or_default()))
         .collect();
 
-    for role in member.member_roles {
+    for role in member.member_roles.unwrap_or_default() {
         let permits = roles.get(&role);
         if let Some(permits) = permits {
             for permit in permits {

@@ -4,13 +4,15 @@ use crate::dashboard_config::DashboardConfig;
 use crate::init_procedure::{initializer_heart, register_node};
 use crate::public::auth::auth_routes::{get_methods, login, own_user_info, register};
 use crate::public::routes::application::{
-    buckets, create_application, delete_application, list_owned,
+    add_member, buckets, create_application, delete_application, delete_member, list_members,
+    list_owned,
 };
 use crate::public::routes::bucket::{create_bucket, delete_bucket_handler};
 use crate::public::routes::role::{
     create_role, delete_role, get_roles, modify_role, update_roles_for_member,
 };
-use crate::public::routes::token::issue_app_token;
+use crate::public::routes::token::{delete_token, issue_app_token, list_tokens};
+use crate::public::routes::user::{user_by_id, user_by_name};
 use actix_cors::Cors;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
@@ -137,7 +139,15 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
             .service(delete_application)
             .service(list_owned)
             .service(buckets)
-            .service(web::scope("/token").service(issue_app_token));
+            .service(add_member)
+            .service(delete_member)
+            .service(list_members)
+            .service(
+                web::scope("/token")
+                    .service(issue_app_token)
+                    .service(delete_token)
+                    .service(list_tokens),
+            );
 
         let bucket_scope = web::scope("/bucket")
             .wrap(UserMiddlewareRequestTransform)
@@ -154,6 +164,8 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
 
         let user_scope = web::scope("/public/user")
             .service(own_user_info)
+            .service(user_by_id)
+            .service(user_by_name)
             .wrap(UserMiddlewareRequestTransform);
 
         if has_basic {

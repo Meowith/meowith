@@ -55,7 +55,7 @@ pub async fn insert_app_member(
     AppMember {
         app_id,
         member_id,
-        member_roles: HashSet::new(),
+        member_roles: Some(HashSet::new()),
     }
     .insert()
     .execute(session)

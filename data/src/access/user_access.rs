@@ -54,6 +54,16 @@ pub async fn maybe_get_user_from_id(
         .map_err(|e| e.into())
 }
 
+pub async fn maybe_get_user_from_name(
+    id: String,
+    session: &CachingSession,
+) -> Result<Option<UsersByName>, MeowithDataError> {
+    UsersByName::maybe_find_first_by_name(id)
+        .execute(session)
+        .await
+        .map_err(|e| e.into())
+}
+
 pub async fn maybe_get_first_user(
     session: &CachingSession,
 ) -> Result<Option<User>, MeowithDataError> {

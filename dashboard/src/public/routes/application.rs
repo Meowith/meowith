@@ -1,10 +1,11 @@
 use crate::public::service::application_service::{
     do_add_member, do_create_app, do_delete_app, do_delete_member, do_list_apps, do_list_buckets,
+    do_list_members,
 };
 use crate::AppState;
 use actix_web::{delete, get, post, web, HttpResponse};
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
-use data::dto::entity::{AppDto, AppList, BucketList, MemberIdRequest};
+use data::dto::entity::{AppDto, AppList, BucketList, MemberIdRequest, MemberListDTO};
 use data::model::user_model::User;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -83,4 +84,13 @@ pub async fn delete_member(
 ) -> NodeClientResponse<HttpResponse> {
     do_delete_member(req.id, req.app_id, &state.session, user).await?;
     Ok(HttpResponse::Ok().finish())
+}
+
+#[get("/{app_id}/members")]
+pub async fn list_members(
+    req_path: web::Path<Uuid>,
+    state: web::Data<AppState>,
+    user: User,
+) -> NodeClientResponse<web::Json<MemberListDTO>> {
+    do_list_members(req_path.into_inner(), user, &state.session).await
 }

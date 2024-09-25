@@ -155,7 +155,7 @@ pub async fn do_patch_member_roles(
     }
 
     let mut member = get_app_member(req.app_id, req.id, session).await?;
-    member.member_roles = perms.roles.into_iter().collect();
+    member.member_roles = Some(perms.roles.into_iter().collect());
 
     update_app_member(&member, session).await?;
     Ok(())

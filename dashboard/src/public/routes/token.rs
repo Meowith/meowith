@@ -26,7 +26,7 @@ pub async fn issue_app_token(
 
 #[get("/{app_id}/{issuer}")]
 pub async fn list_tokens(
-    app_state: web::Data<AppState>,
+    app_state: Data<AppState>,
     user: User,
     req: web::Path<TokenListRequest>,
 ) -> NodeClientResponse<web::Json<TokenListResponse>> {
@@ -35,7 +35,7 @@ pub async fn list_tokens(
 
 #[delete("/{app_id}/{issuer_id}/{name}")]
 pub async fn delete_token(
-    app_state: web::Data<AppState>,
+    app_state: Data<AppState>,
     user: User,
     req: web::Path<TokenDeleteRequest>,
 ) -> NodeClientResponse<HttpResponse> {
