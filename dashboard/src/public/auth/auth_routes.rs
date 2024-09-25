@@ -20,7 +20,7 @@ pub struct AuthRequest {
 #[post("/login")]
 pub async fn login(
     req: HttpRequest,
-    path: web::Path<String>,
+    method: web::Json<AuthRequest>,
     state: web::Data<AppState>,
 ) -> NodeClientResponse<web::Json<AuthResponse>> {
     do_login(req, method.method.clone(), &state)
