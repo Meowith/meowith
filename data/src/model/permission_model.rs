@@ -1,4 +1,5 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 
 #[derive(Debug, Hash, Eq, PartialEq, EnumIter, IntoPrimitive, TryFromPrimitive, Clone, Copy)]
@@ -53,7 +54,19 @@ impl IntoBit for AppPermission {
     }
 }
 
-#[derive(Debug, Hash, Eq, PartialEq, EnumIter, IntoPrimitive, TryFromPrimitive, Clone, Copy)]
+#[derive(
+    Debug,
+    Hash,
+    Eq,
+    PartialEq,
+    EnumIter,
+    IntoPrimitive,
+    TryFromPrimitive,
+    Clone,
+    Copy,
+    Deserialize,
+    Serialize,
+)]
 #[repr(i32)]
 pub enum GlobalRole {
     User = 1i32,

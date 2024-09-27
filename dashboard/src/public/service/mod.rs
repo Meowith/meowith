@@ -4,7 +4,7 @@ use commons::permission::PermissionList;
 use data::access::app_access::{get_app_member, get_app_roles, UserRoleItem};
 use data::error::MeowithDataError;
 use data::model::app_model::App;
-use data::model::permission_model::AppPermission;
+use data::model::permission_model::{AppPermission, GlobalRole};
 use data::model::user_model::User;
 use futures::StreamExt;
 use lazy_static::lazy_static;
@@ -50,7 +50,9 @@ pub async fn has_app_permission(
     scope: PermCheckScope,
 ) -> NodeClientResponse<()> {
     // user is owner
-    if app.owner_id == user.id {
+    if app.owner_id == user.id
+        || user.global_role == <GlobalRole as Into<i32>>::into(GlobalRole::Admin)
+    {
         return Ok(());
     }
     // Note: consider caching member & roles

@@ -1,8 +1,13 @@
 use crate::error::MeowithDataError;
-use crate::model::user_model::{UpdateUser, User, UsersByAuth, UsersByName};
+use crate::model::permission_model::GlobalRole;
+use crate::model::user_model::{UpdateUser, UpdateUserRole, User, UsersByAuth, UsersByName};
 use charybdis::operations::{Find, Insert, Update};
+use scylla::transport::iterator::TypedRowIterator;
 use scylla::{CachingSession, QueryResult};
 use uuid::Uuid;
+
+static GET_ALL_USERS_QUERY: &str =
+    "SELECT id, session_id, name, auth_identifier, global_role, created, last_modified FROM users";
 
 pub async fn get_user_from_name(
     name: String,
@@ -30,6 +35,19 @@ pub async fn update_user(
     session: &CachingSession,
 ) -> Result<QueryResult, MeowithDataError> {
     let update = UpdateUser { id, name };
+
+    update.update().execute(session).await.map_err(|e| e.into())
+}
+
+pub async fn update_user_role(
+    id: Uuid,
+    role: GlobalRole,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    let update = UpdateUserRole {
+        id,
+        global_role: role.into(),
+    };
 
     update.update().execute(session).await.map_err(|e| e.into())
 }
@@ -78,4 +96,14 @@ pub async fn insert_user(
     session: &CachingSession,
 ) -> Result<QueryResult, MeowithDataError> {
     user.insert().execute(session).await.map_err(|e| e.into())
+}
+
+pub async fn get_all_users(
+    session: &CachingSession,
+) -> Result<TypedRowIterator<User>, MeowithDataError> {
+    Ok(session
+        .execute_iter(GET_ALL_USERS_QUERY, &[])
+        .await
+        .map_err(<scylla::transport::errors::QueryError as Into<MeowithDataError>>::into)?
+        .into_typed::<User>())
 }

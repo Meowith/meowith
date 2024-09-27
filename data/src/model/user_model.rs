@@ -7,7 +7,7 @@ use charybdis::types::{Int, Text, Timestamp, Uuid};
 #[charybdis_model(
     table_name = users,
     partition_keys = [id],
-    clustering_keys = [name],
+    clustering_keys = [],
     global_secondary_indexes = [],
     local_secondary_indexes = [],
     static_columns = []
@@ -46,7 +46,7 @@ pub struct UsersByName {
     table_name = users_by_auth,
     base_table = users,
     partition_keys = [auth_identifier],
-    clustering_keys = [id, name]
+    clustering_keys = [id]
 )]
 #[derive(Debug)]
 pub struct UsersByAuth {
@@ -60,6 +60,7 @@ pub struct UsersByAuth {
 }
 
 partial_user!(UpdateUser, id, name);
+partial_user!(UpdateUserRole, id, global_role);
 
 impl From<UsersByName> for User {
     fn from(value: UsersByName) -> Self {

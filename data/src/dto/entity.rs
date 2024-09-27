@@ -365,8 +365,8 @@ pub struct MaybeUserDTO {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct UserCompletionDTO {
-    pub user: Vec<OwnUserInfo>,
+pub struct UserListDTO {
+    pub users: Vec<OwnUserInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
