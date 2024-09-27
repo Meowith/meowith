@@ -73,7 +73,8 @@ pub async fn do_list_tokens(
     session: &CachingSession,
 ) -> NodeClientResponse<web::Json<TokenListResponse>> {
     let app = get_app_by_id(req.app_id, session).await?;
-    let token_stream = if let Some(issuer) = req.issuer {
+    let issuer = Uuid::try_parse(&req.issuer).ok();
+    let token_stream = if let Some(issuer) = issuer {
         has_app_permission(
             &user,
             &app,

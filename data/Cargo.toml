@@ -9,7 +9,7 @@ scylla = "0.14.0"
 strum = { version = "0.26.2", features = ["derive"] }
 uuid = "1.8.0"
 serde = { version = "1.0.203", features = ["derive"] }
-actix-web = { version = "4.7.0" }
+actix-web = { version = "4.9.0" }
 futures = { version = "0.3.30", features = [] }
 derive_more = { version="1.0.0", features = ["full"] }
 chrono = "0.4.38"

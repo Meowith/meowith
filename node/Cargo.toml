@@ -15,7 +15,7 @@ path = "src/main.rs"
 [dependencies]
 serde = { version = "1.0.203", features = ["derive"] }
 serde_yaml = "0.9.34"
-actix-web = "4.7.0"
+actix-web = "4.9.0"
 openssl = "0.10.64"
 
 logging = { path = "../logging", version = "0.1.0" }

@@ -24,7 +24,7 @@ pub async fn issue_app_token(
     Ok(web::Json(AppTokenResponse { token }))
 }
 
-#[get("/{app_id}/{issuer}")]
+#[get("/{app_id}/{issuer:.*}")]
 pub async fn list_tokens(
     app_state: Data<AppState>,
     user: User,

@@ -242,7 +242,7 @@ pub struct TokenDeleteRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TokenListRequest {
     pub app_id: Uuid,
-    pub issuer: Option<Uuid>,
+    pub issuer: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
