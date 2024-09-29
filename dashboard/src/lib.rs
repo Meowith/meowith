@@ -4,8 +4,8 @@ use crate::dashboard_config::DashboardConfig;
 use crate::init_procedure::{initializer_heart, register_node};
 use crate::public::auth::auth_routes::{get_methods, login, own_user_info, register};
 use crate::public::routes::application::{
-    add_member, buckets, create_application, delete_application, delete_member, list_members,
-    list_owned,
+    add_member, buckets, create_application, delete_application, delete_member, edit_application,
+    list_members, list_owned,
 };
 use crate::public::routes::bucket::{create_bucket, delete_bucket_handler};
 use crate::public::routes::role::{
@@ -108,11 +108,8 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
     .await
     .expect("Unable to connect to database");
 
-    let auth = init_authentication_methods(
-        global_conf.login_methods.clone(),
-        global_conf.cat_id_config.clone(),
-    )
-    .expect("Invalid authentication methods");
+    let auth = init_authentication_methods(global_conf.login_methods.clone(), global_conf.clone())
+        .expect("Invalid authentication methods");
     let has_basic = auth.contains_key(BASIC_TYPE_IDENTIFIER);
 
     let app_data = Data::new(AppState {
@@ -137,6 +134,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
             .wrap(UserMiddlewareRequestTransform)
             .service(create_application)
             .service(delete_application)
+            .service(edit_application)
             .service(list_owned)
             .service(buckets)
             .service(add_member)

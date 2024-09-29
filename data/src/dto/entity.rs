@@ -1,3 +1,4 @@
+use crate::dto::controller::UpdateStorageNodeProperties;
 use crate::model::app_model::{App, AppByOwner, AppMember, AppToken, MemberByUser, UserRole};
 use crate::model::file_model::Bucket;
 use crate::model::microservice_node_model::ServiceRegisterCode;
@@ -302,8 +303,7 @@ pub struct NodeStatus {
     pub microservice_type: i8,
     pub id: Uuid,
     pub address: IpAddr,
-    pub max_space: Option<u64>,
-    pub used_space: Option<u64>,
+    pub info: Option<UpdateStorageNodeProperties>,
     pub created: DateTime<Utc>,
     pub last_beat: DateTime<Utc>,
     pub access_token_issued_at: DateTime<Utc>,
@@ -316,6 +316,7 @@ pub struct OwnUserInfo {
     pub global_role: i32,
     pub created: DateTime<Utc>,
     pub last_modified: DateTime<Utc>,
+    pub quota: i64,
 }
 
 impl From<User> for OwnUserInfo {
@@ -326,6 +327,7 @@ impl From<User> for OwnUserInfo {
             global_role: value.global_role,
             created: value.created,
             last_modified: value.last_modified,
+            quota: value.quota,
         }
     }
 }
@@ -338,6 +340,7 @@ impl From<UsersByName> for OwnUserInfo {
             global_role: value.global_role,
             created: value.created,
             last_modified: value.last_modified,
+            quota: value.quota,
         }
     }
 }

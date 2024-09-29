@@ -1,6 +1,6 @@
 use crate::setup::auth_service::{do_login, do_register};
 use crate::setup_procedure::SetupAppState;
-use actix_web::{post, web, HttpRequest};
+use actix_web::{get, post, web, HttpRequest};
 use commons::error::std_response::NodeClientResponse;
 use serde::{Deserialize, Serialize};
 
@@ -38,4 +38,18 @@ pub async fn register(
     do_register(req.0, &state).await?;
 
     Ok(web::Json(EmptyResponse))
+}
+
+#[derive(Serialize)]
+pub struct MethodsResponse {
+    pub methods: Vec<String>,
+}
+
+#[get("/methods")]
+pub async fn get_methods(
+    state: web::Data<SetupAppState>,
+) -> NodeClientResponse<web::Json<MethodsResponse>> {
+    let methods: Vec<String> = state.auth.keys().cloned().collect();
+
+    Ok(web::Json(MethodsResponse { methods }))
 }

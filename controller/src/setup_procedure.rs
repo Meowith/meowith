@@ -1,5 +1,5 @@
 use crate::config::controller_config::ControllerConfig;
-use crate::setup::auth_routes::{login, register, EmptyResponse};
+use crate::setup::auth_routes::{get_methods, login, register, EmptyResponse};
 use actix_cors::Cors;
 use actix_web::dev::Server;
 use actix_web::web::Data;
@@ -42,7 +42,10 @@ pub async fn setup_controller(
 
     let setup_server = HttpServer::new(move || {
         let cors = Cors::permissive();
-        let mut auth_scope = web::scope("/api/auth").service(login).service(setup_status);
+        let mut auth_scope = web::scope("/api/auth")
+            .service(get_methods)
+            .service(login)
+            .service(setup_status);
 
         if has_basic {
             auth_scope = auth_scope.service(register);

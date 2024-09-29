@@ -6,6 +6,7 @@ use actix_web::{
 use charybdis::errors::CharybdisError;
 use derive_more::Display;
 use scylla::transport::errors::QueryError;
+use scylla::transport::iterator::NextRowError;
 
 #[derive(Debug, Display)]
 pub enum DataResponseError {
@@ -30,6 +31,7 @@ impl ResponseError for DataResponseError {
 pub enum MeowithDataError {
     QueryError(QueryError),
     InternalFailure(CharybdisError),
+    NextRowError(NextRowError),
     NotFound,
     UnknownFailure,
 }
@@ -40,6 +42,12 @@ impl From<CharybdisError> for MeowithDataError {
             CharybdisError::NotFoundError(_) => MeowithDataError::NotFound,
             _ => MeowithDataError::InternalFailure(value),
         }
+    }
+}
+
+impl From<NextRowError> for MeowithDataError {
+    fn from(value: NextRowError) -> Self {
+        MeowithDataError::NextRowError(value)
     }
 }
 

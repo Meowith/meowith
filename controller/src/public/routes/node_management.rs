@@ -59,20 +59,14 @@ pub async fn status(
             microservice_type: node.microservice_type,
             id: node.id,
             address: node.address,
-            max_space: None,
-            used_space: None,
+            info: None,
             created: node.created,
             last_beat: Default::default(),
             access_token_issued_at: node.access_token_issued_at,
         };
 
         if let Some(health) = assoc_health {
-            status.max_space = health.max_storage;
-            status.used_space = if let Some(max) = health.max_storage {
-                health.available_storage.map(|avail| max - avail)
-            } else {
-                None
-            };
+            status.info = health.info.clone();
             status.last_beat = health.last_beat;
             statuses.push(status);
         }

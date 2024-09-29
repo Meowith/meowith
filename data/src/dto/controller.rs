@@ -53,4 +53,7 @@ pub struct StorageResponse {
 pub struct UpdateStorageNodeProperties {
     pub max_space: u64,
     pub used_space: u64,
+    pub reserved: u64,
+    pub commited: u64,
+    pub uncommitted: u64,
 }

@@ -38,9 +38,12 @@ pub async fn fetch_free_storage(
     }
 
     for (k, v) in &*node_health {
-        if v.available_storage.is_some() {
+        if v.info.is_some() {
             match peers.entry(*k) {
-                Entry::Occupied(mut node) => node.get_mut().storage = v.available_storage.unwrap(),
+                Entry::Occupied(mut node) => {
+                    let info = v.info.as_ref().unwrap();
+                    node.get_mut().storage = info.max_space - info.used_space;
+                }
                 Entry::Vacant(_) => {}
             }
         }
@@ -59,17 +62,15 @@ pub async fn update_storage_node_properties(
         "update_storage_node_properties {:?} for node {node:?}",
         &req.0
     );
-    let free_space = req.0.max_space - req.0.used_space;
-    let max_space = req.0.max_space;
-    perform_storage_node_properties_update(req.0, &state.session, node.clone()).await?;
+    let info = req.into_inner();
+    perform_storage_node_properties_update(&info, &state.session, node.clone()).await?;
 
     let mut map = state.req_ctx.node_health.write().await;
     let _ = map.insert(
         node.id,
         NodeHealth {
             last_beat: Utc::now(),
-            available_storage: Some(free_space),
-            max_storage: Some(max_space),
+            info: Some(info),
         },
     );
 
@@ -92,15 +93,13 @@ pub async fn microservice_heart_beat(
         Entry::Occupied(mut entry) => {
             entry.insert(NodeHealth {
                 last_beat: Utc::now(),
-                available_storage: entry.get().available_storage,
-                max_storage: entry.get().max_storage,
+                info: entry.get().info.clone(),
             });
         }
         Entry::Vacant(entry) => {
             entry.insert(NodeHealth {
                 last_beat: Utc::now(),
-                available_storage: None,
-                max_storage: None,
+                info: None,
             });
         }
     }

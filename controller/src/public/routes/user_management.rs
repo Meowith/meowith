@@ -1,4 +1,4 @@
-use crate::public::services::user_service::{do_get_all_users, do_update_role};
+use crate::public::services::user_service::{do_get_all_users, do_update_quota, do_update_role};
 use crate::setup::auth_routes::EmptyResponse;
 use crate::AppState;
 use actix_web::web::Json;
@@ -14,12 +14,17 @@ pub struct UserUpdateRoleRequest {
     pub role: GlobalRole,
 }
 
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct UserUpdateQuotaRequest {
+    pub quota: u64,
+}
+
 #[get("/")]
 pub async fn list_users(data: web::Data<AppState>) -> NodeClientResponse<Json<UserListDTO>> {
     do_get_all_users(&data.session).await
 }
 
-#[post("/update/{id}")]
+#[post("/update/role/{id}")]
 pub async fn update_role(
     req: web::Path<Uuid>,
     request: Json<UserUpdateRoleRequest>,
@@ -28,6 +33,19 @@ pub async fn update_role(
     let user_id: Uuid = req.into_inner();
 
     do_update_role(user_id, request.role, &data.session)
+        .await
+        .map(Json)
+}
+
+#[post("/update/quota/{id}")]
+pub async fn update_quota(
+    req: web::Path<Uuid>,
+    request: Json<UserUpdateQuotaRequest>,
+    data: web::Data<AppState>,
+) -> NodeClientResponse<Json<EmptyResponse>> {
+    let user_id: Uuid = req.into_inner();
+
+    do_update_quota(user_id, request.quota, &data.session)
         .await
         .map(Json)
 }

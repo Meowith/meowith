@@ -55,6 +55,7 @@ pub mod public;
 pub mod setup;
 pub mod setup_procedure;
 pub mod token_service;
+use crate::public::routes::user_management::{list_users, update_quota, update_role};
 use futures_util::StreamExt;
 
 pub struct AppState {
@@ -108,7 +109,7 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
 
     let auth = init_authentication_methods(
         clonfig.general_configuration.login_methods.clone(),
-        clonfig.general_configuration.cat_id_config.clone(),
+        clonfig.general_configuration.clone(),
     )
     .expect("Invalid authentication methods");
 
@@ -242,6 +243,9 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
 
         let user_scope = web::scope("/user")
             .service(own_user_info)
+            .service(list_users)
+            .service(update_role)
+            .service(update_quota)
             .wrap(UserMiddlewareRequestTransform);
 
         let public_scope = web::scope("/api/public")

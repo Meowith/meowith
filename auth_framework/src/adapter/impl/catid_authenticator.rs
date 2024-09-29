@@ -4,8 +4,9 @@ use crate::token::DashboardClaims;
 use crate::{AuthFacade, Authentication};
 use actix_web::HttpRequest;
 use async_trait::async_trait;
+use chrono::Utc;
 use data::access::user_access::{get_user_from_auth, insert_user, update_user};
-use data::dto::config::CatIdAppConfiguration;
+use data::dto::config::{CatIdAppConfiguration, GeneralConfiguration};
 use data::model::permission_model::GlobalRole;
 use data::model::user_model::User;
 use reqwest::Client;
@@ -21,13 +22,15 @@ pub const CATID_TOKEN_URL: &str = "https://idapi.michal.cat/api/app/token";
 pub struct CatIdAuthenticator {
     client: Client,
     config: CatIdAppConfiguration,
+    general_config: GeneralConfiguration,
 }
 
 impl CatIdAuthenticator {
-    pub fn new(config: CatIdAppConfiguration) -> Self {
+    pub fn new(config: GeneralConfiguration) -> Self {
         Self {
             client: Client::builder().build().unwrap(),
-            config,
+            config: config.cat_id_config.clone().unwrap(),
+            general_config: config,
         }
     }
 }
@@ -119,18 +122,20 @@ impl Authentication for CatIdAuthenticator {
                 sid: user.session_id,
             })
         } else {
+            let now = Utc::now();
             let user = User {
                 id: Uuid::new_v4(),
                 session_id: Uuid::new_v4(),
                 name: cat_user.name,
                 auth_identifier: cat_user.id,
+                quota: self.general_config.default_user_quota as i64,
                 global_role: if credentials.is_setup() {
                     GlobalRole::Admin.into()
                 } else {
                     GlobalRole::User.into()
                 },
-                created: Default::default(),
-                last_modified: Default::default(),
+                created: now,
+                last_modified: now,
             };
 
             insert_user(&user, session)

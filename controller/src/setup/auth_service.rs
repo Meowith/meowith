@@ -4,11 +4,14 @@ use actix_web::HttpRequest;
 use auth_framework::adapter::r#impl::basic_authenticator::BASIC_TYPE_IDENTIFIER;
 use auth_framework::credentials::AuthenticationCredentials;
 use bcrypt::{hash, DEFAULT_COST};
+use chrono::Utc;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use data::access::user_access::insert_user;
 use data::model::permission_model::GlobalRole;
 use data::model::user_model::User;
 use uuid::Uuid;
+
+const DEFAULT_USER_QUOTA: i64 = 15 * 1024 * 1024 * 1024;
 
 #[derive(Debug)]
 pub struct SetupCredentials {
@@ -53,7 +56,8 @@ pub async fn do_login(
 }
 
 pub async fn do_register(req: RegisterRequest, state: &SetupAppState) -> NodeClientResponse<()> {
-    // First user is admin, amazing
+    // The first user is admin, amazing
+    let now = Utc::now();
     let user = User {
         id: Uuid::new_v4(),
         session_id: Uuid::new_v4(),
@@ -62,9 +66,10 @@ pub async fn do_register(req: RegisterRequest, state: &SetupAppState) -> NodeCli
             req.password + auth_framework::adapter::r#impl::basic_authenticator::PEPPER,
             DEFAULT_COST,
         )?,
+        quota: DEFAULT_USER_QUOTA,
         global_role: GlobalRole::Admin.into(),
-        created: Default::default(),
-        last_modified: Default::default(),
+        created: now,
+        last_modified: now,
     };
 
     insert_user(&user, &state.session).await?;

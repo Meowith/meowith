@@ -3,6 +3,7 @@ use crate::AppState;
 use actix_web::HttpRequest;
 use auth_framework::token::DashboardClaims;
 use bcrypt::{hash, DEFAULT_COST};
+use chrono::Utc;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use data::access::user_access::insert_user;
 use data::model::permission_model::GlobalRole;
@@ -35,6 +36,7 @@ pub async fn do_register(
     req: RegisterRequest,
     state: &AppState,
 ) -> NodeClientResponse<AuthResponse> {
+    let now = Utc::now();
     let user = User {
         id: Uuid::new_v4(),
         session_id: Uuid::new_v4(),
@@ -43,9 +45,10 @@ pub async fn do_register(
             req.password + auth_framework::adapter::r#impl::basic_authenticator::PEPPER,
             DEFAULT_COST,
         )?,
+        quota: state.global_config.default_user_quota as i64,
         global_role: GlobalRole::User.into(),
-        created: Default::default(),
-        last_modified: Default::default(),
+        created: now,
+        last_modified: now,
     };
 
     insert_user(&user, &state.session).await?;

@@ -37,6 +37,7 @@ pub async fn own_user_info(user: User) -> NodeClientResponse<web::Json<OwnUserIn
 pub struct MethodsResponse {
     pub methods: Vec<String>,
 }
+
 #[get("/methods")]
 pub async fn get_methods(
     state: web::Data<AppState>,

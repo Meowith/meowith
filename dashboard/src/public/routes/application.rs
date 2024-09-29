@@ -1,9 +1,9 @@
 use crate::public::service::application_service::{
-    do_add_member, do_create_app, do_delete_app, do_delete_member, do_list_apps, do_list_buckets,
-    do_list_members,
+    do_add_member, do_create_app, do_delete_app, do_delete_member, do_edit_app, do_list_apps,
+    do_list_buckets, do_list_members,
 };
 use crate::AppState;
-use actix_web::{delete, get, post, web, HttpResponse};
+use actix_web::{delete, get, patch, post, web, HttpResponse};
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use data::dto::entity::{AppDto, AppList, BucketList, MemberIdRequest, MemberListDTO};
 use data::model::user_model::User;
@@ -13,7 +13,16 @@ use uuid::Uuid;
 #[derive(Serialize, Deserialize)]
 pub struct CreateApplicationRequest {
     pub name: String,
+    pub quota: u64,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct EditApplicationQuotaRequest {
+    pub quota: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct EmptyResponse;
 
 impl CreateApplicationRequest {
     pub fn validate(&self) -> NodeClientResponse<()> {
@@ -53,7 +62,17 @@ pub async fn create_application(
     user: User,
 ) -> NodeClientResponse<web::Json<AppDto>> {
     req.validate()?;
-    do_create_app(req.0, &state.session, user, &state.global_config).await
+    do_create_app(req.0, &state.session, user).await
+}
+
+#[patch("/edit/{id}")]
+pub async fn edit_application(
+    req: web::Json<EditApplicationQuotaRequest>,
+    path: web::Path<Uuid>,
+    state: web::Data<AppState>,
+    user: User,
+) -> NodeClientResponse<web::Json<EmptyResponse>> {
+    do_edit_app(path.into_inner(), req.into_inner(), &state.session, user).await
 }
 
 #[delete("/delete")]

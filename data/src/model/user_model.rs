@@ -2,7 +2,7 @@ use crate::error::DataResponseError;
 use actix_web::dev::Payload;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use charybdis::macros::{charybdis_model, charybdis_view_model};
-use charybdis::types::{Int, Text, Timestamp, Uuid};
+use charybdis::types::{BigInt, Int, Text, Timestamp, Uuid};
 
 #[charybdis_model(
     table_name = users,
@@ -18,6 +18,7 @@ pub struct User {
     pub session_id: Uuid,
     pub name: Text,
     pub auth_identifier: Text,
+    pub quota: BigInt,
     pub global_role: Int,
     pub created: Timestamp,
     pub last_modified: Timestamp,
@@ -36,6 +37,7 @@ pub struct UsersByName {
     pub name: Text,
     pub id: Uuid,
     pub global_role: Int,
+    pub quota: BigInt,
     pub created: Timestamp,
     pub last_modified: Timestamp,
     pub session_id: Uuid,
@@ -54,6 +56,7 @@ pub struct UsersByAuth {
     pub id: Uuid,
     pub global_role: Int,
     pub created: Timestamp,
+    pub quota: BigInt,
     pub last_modified: Timestamp,
     pub session_id: Uuid,
     pub auth_identifier: Text,
@@ -61,6 +64,7 @@ pub struct UsersByAuth {
 
 partial_user!(UpdateUser, id, name);
 partial_user!(UpdateUserRole, id, global_role);
+partial_user!(UpdateUserQuota, id, quota);
 
 impl From<UsersByName> for User {
     fn from(value: UsersByName) -> Self {
@@ -72,6 +76,7 @@ impl From<UsersByName> for User {
             last_modified: value.last_modified,
             session_id: value.session_id,
             auth_identifier: value.auth_identifier,
+            quota: value.quota,
         }
     }
 }
@@ -86,6 +91,7 @@ impl From<UsersByAuth> for User {
             last_modified: value.last_modified,
             session_id: value.session_id,
             auth_identifier: value.auth_identifier,
+            quota: value.quota,
         }
     }
 }

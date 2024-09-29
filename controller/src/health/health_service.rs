@@ -5,11 +5,11 @@ use data::model::microservice_node_model::MicroserviceNode;
 use scylla::CachingSession;
 
 pub async fn perform_storage_node_properties_update(
-    req: UpdateStorageNodeProperties,
+    req: &UpdateStorageNodeProperties,
     session: &CachingSession,
     node: MicroserviceNode,
 ) -> Result<(), NodeError> {
-    update_microservice_node(node, session, req.used_space as i64, req.max_space as i64)
+    update_microservice_node(node, session, req)
         .await
         .map_err(|_| NodeError::InternalError)?;
     Ok(())

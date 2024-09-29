@@ -1,8 +1,11 @@
 use crate::error::MeowithDataError;
-use crate::model::app_model::{App, AppByOwner, AppMember, AppToken, MemberByUser, UserRole};
+use crate::model::app_model::{
+    App, AppByOwner, AppMember, AppToken, MemberByUser, UpdateAppQuota, UserRole,
+};
 use charybdis::errors::CharybdisError;
 use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
+use log::info;
 use scylla::{CachingSession, QueryResult};
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -209,4 +212,15 @@ pub async fn get_members_by_id(
         .execute(session)
         .await
         .map_err(MeowithDataError::from)
+}
+
+pub async fn update_app_quota(
+    id: Uuid,
+    quota: i64,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    info!("{id} quota: {quota}");
+    let update = UpdateAppQuota { id, quota };
+
+    update.update().execute(session).await.map_err(|e| e.into())
 }

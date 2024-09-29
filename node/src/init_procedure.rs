@@ -75,7 +75,9 @@ pub fn initializer_heart(
         let mut interval = time::interval(Duration::from_secs(60u64));
         loop {
             interval.tick().await;
-            let _ = req_ctx.update_storage(fragment_ledger.update_req()).await;
+            let _ = req_ctx
+                .update_storage(fragment_ledger.update_req().await)
+                .await;
         }
     })
     .abort_handle()

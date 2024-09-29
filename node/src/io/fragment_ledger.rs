@@ -149,11 +149,14 @@ impl FragmentLedger {
         Ok(())
     }
 
-    pub fn update_req(&self) -> UpdateStorageNodeProperties {
+    pub async fn update_req(&self) -> UpdateStorageNodeProperties {
         let max = self._internal.max_physical_size.load(ORDERING_MAX_LOAD);
         UpdateStorageNodeProperties {
             max_space: max,
             used_space: max - self.get_available_space(),
+            reserved: self._internal.reservation_map.read().await.len() as u64,
+            commited: self._internal.chunk_set.read().await.len() as u64,
+            uncommitted: self._internal.uncommited_map.read().await.len() as u64,
         }
     }
 

@@ -18,6 +18,8 @@ pub struct App {
     pub last_modified: Timestamp,
 }
 
+partial_app!(UpdateAppQuota, id, quota);
+
 #[charybdis_view_model(
     table_name = apps_by_owner,
     base_table = apps,
@@ -91,4 +93,17 @@ pub struct AppToken {
     pub nonce: Uuid,
     pub created: Timestamp,
     pub last_modified: Timestamp,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        App {
+            id: Default::default(),
+            name: "".to_string(),
+            owner_id: Default::default(),
+            quota: 0,
+            created: Default::default(),
+            last_modified: Default::default(),
+        }
+    }
 }

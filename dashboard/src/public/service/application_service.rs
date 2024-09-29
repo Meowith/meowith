@@ -1,15 +1,16 @@
-use crate::public::routes::application::CreateApplicationRequest;
+use crate::public::routes::application::{
+    CreateApplicationRequest, EditApplicationQuotaRequest, EmptyResponse,
+};
 use crate::public::service::{has_app_permission, PermCheckScope, NO_ALLOWANCE};
 use actix_web::web;
 use chrono::Utc;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use data::access::app_access::{
     delete_app, delete_app_member, get_app_by_id, get_app_members, get_apps_by_owner,
-    get_members_by_id, insert_app, insert_app_member, maybe_get_app_member,
+    get_members_by_id, insert_app, insert_app_member, maybe_get_app_member, update_app_quota,
 };
 use data::access::file_access::{get_buckets, maybe_get_first_bucket};
 use data::access::user_access::maybe_get_user_from_id;
-use data::dto::config::GeneralConfiguration;
 use data::dto::entity::{AppDto, AppList, BucketList, MemberListDTO, MemberedApp};
 use data::error::MeowithDataError;
 use data::model::app_model::App;
@@ -21,14 +22,19 @@ pub async fn do_create_app(
     req: CreateApplicationRequest,
     session: &CachingSession,
     user: User,
-    global_config: &GeneralConfiguration,
 ) -> NodeClientResponse<web::Json<AppDto>> {
+    let used_quota = get_user_used_quota(&user, session).await?;
+
+    if (req.quota as i64 + used_quota) > user.quota {
+        return Err(NodeClientError::InsufficientStorage);
+    }
+
     let now = Utc::now();
     let app = App {
         id: Uuid::new_v4(),
         name: req.name,
         owner_id: user.id,
-        quota: global_config.default_application_quota as i64,
+        quota: req.quota as i64,
         created: now,
         last_modified: now,
     };
@@ -36,6 +42,30 @@ pub async fn do_create_app(
     insert_app(&app, session).await?;
 
     Ok(web::Json(app.into()))
+}
+
+pub async fn do_edit_app(
+    id: Uuid,
+    req: EditApplicationQuotaRequest,
+    session: &CachingSession,
+    user: User,
+) -> NodeClientResponse<web::Json<EmptyResponse>> {
+    let used_quota = get_user_used_quota(&user, session).await?;
+
+    let app = get_app_by_id(id, session).await?;
+    let app_min = get_user_used_app_quota(&app, session).await?;
+
+    if app_min >= req.quota as i64 {
+        return Err(NodeClientError::BadRequest);
+    }
+
+    if (req.quota as i64 + used_quota - app.quota) > user.quota {
+        return Err(NodeClientError::InsufficientStorage);
+    }
+
+    update_app_quota(app.id, req.quota as i64, session).await?;
+
+    Ok(web::Json(EmptyResponse))
 }
 
 pub async fn do_delete_app(
@@ -173,4 +203,28 @@ pub async fn do_list_members(
     Ok(web::Json(MemberListDTO {
         members: members.into_iter().map(|x| x.into()).collect(),
     }))
+}
+
+pub async fn get_user_used_quota(
+    user: &User,
+    session: &CachingSession,
+) -> Result<i64, MeowithDataError> {
+    let owned_apps = get_apps_by_owner(user.id, session)
+        .await?
+        .try_collect()
+        .await
+        .map_err(MeowithDataError::from)?;
+    Ok(owned_apps.iter().map(|x| x.quota).sum())
+}
+
+pub async fn get_user_used_app_quota(
+    app: &App,
+    session: &CachingSession,
+) -> Result<i64, MeowithDataError> {
+    let owned_apps = get_buckets(app.id, session)
+        .await?
+        .try_collect()
+        .await
+        .map_err(MeowithDataError::from)?;
+    Ok(owned_apps.iter().map(|x| x.quota).sum())
 }

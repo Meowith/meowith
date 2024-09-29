@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
+use data::dto::controller::UpdateStorageNodeProperties;
+use data::model::microservice_node_model::MicroserviceNode;
 use reqwest::header::AUTHORIZATION;
 use reqwest::{Certificate, Client, ClientBuilder, Method, RequestBuilder};
 use tokio::sync::{RwLock, RwLockReadGuard};
 use uuid::Uuid;
-
-use data::model::microservice_node_model::MicroserviceNode;
 
 use crate::context::request_context::RequestContext;
 
@@ -25,8 +25,7 @@ pub struct ControllerRequestContext {
 #[derive(Debug, Clone)]
 pub struct NodeHealth {
     pub last_beat: DateTime<Utc>,
-    pub available_storage: Option<u64>,
-    pub max_storage: Option<u64>,
+    pub info: Option<UpdateStorageNodeProperties>,
 }
 
 impl RequestContext for ControllerRequestContext {

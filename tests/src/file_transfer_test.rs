@@ -56,7 +56,10 @@ async fn create_application(
     name: String,
     client: &ClientWithMiddleware,
 ) -> AppDto {
-    let req = CreateApplicationRequest { name };
+    let req = CreateApplicationRequest {
+        name,
+        quota: 1918734,
+    };
 
     client
         .post("http://127.0.0.4:4002/api/app/create")

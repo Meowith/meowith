@@ -1,13 +1,15 @@
 use crate::error::MeowithDataError;
 use crate::model::permission_model::GlobalRole;
-use crate::model::user_model::{UpdateUser, UpdateUserRole, User, UsersByAuth, UsersByName};
+use crate::model::user_model::{
+    UpdateUser, UpdateUserQuota, UpdateUserRole, User, UsersByAuth, UsersByName,
+};
 use charybdis::operations::{Find, Insert, Update};
 use scylla::transport::iterator::TypedRowIterator;
 use scylla::{CachingSession, QueryResult};
 use uuid::Uuid;
 
 static GET_ALL_USERS_QUERY: &str =
-    "SELECT id, session_id, name, auth_identifier, global_role, created, last_modified FROM users";
+    "SELECT id, session_id, name, auth_identifier, quota, global_role, created, last_modified FROM users";
 
 pub async fn get_user_from_name(
     name: String,
@@ -52,6 +54,19 @@ pub async fn update_user_role(
     update.update().execute(session).await.map_err(|e| e.into())
 }
 
+pub async fn update_user_quota(
+    id: Uuid,
+    quota: u64,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    let update = UpdateUserQuota {
+        id,
+        quota: quota as i64,
+    };
+
+    update.update().execute(session).await.map_err(|e| e.into())
+}
+
 pub async fn get_user_from_id(
     id: Uuid,
     session: &CachingSession,
@@ -85,7 +100,7 @@ pub async fn maybe_get_user_from_name(
 pub async fn maybe_get_first_user(
     session: &CachingSession,
 ) -> Result<Option<User>, MeowithDataError> {
-    User::maybe_find_first("select id, session_id, name, auth_identifier, global_role, created, last_modified from users", ())
+    User::maybe_find_first("select id, session_id, name, auth_identifier, quota, global_role, created, last_modified from users", ())
         .execute(session)
         .await
         .map_err(|e| e.into())

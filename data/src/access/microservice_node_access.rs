@@ -1,3 +1,4 @@
+use crate::dto::controller::UpdateStorageNodeProperties;
 use crate::error::MeowithDataError;
 use crate::model::microservice_node_model::{
     partial_microservice_node, MicroserviceNode, MicroserviceType, ServiceRegisterCode,
@@ -58,14 +59,13 @@ pub async fn insert_microservice_node(
 pub async fn update_microservice_node(
     node: MicroserviceNode,
     session: &CachingSession,
-    used_space: i64,
-    max_space: i64,
+    req: &UpdateStorageNodeProperties,
 ) -> Result<QueryResult, MeowithDataError> {
     let update_microservice = UpdateMicroservice {
         microservice_type: node.microservice_type,
         id: node.id,
-        used_space: Some(used_space),
-        max_space: Some(max_space),
+        used_space: Some(req.used_space as i64),
+        max_space: Some(req.max_space as i64),
     };
     update_microservice
         .update()
