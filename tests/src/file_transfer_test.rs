@@ -58,7 +58,7 @@ async fn create_application(
 ) -> AppDto {
     let req = CreateApplicationRequest {
         name,
-        quota: 1918734,
+        quota: 14 * 1024 * 1024 * 1024,
     };
 
     client
