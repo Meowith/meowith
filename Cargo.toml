@@ -16,3 +16,18 @@ members = [
     "dashboard",
     "auth_framework"
 ]
+
+[workspace.metadata.cross.target.aarch64-unknown-linux-gnu]
+pre-build = [
+    "dpkg --add-architecture $CROSS_DEB_ARCH",
+    "apt-get update && apt-get --assume-yes install libssl-dev:$CROSS_DEB_ARCH",
+]
+
+[workspace.metadata.cross.target.x86_64-unknown-linux-gnu]
+pre-build = [
+    "dpkg --add-architecture $(dpkg --print-architecture)",
+    "apt-get update",
+    "add-apt-repository ppa:ubuntu-toolchain-r/test -y",
+    "apt-get --assume-yes install gcc-10 g++-10 libssl-dev:$(dpkg --print-architecture) build-essential:$(dpkg --print-architecture) cmake:$(dpkg --print-architecture) golang:$(dpkg --print-architecture)",
+    "update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10",
+]
