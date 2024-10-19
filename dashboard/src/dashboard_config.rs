@@ -12,7 +12,7 @@ pub struct DashboardConfig {
     // external commons config
     pub external_server_bind_address: String,
     pub external_server_port: u16,
-    pub self_addr: String,
+    pub broadcast_address: String,
 
     pub renewal_token_path: Option<String>,
 
@@ -50,7 +50,7 @@ impl DashboardConfig {
             ca_certificate: "ca_cert.pem".to_string(),
             external_server_bind_address: "127.0.0.1".to_string(),
             external_server_port: 8080,
-            self_addr: "127.0.0.1".to_string(),
+            broadcast_address: "127.0.0.1".to_string(),
             renewal_token_path: None,
             ssl_certificate: None,
             ssl_private_key: None,

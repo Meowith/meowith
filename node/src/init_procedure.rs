@@ -54,14 +54,14 @@ pub async fn register_node(
 
     let reg_res = register_procedure(
         &mut ctx,
-        config.internal_server_bind_address,
+        config.broadcast_address,
         config.renewal_token_path.clone(),
     )
     .await;
 
     info!(
         "Registration successful. Id {} Int-Addr {}",
-        ctx.id, config.internal_server_bind_address
+        ctx.id, config.broadcast_address
     );
 
     (ctx, reg_res)

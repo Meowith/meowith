@@ -42,7 +42,7 @@ pub async fn register_node(
 
     let reg_res = register_procedure(
         &mut ctx,
-        IpAddr::from_str(config.self_addr.as_str()).expect("Invalid self addr property"),
+        IpAddr::from_str(config.broadcast_address.as_str()).expect("Invalid self addr property"),
         config.renewal_token_path.clone(),
     )
     .await;
