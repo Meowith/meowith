@@ -251,13 +251,15 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
         let public_scope = web::scope("/api/public")
             .service(register_codes)
             .service(node_scope)
-            .service(user_scope)
-            .service(login);
+            .service(user_scope);
+
+        let auth_scope = web::scope("/api/auth").service(login);
 
         App::new()
             .wrap(cors)
             .app_data(controller_app_data)
             .service(public_scope)
+            .service(auth_scope)
     });
 
     let internode_server_future: Server;
