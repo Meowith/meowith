@@ -199,7 +199,7 @@ mod tests {
     async fn login(username: &str, password: &str, client: &Client) -> String {
         client
             .post(format!(
-                "http://127.0.0.1:2138/api/public/login/{}",
+                "http://127.0.0.1:2138/api/auth/login/{}",
                 BASIC_TYPE_IDENTIFIER
             ))
             .header(
