@@ -39,7 +39,7 @@ pub async fn get_microservices(
         .into_typed::<MicroserviceNode>())
 }
 
-pub async fn get_microservice_from_type<'a>(
+pub async fn get_microservice_from_type(
     service_type: MicroserviceType,
     session: &CachingSession,
 ) -> Result<CharybdisModelStream<MicroserviceNode>, MeowithDataError> {

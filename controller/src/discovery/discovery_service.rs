@@ -2,6 +2,7 @@ use actix_web::http::header::HeaderValue;
 use actix_web::web::Bytes;
 use actix_web::{web, HttpRequest};
 use chrono::prelude::*;
+use commons::autoconfigure::addr_header::deserialize_header;
 use futures_util::TryFutureExt;
 use log::{info, warn};
 use openssl::x509::X509Req;
@@ -133,7 +134,7 @@ pub async fn sign_node_csr(
     renewal_token: Option<&HeaderValue>,
     node: MicroserviceNode,
     csr: X509Req,
-    ip_addr: IpAddr,
+    ip_addrs: Vec<IpAddr>,
     state: web::Data<AppState>,
 ) -> Result<Bytes, NodeError> {
     if renewal_token.is_none()
@@ -147,7 +148,7 @@ pub async fn sign_node_csr(
     }
 
     let signing_data = SigningData {
-        ip_addr,
+        ip_addrs,
         validity_days: state.config.autogen_ssl_validity,
     };
     let cert = commons::autoconfigure::ssl_conf::sign_csr(
@@ -173,4 +174,14 @@ pub fn get_address(req: &HttpRequest) -> Result<IpAddr, ()> {
             .map_err(|_| ())?,
     )
     .map_err(|_| ())
+}
+pub fn get_addresses(req: &HttpRequest) -> Result<Vec<IpAddr>, ()> {
+    let header = req
+        .headers()
+        .get(X_ADDR_HEADER)
+        .ok_or(())?
+        .to_str()
+        .map_err(|_| ())?;
+
+    deserialize_header(header.to_string()).map_err(|_| ())
 }

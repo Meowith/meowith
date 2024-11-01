@@ -13,6 +13,7 @@ pub struct DashboardConfig {
     pub external_server_bind_address: String,
     pub external_server_port: u16,
     pub broadcast_address: String,
+    pub cert_addresses: Vec<String>,
 
     pub renewal_token_path: Option<String>,
 
@@ -51,6 +52,7 @@ impl DashboardConfig {
             external_server_bind_address: "127.0.0.1".to_string(),
             external_server_port: 8080,
             broadcast_address: "127.0.0.1".to_string(),
+            cert_addresses: vec!["127.0.0.1".to_string()],
             renewal_token_path: None,
             ssl_certificate: None,
             ssl_private_key: None,

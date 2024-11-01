@@ -1,5 +1,6 @@
 extern crate openssl;
 
+use crate::autoconfigure::addr_header::serialize_header;
 use crate::context::microservice_request_context::MicroserviceRequestContext;
 use crate::context::request_context::RequestContext;
 use data::dto::controller::X_ADDR_HEADER;
@@ -15,7 +16,7 @@ use std::error::Error;
 use std::net::IpAddr;
 
 pub struct SigningData {
-    pub ip_addr: IpAddr,
+    pub ip_addrs: Vec<IpAddr>,
     pub validity_days: u32,
 }
 
@@ -59,10 +60,12 @@ pub fn sign_csr(
     cert_builder.set_not_before(&not_before)?;
     cert_builder.set_not_after(&not_after)?;
 
-    let san_extension = SubjectAlternativeName::new()
-        .ip(&req_data.ip_addr.to_string())
-        .build(&cert_builder.x509v3_context(None, None))?;
-    cert_builder.append_extension(san_extension)?;
+    for ip_addr in &req_data.ip_addrs {
+        let san_extension = SubjectAlternativeName::new()
+            .ip(&ip_addr.to_string())
+            .build(&cert_builder.x509v3_context(None, None))?;
+        cert_builder.append_extension(san_extension)?;
+    }
 
     cert_builder.append_extension(
         KeyUsage::new()
@@ -90,7 +93,7 @@ pub fn sign_csr(
 /// Expects BOTH of the tokens.
 pub async fn perform_certificate_request(
     ctx: &MicroserviceRequestContext,
-    addr: IpAddr,
+    addrs: Vec<IpAddr>,
 ) -> Result<(PKey<Private>, X509), Box<dyn Error>> {
     let pkey = generate_private_key()?;
     let csr = generate_csr(&pkey)?;
@@ -103,7 +106,7 @@ pub async fn perform_certificate_request(
             "Sec-Authorization",
             ctx.security_context.renewal_token.clone(),
         )
-        .header(X_ADDR_HEADER, addr.to_string())
+        .header(X_ADDR_HEADER, serialize_header(addrs))
         .body(csr.to_der()?)
         .send()
         .await?
@@ -183,7 +186,7 @@ pub fn gen_test_certs(ca: &X509, ca_key: &PKey<Private>) -> (X509, PKey<Private>
         ca,
         ca_key,
         &SigningData {
-            ip_addr: IpAddr::from_str("127.0.0.1").unwrap(),
+            ip_addrs: vec![IpAddr::from_str("127.0.0.1").unwrap()],
             validity_days: 100,
         },
     )

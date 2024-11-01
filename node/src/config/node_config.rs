@@ -27,6 +27,7 @@ pub struct NodeConfig {
     pub internal_server_bind_address: String,
     pub renewal_token_path: Option<String>,
     pub broadcast_address: String,
+    pub cert_addresses: Vec<String>,
 
     // external certificates config
     pub ssl_certificate: Option<String>,
@@ -50,6 +51,7 @@ pub struct NodeConfigInstance {
     pub external_server_port: u16,
     pub internal_server_bind_address: IpAddr,
     pub broadcast_address: IpAddr,
+    pub cert_addresses: Vec<IpAddr>,
     pub ssl_certificate: Option<String>,
     pub ssl_private_key: Option<String>,
     pub renewal_token_path: Option<String>,
@@ -88,6 +90,7 @@ impl NodeConfig {
             internal_server_bind_address: "127.0.0.1".to_string(),
             renewal_token_path: None,
             broadcast_address: "127.0.0.1".to_string(),
+            cert_addresses: vec!["127.0.0.1".to_string()],
             ssl_certificate: None,
             ssl_private_key: None,
             data_save_path: "/var/meowith/data/".to_string(),
@@ -163,6 +166,11 @@ impl NodeConfig {
             internal_server_bind_address: IpAddr::from_str(&self.internal_server_bind_address)
                 .unwrap(),
             broadcast_address: IpAddr::from_str(&self.broadcast_address).unwrap(),
+            cert_addresses: self
+                .cert_addresses
+                .iter()
+                .map(|addr| IpAddr::from_str(addr.as_str()).unwrap())
+                .collect(),
             ssl_certificate: self.ssl_certificate,
             ssl_private_key: self.ssl_private_key,
             renewal_token_path: None,

@@ -441,11 +441,7 @@ impl FragmentLedger {
         let used = self._internal.disk_physical_size.load(ORDERING_DISK_LOAD) + reserved;
         let current = self._internal.max_physical_size.load(ORDERING_MAX_LOAD);
 
-        if used > current {
-            0
-        } else {
-            current - used
-        }
+        current.saturating_sub(used)
     }
 }
 

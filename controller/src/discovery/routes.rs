@@ -10,7 +10,7 @@ use data::dto::controller::{
 use data::model::microservice_node_model::MicroserviceNode;
 
 use crate::discovery::discovery_service::{
-    get_address, perform_register_node, perform_token_creation, sign_node_csr,
+    get_address, get_addresses, perform_register_node, perform_token_creation, sign_node_csr,
 };
 use crate::error::node::NodeError;
 use crate::AppState;
@@ -27,8 +27,8 @@ pub async fn security_csr(
 ) -> Result<Bytes, NodeError> {
     let renewal_token = http_request.headers().get("Sec-Authorization");
     let csr = X509Req::from_der(body.as_ref()).map_err(|_| NodeError::BadRequest)?;
-    let ip_addr = get_address(&http_request).map_err(|_| NodeError::BadRequest)?;
-    sign_node_csr(renewal_token, node, csr, ip_addr, state).await
+    let ip_addrs = get_addresses(&http_request).map_err(|_| NodeError::BadRequest)?;
+    sign_node_csr(renewal_token, node, csr, ip_addrs, state).await
 }
 
 #[post("/register")]

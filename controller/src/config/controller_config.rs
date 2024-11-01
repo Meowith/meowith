@@ -20,7 +20,7 @@ pub struct ControllerConfig {
     pub ca_private_key: String,
     pub ca_private_key_password: Option<String>,
     pub autogen_ssl_validity: u32,
-    pub internal_ip_addr: IpAddr,
+    pub internal_ip_addrs: Vec<IpAddr>,
 
     pub database_nodes: Vec<String>,
     pub db_username: String,
@@ -61,7 +61,7 @@ impl ControllerConfig {
             ca_private_key: String::from("ca_key.pem"),
             ca_private_key_password: Some("my-password".to_string()),
             autogen_ssl_validity: 30,
-            internal_ip_addr: IpAddr::from_str("127.0.0.1").unwrap(),
+            internal_ip_addrs: vec![IpAddr::from_str("127.0.0.1").unwrap()],
 
             database_nodes: vec!["127.0.0.1".to_string()],
             db_username: "cassandra".to_string(),

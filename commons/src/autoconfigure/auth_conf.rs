@@ -39,6 +39,7 @@ pub struct RegistrationResult {
 pub async fn register_procedure(
     ctx: &mut MicroserviceRequestContext,
     self_addr: IpAddr,
+    addrs: Vec<IpAddr>,
     token_path: Option<String>,
 ) -> RegistrationResult {
     let token = read_renewal_token(token_path.clone());
@@ -59,7 +60,7 @@ pub async fn register_procedure(
     ctx.id = reg_resp.id;
     ctx.update_client();
     info!("Fetching certificates...");
-    let certificate_pair = perform_certificate_request(ctx, self_addr)
+    let certificate_pair = perform_certificate_request(ctx, addrs)
         .await
         .expect("Certificate request failed!");
 
