@@ -5,6 +5,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use log::error;
 use openssl::x509::X509;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -63,5 +64,8 @@ pub async fn connect_catche(
         Some(token),
     )
     .await
-    .map_err(|_| NodeClientError::InternalError)
+    .map_err(|err| {
+        error!("Catche connect error: {err:?}");
+        NodeClientError::InternalError
+    })
 }

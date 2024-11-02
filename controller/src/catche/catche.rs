@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use log::info;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use tokio::io::AsyncReadExt;
@@ -9,6 +10,7 @@ use uuid::Uuid;
 
 use commons::context::controller_request_context::ControllerRequestContext;
 use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
+use logging::log_err;
 use protocol::catche::catche_server::CatcheServer;
 use protocol::mdsftp::authenticator::{ConnectionAuthContext, MeowithConnectionAuthenticator};
 
@@ -24,7 +26,8 @@ pub async fn start_server(
         port,
         own_id: Uuid::new_v4(),
     }));
-    let _ = server.start_server(port, cert).await;
+    log_err("Catche start", server.start_server(port, cert).await);
+    info!("Catche started");
     server
 }
 

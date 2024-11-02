@@ -60,12 +60,12 @@ pub fn sign_csr(
     cert_builder.set_not_before(&not_before)?;
     cert_builder.set_not_after(&not_after)?;
 
+    let mut san_extension = SubjectAlternativeName::new();
     for ip_addr in &req_data.ip_addrs {
-        let san_extension = SubjectAlternativeName::new()
-            .ip(&ip_addr.to_string())
-            .build(&cert_builder.x509v3_context(None, None))?;
-        cert_builder.append_extension(san_extension)?;
+        san_extension.ip(&ip_addr.to_string());
     }
+    let san_extension = san_extension.build(&cert_builder.x509v3_context(None, None))?;
+    cert_builder.append_extension(san_extension)?;
 
     cert_builder.append_extension(
         KeyUsage::new()

@@ -42,7 +42,7 @@ impl CatcheClient {
 
         let stream = TcpStream::connect(&addr)
             .await
-            .map_err(|_| CatcheError::ConnectionError)?;
+            .map_err(|e| CatcheError::SSLError(Some(e.into())))?;
 
         let stream = TlsStream::from(
             connector
