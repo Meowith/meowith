@@ -3,7 +3,9 @@ extern crate openssl;
 use crate::autoconfigure::addr_header::serialize_header;
 use crate::context::microservice_request_context::MicroserviceRequestContext;
 use crate::context::request_context::RequestContext;
+use crate::error::std_response::NodeClientError;
 use data::dto::controller::X_ADDR_HEADER;
+use log::error;
 use openssl::bn::{BigNum, MsbOption};
 use openssl::error::ErrorStack;
 use openssl::pkey::{PKey, Private};
@@ -15,6 +17,7 @@ use openssl::x509::{X509NameBuilder, X509Req, X509ReqBuilder, X509};
 use std::error::Error;
 use std::net::IpAddr;
 
+#[derive(Debug)]
 pub struct SigningData {
     pub ip_addrs: Vec<IpAddr>,
     pub validity_days: u32,
@@ -98,7 +101,7 @@ pub async fn perform_certificate_request(
     let pkey = generate_private_key()?;
     let csr = generate_csr(&pkey)?;
 
-    let resp = ctx
+    let response = ctx
         .client()
         .await
         .post(ctx.controller("/api/internal/security/csr"))
@@ -109,11 +112,18 @@ pub async fn perform_certificate_request(
         .header(X_ADDR_HEADER, serialize_header(addrs))
         .body(csr.to_der()?)
         .send()
-        .await?
-        .bytes()
         .await?;
 
-    Ok((pkey, X509::from_der(resp.as_ref())?))
+    if response.status().is_success() {
+        Ok((pkey, X509::from_der(response.bytes().await?.as_ref())?))
+    } else {
+        error!(
+            "Certificate registration error: {} {:?}",
+            response.status(),
+            response.text().await?
+        );
+        Err(Box::new(NodeClientError::InternalError))
+    }
 }
 
 /// Used for generating ssl certs for tests.
@@ -163,7 +173,7 @@ pub fn gen_test_ca() -> (X509, PKey<Private>) {
         )
         .unwrap();
 
-    let subject_key_identifier = openssl::x509::extension::SubjectKeyIdentifier::new()
+    let subject_key_identifier = SubjectKeyIdentifier::new()
         .build(&cert_builder.x509v3_context(None, None))
         .unwrap();
     cert_builder

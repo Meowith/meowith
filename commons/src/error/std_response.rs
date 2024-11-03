@@ -31,6 +31,8 @@ pub enum NodeClientError {
     RangeUnsatisfiable,
 }
 
+impl std::error::Error for NodeClientError {}
+
 impl error::ResponseError for NodeClientError {
     fn status_code(&self) -> StatusCode {
         match *self {
