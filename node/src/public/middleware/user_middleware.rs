@@ -105,10 +105,10 @@ impl FromRequest for BucketAccessor {
     type Future = futures::future::Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        return match req.extensions_mut().remove::<BucketAccessor>() {
+        match req.extensions_mut().remove::<BucketAccessor>() {
             Some(bucket_accessor) => ok(bucket_accessor),
             None => err(NodeClientError::BadAuth),
-        };
+        }
     }
 }
 

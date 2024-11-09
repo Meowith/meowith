@@ -98,6 +98,25 @@ async fn create_bucket(
         .expect("")
 }
 
+async fn fetch_bucket_info(
+    user_token: &str,
+    app_id: Uuid,
+    bucket_id: Uuid,
+    client: &ClientWithMiddleware,
+) -> BucketDto {
+    client
+        .get(format!(
+            "http://127.0.0.3:4001/api/bucket/info/{app_id}/{bucket_id}"
+        ))
+        .header(AUTHORIZATION, format!("Bearer {}", user_token))
+        .send()
+        .await
+        .expect("")
+        .json::<BucketDto>()
+        .await
+        .expect("")
+}
+
 async fn issue_token(
     app: &AppDto,
     bucket_id: Uuid,
@@ -118,6 +137,7 @@ async fn issue_token(
                 UserPermission::ListBucket,
                 UserPermission::Rename,
                 UserPermission::Delete,
+                UserPermission::FetchBucketInfo,
             ])
             .into(),
         }],
@@ -256,6 +276,12 @@ pub async fn test_file_transfer() -> (AppDto, BucketDto, String, String) {
     .token;
     header!("Token issued");
 
+    let fetched_bucket_dto: BucketDto =
+        fetch_bucket_info(&token, app_dto.id, bucket_dto.id, &client).await;
+    assert_eq!(fetched_bucket_dto.space_taken, 0);
+    assert_eq!(fetched_bucket_dto.file_count, 0);
+    header!("Bucket fetch #1");
+
     upload_file(
         "test_data/test1.txt",
         "test1",
@@ -356,6 +382,12 @@ pub async fn test_file_transfer() -> (AppDto, BucketDto, String, String) {
         Some((range.start, range.end)),
     )
     .await;
+
+    let fetched_bucket_dto: BucketDto =
+        fetch_bucket_info(&token, app_dto.id, bucket_dto.id, &client).await;
+    assert_eq!(fetched_bucket_dto.space_taken, 10_000 + 1700 * 1024);
+    assert_eq!(fetched_bucket_dto.file_count, 2);
+    header!("Bucket fetch #2");
 
     delete_file(
         "test1",

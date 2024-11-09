@@ -99,8 +99,20 @@ impl Middleware for Logger {
     ) -> Result<Response> {
         info!("Request started {:?}", req);
         let res = next.run(req, extensions).await;
-        info!("Result: {:?}", res);
-        res
+        if let Ok(mut res) = res {
+            let mut buffer: Vec<u8> = vec![];
+            if !res.status().is_success() {
+                while let Some(chunk) = res.chunk().await? {
+                    buffer.extend_from_slice(&chunk);
+                }
+            }
+
+            info!("Result: {:?} {}", res, String::from_utf8_lossy(&buffer));
+            Ok(res)
+        } else {
+            info!("Result: {:?}", res);
+            res
+        }
     }
 }
 

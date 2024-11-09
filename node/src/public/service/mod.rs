@@ -28,4 +28,6 @@ lazy_static! {
     static ref CREATE_DIRECTORY_ALLOWANCE: u64 = PermissionList(vec![UserPermission::Write]).into();
     static ref RENAME_DIRECTORY_ALLOWANCE: u64 =
         PermissionList(vec![UserPermission::Write, UserPermission::Rename]).into();
+    static ref FETCH_BUCKET_INFO_ALLOWANCE: u64 =
+        PermissionList(vec![UserPermission::FetchBucketInfo]).into();
 }

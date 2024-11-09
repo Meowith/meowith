@@ -12,6 +12,7 @@ pub enum UserPermission {
     ListBucket = 5i8,
     Rename = 6i8,
     Delete = 7i8,
+    FetchBucketInfo = 8i8,
 }
 
 impl From<&UserPermission> for i8 {

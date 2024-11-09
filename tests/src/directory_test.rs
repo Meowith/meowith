@@ -1,7 +1,7 @@
 use crate::file_transfer_test::delete_file;
 use crate::utils::Logger;
-use data::dto::entity::DeleteDirectoryRequest;
 use data::dto::entity::{AppDto, BucketDto, EntityList, RenameEntityRequest};
+use data::dto::entity::{DeleteDirectoryRequest, Entity};
 use http::header::{AUTHORIZATION, CONTENT_LENGTH};
 use http::StatusCode;
 use log::info;
@@ -127,6 +127,21 @@ pub async fn delete_dir(name: &str, recurse: bool, args: &NodeArgs<'_>) -> Statu
     status
 }
 
+pub async fn stat_entity(name: &str, args: &NodeArgs<'_>) -> Entity {
+    args.client
+        .get(format!(
+            "http://127.0.0.3:4001/api/bucket/stat/{}/{}/{name}",
+            args.app_id, args.bucket_id,
+        ))
+        .header(AUTHORIZATION, format!("Bearer {}", args.token))
+        .send()
+        .await
+        .expect("")
+        .json::<Entity>()
+        .await
+        .expect("")
+}
+
 pub struct NodeArgs<'a> {
     pub node: &'a str,
     pub token: &'a str,
@@ -210,6 +225,24 @@ pub async fn directory_test(data: (AppDto, BucketDto, String, String)) {
             "test_dir_1/test_dir_3"
         ]
     );
+
+    let test_dir_1 = stat_entity("test_dir_1", &args).await;
+    assert_eq!(test_dir_1.name, "test_dir_1");
+    assert!(test_dir_1.is_dir);
+
+    let test_dir_b = stat_entity("test_dir_a/test_dir_b", &args).await;
+    assert_eq!(test_dir_b.name, "test_dir_b");
+    assert!(test_dir_b.is_dir);
+
+    let test_1 = stat_entity("test1", &args).await;
+    assert_eq!(test_1.name, "test1");
+    assert!(!test_1.is_dir);
+
+    let test_2 = stat_entity("test_dir_1/test_dir_3/test1", &args).await;
+    assert_eq!(test_2.name, "test1");
+    assert!(!test_2.is_dir);
+
+    header!("Fetched file info");
 
     rename_dir("test_dir_1", "test_dir_11", &args).await;
     let list = list_folder("test_dir_11", &args).await;
