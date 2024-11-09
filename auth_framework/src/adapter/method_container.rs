@@ -33,7 +33,11 @@ pub fn init_authentication_methods(
             }
         }
     }
-    let methods = method_map.keys().cloned().collect::<Vec<String>>().join(", ");
+    let methods = method_map
+        .keys()
+        .cloned()
+        .collect::<Vec<String>>()
+        .join(", ");
 
     log::info!("Initialized the following authentication methods: {methods}");
 
