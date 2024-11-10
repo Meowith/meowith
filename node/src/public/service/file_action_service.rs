@@ -90,7 +90,7 @@ pub async fn rename_file_srv(
             // update the path
             let _new_file = update_file_path(
                 &old_file.0,
-                old_file.1.map(|dir| dir.id),
+                DID::of(new_file.1).0,
                 split_new_path.1,
                 &app_state.session,
             )

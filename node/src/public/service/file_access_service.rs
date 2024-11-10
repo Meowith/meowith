@@ -458,15 +458,19 @@ pub async fn end_session(
             .ok(),
     );
 
+    if old_file.is_some() {
+        do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
+        trace!("Deleted residual file");
+    }
+
+    trace!("Inserting file record");
     insert_file(&file, &bucket, &app_state.session).await?;
     app_state
         .upload_manager
         .end_session(app_session_ids.0, bucket.id, app_session_ids.1)
         .await;
 
-    if old_file.is_some() {
-        do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
-    }
+    trace!("End session complete");
 
     Ok(())
 }
