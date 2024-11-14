@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use actix_web::http::header::{ContentDisposition, ContentLength, Header, Range, CONTENT_LENGTH};
+use actix_web::http::header::{ContentDisposition, Header, Range, CONTENT_LENGTH};
 use actix_web::{get, post, put, web, HttpRequest, HttpResponse};
 use futures_util::StreamExt;
 use log::{trace, warn};
@@ -194,7 +194,7 @@ pub async fn download(
         HttpResponse::Ok()
     }
     .content_type(info.mime)
-    .insert_header(ContentLength(info.size as usize))
+    .insert_header(("X-File-Content-Length", info.size as usize))
     .insert_header(ContentDisposition::attachment(info.attachment_name))
     .streaming(response_stream))
 }
