@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use actix_web::http::header::{ContentDisposition, Header, Range, CONTENT_LENGTH};
+use actix_web::http::header::{ContentDisposition, ContentLength, Header, Range, CONTENT_LENGTH};
 use actix_web::{get, post, put, web, HttpRequest, HttpResponse};
 use futures_util::StreamExt;
 use log::{trace, warn};
@@ -182,11 +182,19 @@ pub async fn download(
         accessor,
         abstract_writer,
         app_data,
-        byte_range,
+        byte_range.clone(),
     )
     .await?;
 
     let response_stream = ReaderStream::new(receiver);
+
+    let len = byte_range
+        .map(|x| {
+            x.to_satisfiable_range(info.size)
+                .map(|y| y.1 - y.0 + 1)
+                .unwrap_or(info.size)
+        })
+        .unwrap_or(info.size);
 
     Ok(if range_clone.is_some() {
         HttpResponse::PartialContent()
@@ -194,7 +202,8 @@ pub async fn download(
         HttpResponse::Ok()
     }
     .content_type(info.mime)
-    .insert_header(("X-File-Content-Length", info.size as usize))
+    .insert_header(ContentLength(len as usize))
+    .insert_header(("X-File-Content-Length", len as usize))
     .insert_header(ContentDisposition::attachment(info.attachment_name))
     .streaming(response_stream))
 }
