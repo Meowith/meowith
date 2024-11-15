@@ -397,7 +397,7 @@ pub async fn delete_file(
         file.delete()
             .execute(session)
             .map_err(MeowithDataError::from),
-        update_bucket_space(bucket.clone(), 1, file.size, session)
+        update_bucket_space(bucket.clone(), -1, -file.size, session)
     )?;
 
     Ok(())

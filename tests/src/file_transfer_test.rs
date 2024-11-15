@@ -410,5 +410,10 @@ pub async fn test_file_transfer() -> (AppDto, BucketDto, String, String) {
 
     header!("Files deleted");
 
+    let fetched_bucket_dto: BucketDto =
+        fetch_bucket_info(&token, app_dto.id, bucket_dto.id, &client).await;
+    assert_eq!(fetched_bucket_dto.space_taken, 0);
+    assert_eq!(fetched_bucket_dto.file_count, 0);
+
     (app_dto, bucket_dto, token, user_token)
 }
