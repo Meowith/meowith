@@ -203,8 +203,8 @@ async fn collect_files(
                 dir_id: None,
                 size: item.size as u64,
                 is_dir: false,
-                created: Default::default(),
-                last_modified: Default::default(),
+                created: item.created,
+                last_modified: item.last_modified,
             });
         }
     }

@@ -75,7 +75,6 @@ impl PacketReader {
         })
     }
 
-    #[allow(unused)]
     pub(crate) fn close(&self) {
         self.running.store(false, Ordering::SeqCst);
     }

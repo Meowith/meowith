@@ -10,7 +10,6 @@ pub struct Claims {
     pub exp: usize,
 }
 
-#[allow(unused)]
 pub struct AuthenticationJwtService {
     pub(crate) validation: Validation,
     pub(crate) token_validity: u64,
@@ -30,7 +29,6 @@ impl AuthenticationJwtService {
         encode(&self.header, &claims, &self.encoding_key)
     }
 
-    #[allow(unused)]
     pub fn verify_token(&self, token: &str) -> Result<DashboardClaims, Box<dyn std::error::Error>> {
         let token_data = decode::<Claims>(token, &self.decoding_key, &self.validation);
 

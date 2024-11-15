@@ -59,7 +59,6 @@ impl CatcheConnection {
 }
 
 #[derive(Debug)]
-#[allow(unused)]
 struct InternalCatcheConnection {
     writer: Arc<Mutex<PacketWriter>>,
     reader: Arc<PacketReader>,

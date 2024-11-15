@@ -59,13 +59,13 @@ impl DashboardHandle {
     }
 }
 
-#[allow(unused)]
 pub struct AppState {
     session: CachingSession,
     jwt_service: AccessTokenJwtService,
     authentication_jwt_service: AuthenticationJwtService,
     catche_client: CatcheClient,
     authentication: AuthenticationMethodList,
+    #[allow(unused)]
     req_ctx: Arc<MicroserviceRequestContext>,
     global_config: GeneralConfiguration,
 }

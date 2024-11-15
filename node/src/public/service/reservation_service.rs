@@ -10,7 +10,6 @@ use protocol::mdsftp::data::ReserveFlags;
 use std::collections::HashSet;
 use uuid::Uuid;
 
-#[allow(dead_code)]
 pub enum ReservationMode {
     PreferSelfThenMostFree,
     PreferMostFree,

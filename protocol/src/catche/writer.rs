@@ -43,6 +43,5 @@ impl PacketWriter {
         self.last_write
     }
 
-    #[allow(unused)]
     pub(crate) fn close(&mut self) {}
 }
