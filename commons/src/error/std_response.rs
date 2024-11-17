@@ -13,12 +13,8 @@ use tokio::task::JoinError;
 
 pub type NodeClientResponse<T> = Result<T, NodeClientError>;
 
-#[derive(Serialize)]
-pub(crate) struct ErrorResponse {
-    pub(crate) code: NodeClientError,
-}
-
 #[derive(Clone, Debug, Display, Serialize)]
+#[serde(tag = "code")]
 pub enum NodeClientError {
     InternalError,
     BadRequest,
@@ -26,7 +22,7 @@ pub enum NodeClientError {
     EntityExists,
     NoSuchSession,
     BadAuth,
-    InsufficientStorage,
+    InsufficientStorage { message: String },
     NotEmpty,
     RangeUnsatisfiable,
 }
@@ -39,7 +35,7 @@ impl error::ResponseError for NodeClientError {
             NodeClientError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             NodeClientError::BadRequest => StatusCode::BAD_REQUEST,
             NodeClientError::BadAuth => StatusCode::UNAUTHORIZED,
-            NodeClientError::InsufficientStorage => StatusCode::IM_A_TEAPOT,
+            NodeClientError::InsufficientStorage { .. } => StatusCode::IM_A_TEAPOT,
             NodeClientError::NotFound => StatusCode::NOT_FOUND,
             NodeClientError::NoSuchSession => StatusCode::NOT_FOUND,
             NodeClientError::EntityExists => StatusCode::BAD_REQUEST,
@@ -51,7 +47,7 @@ impl error::ResponseError for NodeClientError {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::build(self.status_code())
             .insert_header(ContentType::json())
-            .json(ErrorResponse { code: self.clone() })
+            .json(self)
     }
 }
 
@@ -82,7 +78,9 @@ impl From<MeowithIoError> for NodeClientError {
 impl From<MDSFTPError> for NodeClientError {
     fn from(value: MDSFTPError) -> Self {
         match value {
-            MDSFTPError::ReserveError(_) => NodeClientError::InsufficientStorage,
+            MDSFTPError::ReserveError(_) => NodeClientError::InsufficientStorage {
+                message: "Failed reservation".to_string(),
+            },
             _ => {
                 error!("MDSFTP ERROR: {:?}", value);
                 NodeClientError::InternalError

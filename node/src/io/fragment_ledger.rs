@@ -107,7 +107,7 @@ impl FragmentLedger {
         let chunk_dir = Path::new(&self._internal.root_path);
         let dir_scan = fs::read_dir(chunk_dir).map_err(MeowithIoError::from)?;
         let mut chunk_map = self._internal.chunk_set.write().await;
-        let last_notify = Instant::now();
+        let mut last_notify = Instant::now();
 
         for entry in dir_scan {
             let entry = entry.map_err(MeowithIoError::from)?;
@@ -122,17 +122,22 @@ impl FragmentLedger {
             match Uuid::from_str(entry.file_name().to_str().unwrap_or("invalid_unicode")) {
                 Ok(id) => {
                     if let Ok(metadata) = entry.metadata() {
-                        chunk_map.insert(
-                            id,
-                            FragmentMeta {
-                                disk_content_size: metadata.len(),
-                                disk_physical_size: path
-                                    .size_on_disk_fast(&metadata)
-                                    .unwrap_or(metadata.len()),
-                            },
-                        );
+                        let discovered_chunk = FragmentMeta {
+                            disk_content_size: metadata.len(),
+                            disk_physical_size: path
+                                .size_on_disk_fast(&metadata)
+                                .unwrap_or(metadata.len()),
+                        };
+                        self._internal
+                            .disk_content_size
+                            .fetch_add(discovered_chunk.disk_content_size, Ordering::SeqCst);
+                        self._internal
+                            .disk_physical_size
+                            .fetch_add(discovered_chunk.disk_physical_size, Ordering::SeqCst);
+                        chunk_map.insert(id, discovered_chunk);
                         if last_notify.elapsed() > Duration::from_secs(5) {
                             info!("Scanned {} entries so far", chunk_map.len());
+                            last_notify = Instant::now();
                         }
                     } else {
                         warn!("Couldn't get metadata for {:?}", entry.file_name());
@@ -441,6 +446,10 @@ impl FragmentLedger {
         let used = self._internal.disk_physical_size.load(ORDERING_DISK_LOAD) + reserved;
         let current = self._internal.max_physical_size.load(ORDERING_MAX_LOAD);
 
+        info!(
+            "Node available space reserved: {}, used + reserved: {}, current: {}",
+            reserved, used, current
+        );
         current.saturating_sub(used)
     }
 }

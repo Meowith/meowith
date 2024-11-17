@@ -70,7 +70,9 @@ pub async fn handle_upload_oneshot(
         accessor.has_permission(&path.app_id, &path.bucket_id, *UPLOAD_OVERWRITE_ALLOWANCE)?;
         old_file = Some(file?.0);
         if !bucket.atomic_upload {
+            trace!("Overwriting old file {}", path.path());
             do_delete_file(old_file.as_ref().unwrap(), &bucket, &app_state).await?;
+            old_file = None;
         }
         true
     } else {
@@ -82,7 +84,12 @@ pub async fn handle_upload_oneshot(
         .get_reserved_space(path.app_id, path.bucket_id)
         .await?;
     if bucket.space_taken + size as i64 + reserved > bucket.quota {
-        return Err(NodeClientError::InsufficientStorage);
+        return Err(NodeClientError::InsufficientStorage {
+            message: format!(
+                "Insufficient space in bucket. quota={}, size={}, taken={}, reserved={}",
+                bucket.quota, size, bucket.space_taken, reserved
+            ),
+        });
     }
 
     let reservation = reserve_chunks(
@@ -220,7 +227,12 @@ pub async fn start_upload_session(
         .get_reserved_space(e_path.app_id, e_path.bucket_id)
         .await?;
     if bucket.space_taken + req.size as i64 + reserved > bucket.quota {
-        return Err(NodeClientError::InsufficientStorage);
+        return Err(NodeClientError::InsufficientStorage {
+            message: format!(
+                "Insufficient space in bucket. quota={}, size={}, taken={}, reserved={}",
+                bucket.quota, req.size, bucket.space_taken, reserved
+            ),
+        });
     }
 
     let reservation = reserve_chunks(

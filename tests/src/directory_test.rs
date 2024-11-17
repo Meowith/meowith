@@ -1,4 +1,4 @@
-use crate::file_transfer_test::delete_file;
+use crate::file_transfer_test::{assert_bucket_info, delete_file};
 use crate::utils::Logger;
 use data::dto::entity::{AppDto, BucketDto, EntityList, RenameEntityRequest};
 use data::dto::entity::{DeleteDirectoryRequest, Entity};
@@ -7,6 +7,8 @@ use http::StatusCode;
 use log::info;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use uuid::Uuid;
+
+pub const FILE_SIZE: usize = 10;
 
 pub async fn create_dir(name: &str, args: &NodeArgs<'_>) {
     assert!(args
@@ -24,8 +26,6 @@ pub async fn create_dir(name: &str, args: &NodeArgs<'_>) {
 }
 
 pub async fn create_file(name: &str, args: &NodeArgs<'_>) {
-    let size = 10;
-
     assert!(args
         .client
         .post(format!(
@@ -33,8 +33,8 @@ pub async fn create_file(name: &str, args: &NodeArgs<'_>) {
             args.node, args.app_id, args.bucket_id, name,
         ))
         .header(AUTHORIZATION, args.token.to_string())
-        .header(CONTENT_LENGTH, size.to_string())
-        .body(vec![0u8; 10])
+        .header(CONTENT_LENGTH, FILE_SIZE.to_string())
+        .body(vec![0u8; FILE_SIZE])
         .send()
         .await
         .expect("")
@@ -199,6 +199,8 @@ pub async fn directory_test(data: (AppDto, BucketDto, String, String)) {
     create_file("test_dir_1/test_dir_3/test1", &args).await;
     header!("created test_dir_1/test_dir_3/test1");
 
+    assert_bucket_info(&args, 4, 4 * FILE_SIZE as i64).await;
+
     let list = list_folder("", &args).await;
     assert_contains!(
         list.entities,
@@ -256,28 +258,17 @@ pub async fn directory_test(data: (AppDto, BucketDto, String, String)) {
     assert!(delete_dir("test_dir_11", false, &args)
         .await
         .is_client_error());
-    delete_file(
-        "test_dir_11/test1",
-        "127.0.0.2:4000",
-        bucket_dto.id,
-        app_dto.id,
-        &token,
-        &client,
-    )
-    .await;
+    delete_file("test_dir_11/test1", "127.0.0.2:4000", &args).await;
 
-    delete_file(
-        "test_dir_11/test_dir_3/test1",
-        "127.0.0.2:4000",
-        bucket_dto.id,
-        app_dto.id,
-        &token,
-        &client,
-    )
-    .await;
+    delete_file("test_dir_11/test_dir_3/test1", "127.0.0.2:4000", &args).await;
 
     assert!(delete_dir("test_dir_11", false, &args)
         .await
         .is_client_error());
     assert!(delete_dir("test_dir_11", true, &args).await.is_success());
+
+    delete_file("test1", "127.0.0.2:4000", &args).await;
+    delete_file("test_dir_2/test1", "127.0.0.2:4000", &args).await;
+
+    assert_bucket_info(&args, 0, 0).await;
 }

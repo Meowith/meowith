@@ -2,12 +2,14 @@ pub mod file_transfer_test;
 pub mod test_configs;
 #[macro_use]
 pub mod utils;
+pub mod concurrent_upload_test;
 pub mod directory_test;
 pub mod durable_file_transfer_test;
 pub mod move_test;
 
 #[cfg(test)]
 mod tests {
+    use crate::concurrent_upload_test::concurrent_test;
     use crate::directory_test::directory_test;
     use crate::durable_file_transfer_test::test_durable_upload;
     use crate::file_transfer_test::test_file_transfer;
@@ -143,7 +145,10 @@ mod tests {
         directory_test(user_setup.clone()).await;
 
         big_header!("TEST file movement");
-        move_test(user_setup).await;
+        move_test(user_setup.clone()).await;
+
+        big_header!("TEST concurrent");
+        concurrent_test(user_setup.clone()).await;
 
         info!("Shutting down all nodes.");
         node_1_stop_handle.shutdown().await;

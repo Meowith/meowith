@@ -124,18 +124,16 @@ impl DurableTransferSessionManager {
         bucket_id: Uuid,
     ) -> NodeClientResponse<i64> {
         let mut total = 0;
-        while let Some(session) = get_upload_sessions(
+        let mut stream = get_upload_sessions(
             app_id,
             bucket_id,
             &obtain_session(&self.session).await.session,
         )
-        .await?
-        .next()
-        .await
-        {
+        .await?;
+        while let Some(session) = stream.next().await {
             let session = session.map_err(|_| NodeClientError::NoSuchSession)?;
             if self.validate_session(&session).await {
-                total += session.size
+                total += session.size;
             }
         }
         Ok(total)

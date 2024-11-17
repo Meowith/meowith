@@ -48,7 +48,9 @@ pub async fn do_create_bucket(
     }
 
     if sum + req.quota as i64 > app.quota {
-        return Err(NodeClientError::InsufficientStorage);
+        return Err(NodeClientError::InsufficientStorage {
+            message: "Not enough quota to create a bucket".to_string(),
+        });
     }
 
     let now = Utc::now();

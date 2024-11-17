@@ -26,7 +26,9 @@ pub async fn do_create_app(
     let used_quota = get_user_used_quota(&user, session).await?;
 
     if (req.quota as i64 + used_quota) > user.quota {
-        return Err(NodeClientError::InsufficientStorage);
+        return Err(NodeClientError::InsufficientStorage {
+            message: "Not enough quota for app creation".to_string(),
+        });
     }
 
     let now = Utc::now();
@@ -60,7 +62,9 @@ pub async fn do_edit_app(
     }
 
     if (req.quota as i64 + used_quota - app.quota) > user.quota {
-        return Err(NodeClientError::InsufficientStorage);
+        return Err(NodeClientError::InsufficientStorage {
+            message: "Not enough quota for app edition".to_string(),
+        });
     }
 
     update_app_quota(app.id, req.quota as i64, session).await?;

@@ -68,7 +68,9 @@ pub async fn reserve_chunks(
     }
 
     if rem > 0 {
-        return Err(NodeClientError::InsufficientStorage);
+        return Err(NodeClientError::InsufficientStorage {
+            message: format!("Failed to reserve space, rem={rem}"),
+        });
     }
 
     // Try reserve
@@ -138,7 +140,9 @@ pub async fn reserve_chunks(
                 }
             }
 
-            Err(NodeClientError::InsufficientStorage)
+            Err(NodeClientError::InsufficientStorage {
+                message: "Remote reservation failed".to_string(),
+            })
         }
     }
 }
