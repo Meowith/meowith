@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::path::Path;
 
-use log::{debug, LevelFilter};
+use log::{warn, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::{Appender, Config, Logger, Root};
 use log4rs::encode::pattern::PatternEncoder;
@@ -54,6 +54,6 @@ fn initialize_default(level: LevelFilter) {
 pub fn log_err<T: Debug, E: Debug>(quote: &str, res: Result<T, E>) {
     if res.is_err() {
         let res = res.unwrap_err();
-        debug!("{quote} - {res:?}");
+        warn!("{quote} - {res:?}");
     }
 }

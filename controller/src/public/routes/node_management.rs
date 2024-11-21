@@ -1,5 +1,5 @@
 use crate::public::node_management_service::{
-    do_create_register_code, do_delete_register_code, do_list_register_codes,
+    do_create_register_code, do_delete_node, do_delete_register_code, do_list_register_codes,
 };
 use crate::AppState;
 use actix_web::{delete, get, post, web, HttpResponse};
@@ -73,4 +73,13 @@ pub async fn status(
     }
 
     Ok(web::Json(NodeStatusResponse { nodes: statuses }))
+}
+
+#[delete("/delete/{node_type}/{node_id}")]
+pub async fn delete_node(
+    req: web::Path<(i8, Uuid)>,
+    state: web::Data<AppState>,
+) -> NodeClientResponse<HttpResponse> {
+    do_delete_node(req.1, req.0, &state.session).await?;
+    Ok(HttpResponse::Ok().finish())
 }

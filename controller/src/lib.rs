@@ -16,7 +16,7 @@ use crate::middleware::node_internal::NodeVerify;
 use crate::middleware::user_middleware::UserMiddlewareRequestTransform;
 use crate::public::routes::auth::{login, own_user_info};
 use crate::public::routes::node_management::{
-    create_register_code, delete_register_code, list_register_codes, status,
+    create_register_code, delete_node, delete_register_code, list_register_codes, status,
 };
 use actix_cors::Cors;
 use actix_web::dev::{Server, ServerHandle};
@@ -239,6 +239,7 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
 
         let node_scope = web::scope("/node")
             .service(status)
+            .service(delete_node)
             .wrap(UserMiddlewareRequestTransform);
 
         let user_scope = web::scope("/user")

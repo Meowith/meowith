@@ -2,6 +2,7 @@ use crate::dashboard_config::DashboardConfig;
 use commons::autoconfigure::auth_conf::{register_procedure, RegistrationResult};
 use commons::context::microservice_request_context::{MicroserviceRequestContext, SecurityContext};
 use data::model::microservice_node_model::MicroserviceType;
+use logging::log_err;
 use openssl::x509::X509;
 use reqwest::Certificate;
 use std::fs;
@@ -62,7 +63,8 @@ pub fn initializer_heart(req_ctx: Arc<MicroserviceRequestContext>) -> AbortHandl
         let mut interval = time::interval(Duration::from_secs(60u64));
         loop {
             interval.tick().await;
-            let _ = req_ctx.heartbeat().await;
+            let res = req_ctx.heartbeat().await;
+            log_err("Heartbeat err", res);
         }
     })
     .abort_handle()

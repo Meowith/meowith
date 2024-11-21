@@ -39,6 +39,16 @@ pub async fn get_microservices(
         .into_typed::<MicroserviceNode>())
 }
 
+pub async fn get_microservice_node(
+    id: Uuid,
+    node_type: i8,
+    session: &CachingSession,
+) -> Result<MicroserviceNode, MeowithDataError> {
+    MicroserviceNode::find_by_microservice_type_and_id(node_type, id)
+        .execute(session)
+        .await
+        .map_err(|e| e.into())
+}
 pub async fn get_microservice_from_type(
     service_type: MicroserviceType,
     session: &CachingSession,

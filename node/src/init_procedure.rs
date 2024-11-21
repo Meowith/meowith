@@ -15,6 +15,7 @@ use commons::autoconfigure::auth_conf::{register_procedure, RegistrationResult};
 use commons::context::microservice_request_context::{MicroserviceRequestContext, SecurityContext};
 use data::dto::config::GeneralConfiguration;
 use data::model::microservice_node_model::MicroserviceType;
+use logging::log_err;
 use protocol::mdsftp::authenticator::ConnectionAuthContext;
 use protocol::mdsftp::pool::{MDSFTPPoolConfigHolder, PacketHandlerRef};
 use protocol::mdsftp::server::MDSFTPServer;
@@ -76,9 +77,10 @@ pub fn initializer_heart(
         let mut interval = time::interval(Duration::from_secs(60u64));
         loop {
             interval.tick().await;
-            let _ = req_ctx
+            let res = req_ctx
                 .update_storage(fragment_ledger.update_req().await)
                 .await;
+            log_err("Heartbeat err", res);
         }
     })
     .abort_handle()
