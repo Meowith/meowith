@@ -62,6 +62,21 @@ impl ControllerRequestContext {
         }
     }
 
+    pub async fn remove_node_from_maps(&self, id: Uuid) {
+        let mut nodes = self.nodes.write().await;
+        nodes.retain(|x| x.id != id);
+        let mut nodes = self.node_health.write().await;
+        nodes.remove(&id);
+        let mut nodes = self.node_token.write().await;
+        let token = nodes.remove(&id);
+        let mut nodes = self.node_addr.write().await;
+        nodes.remove(&id);
+        if let Some(token) = token {
+            let mut nodes = self.token_node.write().await;
+            nodes.remove(&token);
+        }
+    }
+
     /// Prepopulates the authorization for the requested node.
     pub async fn request_for(
         &self,

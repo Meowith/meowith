@@ -1,4 +1,6 @@
 use crate::public::routes::node_management::RegisterCodeCreateRequest;
+use crate::AppState;
+use actix_web::web::Data;
 use chrono::Utc;
 use commons::error::std_response::NodeClientResponse;
 use data::access::microservice_node_access::{
@@ -50,9 +52,11 @@ pub async fn do_list_register_codes(
 pub async fn do_delete_node(
     id: Uuid,
     node_type: i8,
-    session: &CachingSession,
+    state: &Data<AppState>,
 ) -> NodeClientResponse<()> {
-    let node = get_microservice_node(id, node_type, session).await?;
-    remove_microservice_node(node, session).await?;
+    let node = get_microservice_node(id, node_type, &state.session).await?;
+    remove_microservice_node(node, &state.session).await?;
+    state.req_ctx.remove_node_from_maps(id).await;
+
     Ok(())
 }
