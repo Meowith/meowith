@@ -9,6 +9,7 @@ use data::error::MeowithDataError;
 use futures_util::StreamExt;
 use log::error;
 use protocol::mdsftp::data::ReserveFlags;
+use rand::prelude::SliceRandom;
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -72,10 +73,23 @@ pub async fn migrate_chunks(
         let mut file = file.map_err(MeowithDataError::from)?;
         let mut new_chunks = HashSet::new();
         let mut changed = false;
+        let mut storage_map = state.node_storage_map.write().await;
         for mut chunk in file.chunk_ids {
             if state.fragment_ledger.fragment_exists(&chunk.chunk_id).await {
-                // TODO: pick target
-                let target = *targets.iter().next().unwrap();
+                let mut candidates = vec![];
+                for potential_target in &targets {
+                    if *storage_map.get(&potential_target).unwrap_or(&0u64) as i64
+                        >= chunk.chunk_size
+                    {
+                        candidates.push(potential_target.clone());
+                    }
+                }
+                let target = *candidates.choose(&mut rand::thread_rng()).ok_or(
+                    NodeClientError::InsufficientStorage {
+                        message: "No suitable candidate".to_string(),
+                    },
+                )?;
+
                 move_chunk(chunk.chunk_id, target, state).await?;
                 state.fragment_ledger.delete_chunk(&chunk.chunk_id).await?;
                 chunk.server_id = target;
