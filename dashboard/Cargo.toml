@@ -32,10 +32,8 @@ tokio = "1.39.3"
 log = { version = "0.4.22", features = ["release_max_level_debug"] }
 async-trait = "0.1.81"
 serde_cbor = "0.11.2"
-cached = "0.53.1"
+cached = { version = "0.54.0", features = ["tokio", "async"] }
 chrono = "0.4.38"
-bcrypt = "0.15.1"
+bcrypt = "0.16.0"
 lazy_static = "1.5.0"
-num_enum = "0.7.3"
 futures-util = "0.3.30"
-tokio-rustls = "0.26.0"

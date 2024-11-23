@@ -7,24 +7,16 @@ edition = "2021"
 commons = { path = "../commons", version = "0.1.0" }
 openssl = "0.10.64"
 rand = "0.8.5"
-reqwest = { version = "0.12.5", features = ["__rustls", "json"] }
-time = "0.3.36"
 uuid = { version = "1.9.1", features = ["v4"] }
 
-data = { path = "../data", version = "0.1.0" }
 logging = { path = "../logging", version = "0.1.0", features = ["test_logging"] }
-regex = "1.10.5"
 derive_more = { version="1.0.0", features = ["full"] }
 log = { version = "0.4.22", features = ["release_max_level_debug"] }
 tokio = "1.38.0"
-tokio-openssl = "0.6.4"
 rustls = "0.23.10"
 tokio-rustls = "0.26.0"
-webpki-roots = "0.26.3"
 multimap = "0.10.0"
 async-trait = "0.1.80"
-chrono = "0.4.38"
-bytes = "1.6.0"
 num_enum = "0.7.2"
 
 [dev-dependencies]

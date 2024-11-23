@@ -56,4 +56,5 @@ pub struct UpdateStorageNodeProperties {
     pub reserved: u64,
     pub commited: u64,
     pub uncommitted: u64,
+    pub paused: bool,
 }

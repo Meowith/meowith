@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-charybdis = "0.7.7"
+charybdis = "0.7.8"
 scylla = "0.14.0"
 strum = { version = "0.26.2", features = ["derive"] }
 uuid = "1.8.0"
