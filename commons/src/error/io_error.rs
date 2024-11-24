@@ -9,6 +9,7 @@ pub enum MeowithIoError {
     Internal(Option<Box<dyn Error + Send + Sync>>),
     InvalidDataDir,
     InsufficientDiskSpace,
+    Paused,
 }
 
 impl Error for MeowithIoError {}

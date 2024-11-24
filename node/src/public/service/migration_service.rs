@@ -66,22 +66,22 @@ pub async fn migrate_chunks(
     state: &Data<AppState>,
     targets: HashSet<Uuid>,
 ) -> NodeClientResponse<()> {
-    // disable self TODO: disable system and related stuff (remote disable)
+    state.pause().await;
 
     let mut file_stream = get_all_files(&state.session).await?;
     while let Some(file) = file_stream.next().await {
         let mut file = file.map_err(MeowithDataError::from)?;
         let mut new_chunks = HashSet::new();
         let mut changed = false;
-        let mut storage_map = state.node_storage_map.write().await;
+        let storage_map = state.node_storage_map.write().await;
         for mut chunk in file.chunk_ids {
             if state.fragment_ledger.fragment_exists(&chunk.chunk_id).await {
                 let mut candidates = vec![];
                 for potential_target in &targets {
-                    if *storage_map.get(&potential_target).unwrap_or(&0u64) as i64
+                    if *storage_map.get(potential_target).unwrap_or(&0u64) as i64
                         >= chunk.chunk_size
                     {
-                        candidates.push(potential_target.clone());
+                        candidates.push(*potential_target);
                     }
                 }
                 let target = *candidates.choose(&mut rand::thread_rng()).ok_or(
