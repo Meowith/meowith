@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod lock_table_tests {
-    use uuid::Uuid;
     use tokio::time::{timeout, Duration};
+    use uuid::Uuid;
 
     use crate::locking::error::FileLockError;
     use crate::locking::file_lock_table::FileLockTable;
@@ -77,7 +77,10 @@ mod lock_table_tests {
             tokio::time::sleep(Duration::from_millis(100)).await;
             drop(guard_1);
 
-            let guard_2 = timeout(Duration::from_secs(1), handle).await.unwrap().unwrap();
+            let guard_2 = timeout(Duration::from_secs(1), handle)
+                .await
+                .unwrap()
+                .unwrap();
             assert!(guard_2.is_ok());
         }
 
@@ -94,7 +97,10 @@ mod lock_table_tests {
             tokio::time::sleep(Duration::from_millis(100)).await;
             drop(guard_1);
 
-            let guard_2 = timeout(Duration::from_secs(1), handle).await.unwrap().unwrap();
+            let guard_2 = timeout(Duration::from_secs(1), handle)
+                .await
+                .unwrap()
+                .unwrap();
             assert!(guard_2.is_ok());
         }
     }

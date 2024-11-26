@@ -90,8 +90,23 @@ pub async fn migrate_chunks(
                     },
                 )?;
 
-                move_chunk(chunk.chunk_id, target, state).await?;
-                state.fragment_ledger.delete_chunk(&chunk.chunk_id).await?;
+                // In case any transfers are still ongoing, check up with the locking table.
+                {
+                    let _guard = state
+                        .fragment_ledger
+                        .lock_table()
+                        .read(chunk.chunk_id)
+                        .await;
+                    move_chunk(chunk.chunk_id, target, state).await?;
+                }
+                {
+                    let _guard = state
+                        .fragment_ledger
+                        .lock_table()
+                        .write(chunk.chunk_id)
+                        .await;
+                    state.fragment_ledger.delete_chunk(&chunk.chunk_id).await?;
+                }
                 chunk.server_id = target;
                 new_chunks.insert(chunk);
                 changed = true;
