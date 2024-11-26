@@ -13,13 +13,25 @@ pub struct FileWriteGuard<K: KeyBounds> {
 }
 
 impl<K: KeyBounds> FileWriteGuard<K> {
-    pub(crate) fn new(locker: Arc<Locker<K>>) -> TryLockResult<FileWriteGuard<K>> {
-        let permit = match Arc::clone(&locker.semaphore).try_acquire_many_owned(locker.max_readers)
-        {
-            Ok(permit) => Ok(permit),
-            Err(TryAcquireError::NoPermits) => Err(FileLockError::LockTaken),
-            Err(TryAcquireError::Closed) => unreachable!(), // The semaphore is never explicitly closed.
-        }?;
+    pub(crate) async fn new(
+        locker: Arc<Locker<K>>,
+        is_attempt: bool,
+    ) -> TryLockResult<FileWriteGuard<K>> {
+        let permit = if is_attempt {
+            match Arc::clone(&locker.semaphore).try_acquire_many_owned(locker.max_readers) {
+                Ok(permit) => Ok(permit),
+                Err(TryAcquireError::NoPermits) => Err(FileLockError::LockTaken),
+                Err(TryAcquireError::Closed) => unreachable!(), // The semaphore is never explicitly closed.
+            }?
+        } else {
+            match Arc::clone(&locker.semaphore)
+                .acquire_many_owned(locker.max_readers)
+                .await
+            {
+                Ok(permit) => Ok(permit),
+                Err(_) => unreachable!(), // The semaphore is never explicitly closed.
+            }?
+        };
 
         Ok(FileWriteGuard {
             locker: Arc::downgrade(&locker),

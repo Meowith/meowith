@@ -1,7 +1,7 @@
 use async_stream::stream;
 use charybdis::batch::ModelBatch;
 use charybdis::errors::CharybdisError;
-use charybdis::operations::{Delete, Insert, Update};
+use charybdis::operations::{Delete, Find, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
 use charybdis::types::Timestamp;
 use chrono::Utc;
@@ -19,6 +19,7 @@ pub const ROOT_DIR: Uuid = Uuid::from_u128(0);
 use crate::error::MeowithDataError;
 use crate::model::file_model::{
     update_bucket_query, Bucket, BucketUploadSession, Directory, File, UpdateBucketUploadSession,
+    UpdateFileChunks,
 };
 use crate::pathlib::split_path;
 
@@ -277,6 +278,15 @@ pub async fn get_sub_dirs(
         .map_err(MeowithDataError::from)
 }
 
+pub async fn get_all_files(
+    session: &CachingSession,
+) -> Result<CharybdisModelStream<File>, MeowithDataError> {
+    File::find_all()
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
 pub async fn get_file(
     bucket_id: Uuid,
     directory: Option<Uuid>,
@@ -355,6 +365,22 @@ pub async fn update_file_path(
         .await
         .map_err(MeowithDataError::from)?;
     Ok(new_file)
+}
+
+pub async fn update_file_chunks(
+    file: &File,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    UpdateFileChunks {
+        bucket_id: file.bucket_id,
+        directory: file.directory,
+        name: file.name.clone(),
+        chunk_ids: file.chunk_ids.clone(),
+    }
+    .update()
+    .execute(session)
+    .await
+    .map_err(MeowithDataError::from)
 }
 
 // Same deal here, as with the file path

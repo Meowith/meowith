@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::fs::{File, OpenOptions};
@@ -58,6 +58,7 @@ impl FragmentLedger {
             uncommited_map: Default::default(),
             housekeeper_handle: std::sync::Mutex::new(None),
             disk_reserved_size: Default::default(),
+            paused: AtomicBool::new(false),
         };
 
         let internal_arc = Arc::new(internal);
@@ -80,6 +81,17 @@ impl FragmentLedger {
         FragmentLedger {
             _internal: internal_arc,
         }
+    }
+
+    /// Pause accepting incoming reservation requests
+    /// Does not interrupt ongoing transfers
+    pub fn pause(&self) {
+        self._internal.paused.store(true, Ordering::Release);
+    }
+
+    /// Resume accepting reservation requests
+    pub fn resume(&self) {
+        self._internal.paused.store(false, Ordering::Release);
     }
 
     pub async fn initialize(&self) -> MeowithIoResult<()> {
@@ -162,6 +174,7 @@ impl FragmentLedger {
             reserved: self._internal.reservation_map.read().await.len() as u64,
             commited: self._internal.chunk_set.read().await.len() as u64,
             uncommitted: self._internal.uncommited_map.read().await.len() as u64,
+            paused: self._internal.paused.load(ORDERING_MAX_LOAD),
         }
     }
 
@@ -282,6 +295,11 @@ impl FragmentLedger {
     }
 
     pub async fn try_reserve(&self, size: u64, durable: bool) -> MeowithIoResult<Uuid> {
+        let paused = self._internal.paused.load(Ordering::Relaxed);
+        if paused {
+            return Err(MeowithIoError::Paused);
+        }
+
         let mut reservations = self._internal.reservation_map.write().await;
 
         let available = self.get_available_space();
@@ -497,6 +515,7 @@ struct InternalLedger {
     disk_content_size: AtomicU64,
 
     disk_reserved_size: AtomicU64,
+    paused: AtomicBool,
 }
 
 impl InternalLedger {

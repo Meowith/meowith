@@ -3,7 +3,7 @@ use charybdis::macros::{charybdis_model, charybdis_udt_model};
 use charybdis::types::{BigInt, Boolean, Frozen, Set, Text, Timestamp, TinyInt, Uuid};
 
 #[charybdis_udt_model(type_name = filechunk)]
-#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug, Default)]
 pub struct FileChunk {
     pub server_id: Uuid,
     pub chunk_id: Uuid,
@@ -19,7 +19,7 @@ pub struct FileChunk {
     local_secondary_indexes = [],
     static_columns = []
 )]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct File {
     pub bucket_id: Uuid,
     pub directory: Uuid, // Uuid::from_u128(0) for root dir
@@ -35,6 +35,8 @@ impl File {
         join_parent_name(parent, &self.name)
     }
 }
+
+partial_file!(UpdateFileChunks, bucket_id, directory, name, chunk_ids);
 
 #[charybdis_model(
     table_name = directories,

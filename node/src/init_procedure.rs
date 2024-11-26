@@ -69,7 +69,7 @@ pub async fn register_node(
     (ctx, reg_res)
 }
 
-pub fn initializer_heart(
+pub fn initialize_heart(
     req_ctx: Arc<MicroserviceRequestContext>,
     fragment_ledger: FragmentLedger,
 ) -> AbortHandle {

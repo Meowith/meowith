@@ -1,5 +1,5 @@
 use crate::config::node_config::NodeConfigInstance;
-use crate::init_procedure::{initialize_io, initializer_heart, register_node};
+use crate::init_procedure::{initialize_heart, initialize_io, register_node};
 use std::collections::HashMap;
 
 use crate::caching::catche::connect_catche;
@@ -31,7 +31,7 @@ use protocol::mdsftp::server::MDSFTPServer;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tokio::task::{AbortHandle, JoinHandle};
 use uuid::Uuid;
 
@@ -71,6 +71,31 @@ pub struct AppState {
     jwt_service: AccessTokenJwtService,
     node_storage_map: NodeStorageMap,
     req_ctx: Arc<MicroserviceRequestContext>,
+    pause_handle: Arc<Mutex<Option<ServerHandle>>>,
+}
+
+impl AppState {
+    pub async fn pause(&self) {
+        self.pause_handle
+            .lock()
+            .await
+            .as_ref()
+            .unwrap()
+            .pause()
+            .await;
+        self.fragment_ledger.pause();
+    }
+
+    pub async fn resume(&self) {
+        self.pause_handle
+            .lock()
+            .await
+            .as_ref()
+            .unwrap()
+            .resume()
+            .await;
+        self.fragment_ledger.resume();
+    }
 }
 
 pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandle> {
@@ -151,6 +176,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
     .expect("Catche connection failed");
     let heart_req_ctx = req_ctx.clone();
     let heart_ledger = fragment_ledger.clone();
+    let pause_handle = Arc::new(Mutex::new(None));
     let app_data = Data::new(AppState {
         session,
         mdsftp_server,
@@ -160,6 +186,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
             .expect("JWT Service creation failed"),
         node_storage_map,
         req_ctx,
+        pause_handle: pause_handle.clone(),
     });
     app_data.upload_manager.init_session(app_data.clone()).await;
 
@@ -217,6 +244,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
             ))?
             .run()
     };
+    pause_handle.lock().await.replace(external_server.handle());
     let external_handle = external_server.handle();
 
     let join_handle = tokio::task::spawn(async {
@@ -225,7 +253,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         }
     });
 
-    let heart_handle = initializer_heart(heart_req_ctx, heart_ledger);
+    let heart_handle = initialize_heart(heart_req_ctx, heart_ledger);
 
     Ok(NodeHandle {
         external_handle,

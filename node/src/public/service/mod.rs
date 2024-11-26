@@ -9,6 +9,7 @@ pub mod file_access_service;
 pub mod file_action_service;
 pub mod file_io_service;
 pub mod file_list_service;
+pub mod migration_service;
 pub mod reservation_service;
 
 lazy_static! {

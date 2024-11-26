@@ -76,50 +76,8 @@ pub async fn reserve_chunks(
     // Try reserve
     let mut fragments: Vec<ReservedFragment> = vec![];
     let res: MDSFTPResult<()> = async {
-        let pool = state.mdsftp_server.pool();
         for frag in target_list {
-            if frag.0 == state.req_ctx.id {
-                let uuid = match state
-                    .fragment_ledger
-                    .try_reserve(frag.1, flags.durable)
-                    .await
-                {
-                    Ok(id) => Ok(id),
-                    Err(MeowithIoError::InsufficientDiskSpace) => {
-                        Err(MDSFTPError::ReservationError)
-                    }
-                    Err(_) => Err(MDSFTPError::Internal),
-                }?;
-
-                fragments.push(ReservedFragment {
-                    channel: None,
-                    node_id: frag.0,
-                    chunk_id: uuid,
-                    size: frag.1,
-                    chunk_buffer: 0,
-                });
-            } else {
-                let channel = pool.channel(&frag.0).await?;
-                let res = channel.try_reserve(frag.1, flags).await;
-                match res {
-                    Ok(res) => {
-                        fragments.push(ReservedFragment {
-                            channel: Some(channel),
-                            node_id: frag.0,
-                            chunk_id: res.chunk_id,
-                            size: frag.1,
-                            chunk_buffer: res.chunk_buffer,
-                        });
-                        Ok(())
-                    }
-                    Err(MDSFTPError::ReserveError(free_space)) => {
-                        let mut write = state.node_storage_map.write().await;
-                        write.insert(frag.0, free_space);
-                        Err(MDSFTPError::ReservationError)
-                    }
-                    Err(e) => Err(e),
-                }?;
-            }
+            fragments.push(try_reserve_chunk(frag.0, frag.1, &flags, state).await?);
         }
         Ok(())
     }
@@ -143,6 +101,48 @@ pub async fn reserve_chunks(
             Err(NodeClientError::InsufficientStorage {
                 message: "Remote reservation failed".to_string(),
             })
+        }
+    }
+}
+
+pub async fn try_reserve_chunk(
+    node_id: Uuid,
+    size: u64,
+    flags: &ReserveFlags,
+    state: &Data<AppState>,
+) -> MDSFTPResult<ReservedFragment> {
+    let pool = state.mdsftp_server.pool();
+    if node_id == state.req_ctx.id {
+        let uuid = match state.fragment_ledger.try_reserve(size, flags.durable).await {
+            Ok(id) => Ok(id),
+            Err(MeowithIoError::InsufficientDiskSpace) => Err(MDSFTPError::ReservationError),
+            Err(_) => Err(MDSFTPError::Internal),
+        }?;
+
+        Ok(ReservedFragment {
+            channel: None,
+            node_id,
+            chunk_id: uuid,
+            size,
+            chunk_buffer: 0,
+        })
+    } else {
+        let channel = pool.channel(&node_id).await?;
+        let res = channel.try_reserve(size, *flags).await;
+        match res {
+            Ok(res) => Ok(ReservedFragment {
+                channel: Some(channel),
+                node_id,
+                chunk_id: res.chunk_id,
+                size,
+                chunk_buffer: res.chunk_buffer,
+            }),
+            Err(MDSFTPError::ReserveError(free_space)) => {
+                let mut write = state.node_storage_map.write().await;
+                write.insert(node_id, free_space);
+                Err(MDSFTPError::ReservationError)
+            }
+            Err(e) => Err(e),
         }
     }
 }

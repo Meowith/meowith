@@ -13,7 +13,6 @@ name = "controller"
 path = "src/main.rs"
 
 [dependencies]
-rcgen = "0.13.1"
 actix-rt = "2.10.0"
 actix-web = { version = "4.9.0", features = ["openssl"] }
 derive_more = { version="1.0.0", features = ["full"] }
@@ -22,9 +21,8 @@ serde = { version = "1.0.203", features = ["derive"] }
 serde_yaml = "0.9.34"
 openssl = "0.10.64"
 actix-cors = "0.7.0"
-rand_chacha = { version = "0.9.0-alpha.1", features = ["default"] }
 lazy_static = "1.5.0"
-bcrypt = "0.15.1"
+bcrypt = "0.16.0"
 
 # Data dependencies
 data = { path = "../data", version = "0.1.0" }
@@ -34,9 +32,7 @@ reqwest = { version = "0.12.5", features = ["__rustls"] }
 auth_framework = { path="../auth_framework", version = "0.1.0" }
 
 tokio-rustls = "0.26.0"
-charybdis = "0.7.7"
 scylla = "0.14.0"
-strum = { version = "0.26.2", features = ["derive"] }
 uuid = { version = "1.8.0", features = ["v4"] }
 chrono = "0.4.38"
 futures-util = "0.3.30"
@@ -45,6 +41,4 @@ rand = "0.8.5"
 log = { version = "0.4.22", features = ["release_max_level_debug"] }
 logging = { path = "../logging", version = "0.1.0" }
 async-trait = "0.1.81"
-jsonwebtoken = "9.3.0"
-serde_json = "1.0.125"
 tokio-util = "0.7.11"

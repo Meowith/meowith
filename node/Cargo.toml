@@ -29,17 +29,14 @@ tokio-rustls = "0.26.0"
 async-trait = "0.1.80"
 actix-cors = "0.7.0"
 log = { version = "0.4.22", features = ["release_max_level_debug"] }
-derive_more = { version="1.0.0", features = ["full"] }
 filesize = "0.2.0"
 heim = { version = "0.0.11", features = ["disk"], default-features = false }
 rand = "0.8.5"
-actix-multipart = "0.7.2"
 tokio-util = "0.7.11"
 futures-util = "0.3.30"
 futures = "0.3.30"
-cached = { version = "0.53.0", features = ["tokio", "async"] }
+cached = { version = "0.54.0", features = ["tokio", "async"] }
 scylla = "0.14.0"
-regex = "1.10.5"
 lazy_static = "1.5.0"
 mime_guess = "2.0.5"
 chrono = "0.4.38"

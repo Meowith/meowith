@@ -68,8 +68,8 @@ pub async fn status(
         if let Some(health) = assoc_health {
             status.info = health.info.clone();
             status.last_beat = health.last_beat;
-            statuses.push(status);
         }
+        statuses.push(status);
     }
 
     Ok(web::Json(NodeStatusResponse { nodes: statuses }))
@@ -80,6 +80,6 @@ pub async fn delete_node(
     req: web::Path<(i8, Uuid)>,
     state: web::Data<AppState>,
 ) -> NodeClientResponse<HttpResponse> {
-    do_delete_node(req.1, req.0, &state.session).await?;
+    do_delete_node(req.1, req.0, &state).await?;
     Ok(HttpResponse::Ok().finish())
 }

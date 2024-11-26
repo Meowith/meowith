@@ -65,7 +65,8 @@ pub async fn do_register(req: RegisterRequest, state: &SetupAppState) -> NodeCli
         auth_identifier: hash(
             req.password + auth_framework::adapter::r#impl::basic_authenticator::PEPPER,
             DEFAULT_COST,
-        )?,
+        )
+        .map_err(NodeClientError::from)?,
         quota: DEFAULT_USER_QUOTA,
         global_role: GlobalRole::Admin.into(),
         created: now,
