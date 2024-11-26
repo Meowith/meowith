@@ -50,10 +50,22 @@ impl<K: KeyBounds> FileLockTable<K> {
 
     pub async fn try_read(&self, key: K) -> TryLockResult<FileReadGuard<K>> {
         match self.lock_table.lock().await.entry(key.clone()) {
-            Entry::Occupied(lock_entry) => lock_entry.get().try_read(),
+            Entry::Occupied(lock_entry) => lock_entry.get().read(true).await,
             Entry::Vacant(entry) => {
                 let lock = FileLock::new(Arc::downgrade(&self.lock_table), self.max_readers, key);
-                let guard = lock.try_read();
+                let guard = lock.read(true).await;
+                entry.insert(lock);
+                guard
+            }
+        }
+    }
+
+    pub async fn read(&self, key: K) -> TryLockResult<FileReadGuard<K>> {
+        match self.lock_table.lock().await.entry(key.clone()) {
+            Entry::Occupied(lock_entry) => lock_entry.get().read(false).await,
+            Entry::Vacant(entry) => {
+                let lock = FileLock::new(Arc::downgrade(&self.lock_table), self.max_readers, key);
+                let guard = lock.read(false).await;
                 entry.insert(lock);
                 guard
             }
@@ -62,10 +74,22 @@ impl<K: KeyBounds> FileLockTable<K> {
 
     pub async fn try_write(&self, key: K) -> TryLockResult<FileWriteGuard<K>> {
         match self.lock_table.lock().await.entry(key.clone()) {
-            Entry::Occupied(lock_entry) => lock_entry.get().try_write(),
+            Entry::Occupied(lock_entry) => lock_entry.get().write(true).await,
             Entry::Vacant(entry) => {
                 let lock = FileLock::new(Arc::downgrade(&self.lock_table), self.max_readers, key);
-                let guard = lock.try_write();
+                let guard = lock.write(true).await;
+                entry.insert(lock);
+                guard
+            }
+        }
+    }
+
+    pub async fn write(&self, key: K) -> TryLockResult<FileWriteGuard<K>> {
+        match self.lock_table.lock().await.entry(key.clone()) {
+            Entry::Occupied(lock_entry) => lock_entry.get().write(false).await,
+            Entry::Vacant(entry) => {
+                let lock = FileLock::new(Arc::downgrade(&self.lock_table), self.max_readers, key);
+                let guard = lock.write(false).await;
                 entry.insert(lock);
                 guard
             }
@@ -89,12 +113,16 @@ impl<K: KeyBounds> FileLock<K> {
         }
     }
 
-    pub fn try_read(&self) -> TryLockResult<FileReadGuard<K>> {
-        FileReadGuard::new(self.locker.clone())
+    /// Passing is_attempt = true, is equivalent to checking if the lock is taken,
+    /// returning FileLockError::LockTaken if so.
+    pub async fn read(&self, is_attempt: bool) -> TryLockResult<FileReadGuard<K>> {
+        FileReadGuard::new(self.locker.clone(), is_attempt).await
     }
 
-    pub fn try_write(&self) -> TryLockResult<FileWriteGuard<K>> {
-        FileWriteGuard::new(self.locker.clone())
+    /// Passing is_attempt = true, is equivalent to checking if the lock is taken,
+    /// returning FileLockError::LockTaken if so.
+    pub async fn write(&self, is_attempt: bool) -> TryLockResult<FileWriteGuard<K>> {
+        FileWriteGuard::new(self.locker.clone(), is_attempt).await
     }
 }
 
