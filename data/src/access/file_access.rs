@@ -18,8 +18,8 @@ pub const ROOT_DIR: Uuid = Uuid::from_u128(0);
 
 use crate::error::MeowithDataError;
 use crate::model::file_model::{
-    update_bucket_query, Bucket, BucketUploadSession, Directory, File, UpdateBucketUploadSession,
-    UpdateFileChunks,
+    update_bucket_query, Bucket, BucketUploadSession, Directory, File, UpdateBucketQuota,
+    UpdateBucketUploadSession, UpdateFileChunks,
 };
 use crate::pathlib::split_path;
 
@@ -512,6 +512,21 @@ pub async fn update_bucket_space(
         QUERY_ATTEMPTS, bucket
     );
     Err(MeowithDataError::UnknownFailure)
+}
+
+pub async fn update_bucket_quota(
+    bucket: &Bucket,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    UpdateBucketQuota {
+        app_id: bucket.app_id,
+        id: bucket.id,
+        quota: bucket.quota,
+    }
+    .update()
+    .execute(session)
+    .await
+    .map_err(MeowithDataError::from)
 }
 
 pub async fn insert_file(

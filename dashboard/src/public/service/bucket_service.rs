@@ -1,6 +1,8 @@
-use crate::public::routes::bucket::CreateBucketRequest;
+use crate::public::routes::bucket::{CreateBucketRequest, EditBucketQuotaRequest};
+use crate::public::service::application_service::get_user_used_app_quota;
 use crate::public::service::{
-    has_app_permission, PermCheckScope, CREATE_BUCKET_ALLOWANCE, DELETE_BUCKET_ALLOWANCE,
+    has_app_permission, PermCheckScope, ALTER_BUCKET_ALLOWANCE, CREATE_BUCKET_ALLOWANCE,
+    DELETE_BUCKET_ALLOWANCE,
 };
 use crate::AppState;
 use actix_web::web;
@@ -8,8 +10,9 @@ use chrono::Utc;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
 use data::access::app_access::get_app_by_id;
 use data::access::file_access::{
-    delete_bucket, get_bucket, get_buckets, insert_bucket, maybe_get_first_child_from_directory,
-    maybe_get_first_file_from_directory, BucketItem,
+    delete_bucket, get_bucket, get_buckets, get_upload_sessions, insert_bucket,
+    maybe_get_first_child_from_directory, maybe_get_first_file_from_directory, update_bucket_quota,
+    BucketItem,
 };
 use data::dto::entity::BucketDto;
 use data::error::MeowithDataError;
@@ -103,5 +106,49 @@ pub async fn do_delete_bucket(
     }
 
     delete_bucket(&bucket, session).await?;
+    Ok(())
+}
+
+pub async fn do_edit_bucket(
+    session: &CachingSession,
+    req: EditBucketQuotaRequest,
+    app_id: Uuid,
+    bucket_id: Uuid,
+    user: User,
+) -> NodeClientResponse<()> {
+    let mut bucket = get_bucket(app_id, bucket_id, session).await?;
+    let app = get_app_by_id(app_id, session).await?;
+    has_app_permission(
+        &user,
+        &app,
+        *ALTER_BUCKET_ALLOWANCE,
+        session,
+        PermCheckScope::Application,
+    )
+    .await?;
+    let reservations = get_upload_sessions(app_id, bucket_id, session).await?;
+    let reserved: i64 = reservations
+        .try_collect()
+        .await
+        .map_err(MeowithDataError::from)?
+        .into_iter()
+        .map(|x| x.size)
+        .sum();
+    let app_min = get_user_used_app_quota(&app, session).await? - bucket.quota as i64;
+
+    if (req.quota as i64) < app_min {
+        return Err(NodeClientError::InsufficientStorage {
+            message: "Too little quota to edit bucket".to_string(),
+        });
+    }
+    if (req.quota as i64) < (bucket.space_taken + reserved) {
+        return Err(NodeClientError::InsufficientStorage {
+            message: "Requested new quota wouldn't fit the current buckets contents".to_string(),
+        });
+    }
+
+    bucket.quota = req.quota as i64;
+    update_bucket_quota(&bucket, session).await?;
+
     Ok(())
 }

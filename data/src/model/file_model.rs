@@ -101,6 +101,8 @@ impl Default for Bucket {
     }
 }
 
+partial_bucket!(UpdateBucketQuota, app_id, id, quota);
+
 #[charybdis_model(
     table_name = bucket_upload_session,
     partition_keys = [app_id],

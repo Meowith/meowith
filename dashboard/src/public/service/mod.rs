@@ -23,6 +23,8 @@ lazy_static! {
         PermissionList(vec![AppPermission::CreateBucket]).into();
     static ref DELETE_BUCKET_ALLOWANCE: u64 =
         PermissionList(vec![AppPermission::DeleteBucket]).into();
+    static ref ALTER_BUCKET_ALLOWANCE: u64 =
+        PermissionList(vec![AppPermission::CreateBucket, AppPermission::DeleteBucket]).into();
     static ref LIST_ALL_TOKEN_ALLOWANCE: u64 =
         PermissionList(vec![AppPermission::ListAllTokens]).into();
     static ref DELETE_ALL_TOKEN_ALLOWANCE: u64 = PermissionList(vec![
