@@ -39,7 +39,7 @@ impl MDSFTPPacketType {
             MDSFTPPacketType::Retrieve => 34,
             MDSFTPPacketType::Put => 25,
             MDSFTPPacketType::RecvAck => 4,
-            MDSFTPPacketType::Reserve => 9,
+            MDSFTPPacketType::Reserve => 9 + 16 + 16,
             MDSFTPPacketType::ReserveCancel => 16,
             MDSFTPPacketType::ReserveOk => 18,
             MDSFTPPacketType::ReserveErr => 8,

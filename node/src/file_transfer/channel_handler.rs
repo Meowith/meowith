@@ -289,11 +289,18 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         &mut self,
         channel: Channel,
         desired_size: u64,
+        associated_bucket_id: Uuid,
+        associated_file_id: Uuid,
         flags: ReserveFlags,
     ) -> MDSFTPResult<()> {
         match self
             .fragment_ledger
-            .try_reserve(desired_size, flags.durable)
+            .try_reserve(
+                desired_size,
+                associated_bucket_id,
+                associated_file_id,
+                flags.durable,
+            )
             .await
         {
             Ok(id) => {

@@ -37,9 +37,13 @@ impl MDSFTPChannel {
     pub async fn try_reserve(
         &self,
         desired: u64,
+        associated_file_id: Uuid,
+        associated_bucket_id: Uuid,
         flags: ReserveFlags,
     ) -> MDSFTPResult<ReserveResult> {
-        self._internal_channel.try_reserve(desired, flags).await
+        self._internal_channel
+            .try_reserve(desired, associated_file_id, associated_bucket_id, flags)
+            .await
     }
 
     pub async fn cancel_reserve(&self, chunk_id: Uuid) -> MDSFTPResult<()> {
@@ -237,10 +241,12 @@ impl InternalMDSFTPChannel {
         { lock.recv().await.ok_or(MDSFTPError::Interrupted)? }
     });
 
-    internal_sender_method!(payload_buffer this lock try_reserve(MDSFTPPacketType::Reserve, desired: u64, flags: ReserveFlags) -> MDSFTPResult<ReserveResult> {
+    internal_sender_method!(payload_buffer this lock try_reserve(MDSFTPPacketType::Reserve, desired: u64, associated_file_id: Uuid, associated_bucket_id: Uuid, flags: ReserveFlags) -> MDSFTPResult<ReserveResult> {
         {
             payload_buffer.push(flags.into());
             let _ = payload_buffer.write(&desired.to_be_bytes());
+            let _ = payload_buffer.write(associated_file_id.as_bytes().as_slice());
+            let _ = payload_buffer.write(associated_bucket_id.as_bytes().as_slice());
             let (tx, rx) = mpsc::channel(1);
             *this.reserve_sender.lock().await = Some(tx);
             rx
@@ -645,7 +651,23 @@ impl InternalMDSFTPChannel {
                 MDSFTPPacketType::Reserve => {
                     let flags: ReserveFlags = packet.payload[0].into();
                     let size = u64::from_be_bytes(packet.payload[1..9].try_into().unwrap());
-                    handler.handle_reserve(handler_channel, size, flags).await?;
+                    let associated_file_id = Uuid::from_bytes(
+                        Bytes::try_from(&packet.payload.as_slice()[9..25])
+                            .map_err(MDSFTPError::from)?,
+                    );
+                    let associated_bucket_id = Uuid::from_bytes(
+                        Bytes::try_from(&packet.payload.as_slice()[25..41])
+                            .map_err(MDSFTPError::from)?,
+                    );
+                    handler
+                        .handle_reserve(
+                            handler_channel,
+                            size,
+                            associated_bucket_id,
+                            associated_file_id,
+                            flags,
+                        )
+                        .await?;
                 }
                 MDSFTPPacketType::ReserveCancel => {
                     let chunk_id = Uuid::from_bytes(

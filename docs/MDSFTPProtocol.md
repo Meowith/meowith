@@ -68,9 +68,9 @@ Flags: `error_kind` (not_found/internal)
 
 - **Reserve** (`reserve` Packet ID: 0x06)
 
-| Flags  | Desired Size |
-|--------|--------------|
-| 1 Byte | 8 Bytes      |
+| Flags  | Desired Size | Associated File UUID | Associated Bucket UUID |
+|--------|--------------|----------------------|------------------------|
+| 1 Byte | 8 Bytes      | 16 Bytes             | 16 Bytes               |
 
 Flags: `Auto-start` (yes/no), `Durable` (yes\no), `Overwrite` (yes/no)
 

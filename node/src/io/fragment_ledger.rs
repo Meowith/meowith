@@ -294,7 +294,13 @@ impl FragmentLedger {
         Ok(())
     }
 
-    pub async fn try_reserve(&self, size: u64, durable: bool) -> MeowithIoResult<Uuid> {
+    pub async fn try_reserve(
+        &self,
+        size: u64,
+        _associated_bucket_id: Uuid,
+        _associated_file_id: Uuid,
+        durable: bool,
+    ) -> MeowithIoResult<Uuid> {
         let paused = self._internal.paused.load(Ordering::Relaxed);
         if paused {
             return Err(MeowithIoError::Paused);

@@ -151,6 +151,8 @@ mod int_tests {
             &mut self,
             channel: Channel,
             _desired_size: u64,
+            _associated_bucket_id: Uuid,
+            _associated_file_id: Uuid,
             _auto_start: ReserveFlags,
         ) -> MDSFTPResult<()> {
             channel
@@ -314,6 +316,8 @@ mod int_tests {
             let lock_req = channel
                 .try_reserve(
                     15,
+                    Uuid::new_v4(),
+                    Uuid::new_v4(),
                     ReserveFlags {
                         auto_start: true,
                         durable: false,

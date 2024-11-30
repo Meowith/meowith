@@ -43,6 +43,8 @@ pub fn reserve_info_to_file_chunks(reserve_info: &ReserveInfo) -> HashSet<FileCh
 pub async fn reserve_chunks(
     size: u64,
     flags: ReserveFlags,
+    associated_bucket_id: Uuid,
+    associated_file_id: Uuid,
     mode: ReservationMode,
     state: &Data<AppState>,
 ) -> NodeClientResponse<ReserveInfo> {
@@ -77,7 +79,17 @@ pub async fn reserve_chunks(
     let mut fragments: Vec<ReservedFragment> = vec![];
     let res: MDSFTPResult<()> = async {
         for frag in target_list {
-            fragments.push(try_reserve_chunk(frag.0, frag.1, &flags, state).await?);
+            fragments.push(
+                try_reserve_chunk(
+                    frag.0,
+                    frag.1,
+                    associated_bucket_id,
+                    associated_file_id,
+                    &flags,
+                    state,
+                )
+                .await?,
+            );
         }
         Ok(())
     }
@@ -108,12 +120,23 @@ pub async fn reserve_chunks(
 pub async fn try_reserve_chunk(
     node_id: Uuid,
     size: u64,
+    associated_bucket_id: Uuid,
+    associated_file_id: Uuid,
     flags: &ReserveFlags,
     state: &Data<AppState>,
 ) -> MDSFTPResult<ReservedFragment> {
     let pool = state.mdsftp_server.pool();
     if node_id == state.req_ctx.id {
-        let uuid = match state.fragment_ledger.try_reserve(size, flags.durable).await {
+        let uuid = match state
+            .fragment_ledger
+            .try_reserve(
+                size,
+                associated_bucket_id,
+                associated_file_id,
+                flags.durable,
+            )
+            .await
+        {
             Ok(id) => Ok(id),
             Err(MeowithIoError::InsufficientDiskSpace) => Err(MDSFTPError::ReservationError),
             Err(_) => Err(MDSFTPError::Internal),
@@ -128,7 +151,9 @@ pub async fn try_reserve_chunk(
         })
     } else {
         let channel = pool.channel(&node_id).await?;
-        let res = channel.try_reserve(size, *flags).await;
+        let res = channel
+            .try_reserve(size, associated_file_id, associated_bucket_id, *flags)
+            .await;
         match res {
             Ok(res) => Ok(ReservedFragment {
                 channel: Some(channel),

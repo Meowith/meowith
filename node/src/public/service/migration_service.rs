@@ -42,7 +42,16 @@ pub async fn move_chunk(
         temp: false,
         overwrite: false,
     };
-    let space = try_reserve_chunk(target_node, chunk_info.disk_content_size, &flags, state).await?;
+    // TODO: store bucket id's and file id's in the fragment ledger
+    let space = try_reserve_chunk(
+        target_node,
+        chunk_info.disk_content_size,
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        &flags,
+        state,
+    )
+    .await?;
 
     inbound_transfer(
         chunk,

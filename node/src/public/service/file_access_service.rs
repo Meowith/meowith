@@ -92,6 +92,7 @@ pub async fn handle_upload_oneshot(
         });
     }
 
+    let file_id = Uuid::new_v4();
     let reservation = reserve_chunks(
         size,
         ReserveFlags {
@@ -100,6 +101,8 @@ pub async fn handle_upload_oneshot(
             temp: false,
             overwrite,
         },
+        bucket.id,
+        file_id,
         ReservationMode::PreferSelfThenMostFree,
         &app_state,
     )
@@ -108,6 +111,7 @@ pub async fn handle_upload_oneshot(
     let bucket_upload_session = BucketUploadSession {
         app_id: path.app_id,
         bucket: path.bucket_id,
+        file_id,
         id: Uuid::new_v4(),
         path: path.path(),
         size: size as i64,
@@ -187,6 +191,7 @@ pub async fn handle_upload_oneshot(
         bucket,
         (path.app_id, session_id),
         Some(old_file),
+        file_id,
     )
     .await
 }
@@ -235,6 +240,7 @@ pub async fn start_upload_session(
         });
     }
 
+    let file_id = Uuid::new_v4();
     let reservation = reserve_chunks(
         req.size,
         ReserveFlags {
@@ -243,6 +249,8 @@ pub async fn start_upload_session(
             temp: true,
             overwrite,
         },
+        bucket.id,
+        file_id,
         ReservationMode::PreferSelfThenMostFree,
         &app_state,
     )
@@ -251,6 +259,7 @@ pub async fn start_upload_session(
     let bucket_upload_session = BucketUploadSession {
         app_id: e_path.app_id,
         bucket: e_path.bucket_id,
+        file_id,
         id: Uuid::new_v4(),
         path: e_path.path(),
         size: req.size as i64,
@@ -312,6 +321,7 @@ pub async fn handle_upload_durable(
             bucket,
             (app_id, session_id),
             None,
+            session.file_id,
         )
         .await;
     }
@@ -389,6 +399,7 @@ pub async fn handle_upload_durable(
         bucket,
         (app_id, session_id),
         None,
+        session.file_id,
     )
     .await
 }
@@ -421,6 +432,7 @@ pub async fn resume_upload_session(
         .sum())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn end_session(
     app_state: Data<AppState>,
     split_path: (Option<String>, String),
@@ -429,6 +441,7 @@ pub async fn end_session(
     bucket: Bucket,
     app_session_ids: (Uuid, Uuid),
     old_file: Option<Option<File>>,
+    file_id: Uuid,
 ) -> NodeClientResponse<()> {
     debug!("Committing chunks {:?}", &chunks);
     let mut futures = vec![];
@@ -459,6 +472,7 @@ pub async fn end_session(
             ROOT_DIR
         },
         name: split_path.1.clone(),
+        id: file_id,
         size,
         chunk_ids: chunks,
         created: now,

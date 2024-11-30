@@ -16,7 +16,7 @@ pub struct FileChunk {
     partition_keys = [bucket_id],
     clustering_keys = [directory, name],
     global_secondary_indexes = [],
-    local_secondary_indexes = [],
+    local_secondary_indexes = [id],
     static_columns = []
 )]
 #[derive(Clone, Debug, Default)]
@@ -24,6 +24,7 @@ pub struct File {
     pub bucket_id: Uuid,
     pub directory: Uuid, // Uuid::from_u128(0) for root dir
     pub name: Text,
+    pub id: Uuid, // Used for reverse lookup
     pub size: BigInt,
     pub chunk_ids: Set<Frozen<FileChunk>>,
     pub created: Timestamp,
@@ -116,6 +117,7 @@ partial_bucket!(UpdateBucketQuota, app_id, id, quota);
 pub struct BucketUploadSession {
     pub app_id: Uuid,
     pub bucket: Uuid,
+    pub file_id: Uuid,
     pub id: Uuid,
     pub path: Text,
     pub size: BigInt,
@@ -131,6 +133,7 @@ impl Default for BucketUploadSession {
         BucketUploadSession {
             app_id: Default::default(),
             bucket: Default::default(),
+            file_id: Default::default(),
             id: Default::default(),
             path: "".to_string(),
             size: 0,

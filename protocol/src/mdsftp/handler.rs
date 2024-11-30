@@ -42,6 +42,8 @@ pub trait ChannelPacketHandler: Send {
         &mut self,
         channel: Channel,
         desired_size: u64,
+        associated_bucket_id: Uuid,
+        associated_file_id: Uuid,
         flags: ReserveFlags,
     ) -> MDSFTPResult<()>;
 

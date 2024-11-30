@@ -162,6 +162,8 @@ mod fp63_tests {
             let reserve = channel
                 .try_reserve(
                     file_size,
+                    Uuid::new_v4(),
+                    Uuid::new_v4(),
                     ReserveFlags {
                         auto_start: true,
                         durable: false,
