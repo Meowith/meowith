@@ -7,7 +7,9 @@ use crate::public::routes::application::{
     add_member, buckets, create_application, delete_application, delete_member, edit_application,
     list_members, list_owned,
 };
-use crate::public::routes::bucket::{create_bucket, delete_bucket_handler, edit_bucket};
+use crate::public::routes::bucket::{
+    create_bucket, delete_bucket_handler, edit_bucket, get_sessions,
+};
 use crate::public::routes::role::{
     create_role, delete_role, get_roles, modify_role, update_roles_for_member,
 };
@@ -151,6 +153,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
             .wrap(UserMiddlewareRequestTransform)
             .service(delete_bucket_handler)
             .service(edit_bucket)
+            .service(get_sessions)
             .service(create_bucket);
 
         let role_scope = web::scope("/role")

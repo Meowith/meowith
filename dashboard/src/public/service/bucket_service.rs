@@ -2,7 +2,7 @@ use crate::public::routes::bucket::{CreateBucketRequest, EditBucketQuotaRequest}
 use crate::public::service::application_service::get_user_used_app_quota;
 use crate::public::service::{
     has_app_permission, PermCheckScope, ALTER_BUCKET_ALLOWANCE, CREATE_BUCKET_ALLOWANCE,
-    DELETE_BUCKET_ALLOWANCE,
+    DELETE_BUCKET_ALLOWANCE, NO_ALLOWANCE,
 };
 use crate::AppState;
 use actix_web::web;
@@ -14,7 +14,7 @@ use data::access::file_access::{
     maybe_get_first_child_from_directory, maybe_get_first_file_from_directory, update_bucket_quota,
     BucketItem,
 };
-use data::dto::entity::BucketDto;
+use data::dto::entity::{BucketDto, UploadSession, UploadSessionsResponse};
 use data::error::MeowithDataError;
 use data::model::file_model::Bucket;
 use data::model::user_model::User;
@@ -151,4 +151,31 @@ pub async fn do_edit_bucket(
     update_bucket_quota(&bucket, session).await?;
 
     Ok(())
+}
+
+pub async fn do_get_upload_sessions(
+    session: &CachingSession,
+    bucket_id: Uuid,
+    app_id: Uuid,
+    user: User,
+) -> NodeClientResponse<web::Json<UploadSessionsResponse>> {
+    let _ = get_bucket(app_id, bucket_id, session).await?; // Assert the bucket even exists.
+    let app = get_app_by_id(app_id, session).await?;
+    has_app_permission(
+        &user,
+        &app,
+        *NO_ALLOWANCE,
+        session,
+        PermCheckScope::Application,
+    )
+    .await?;
+
+    let sessions = get_upload_sessions(app_id, bucket_id, session)
+        .await?
+        .try_collect()
+        .await
+        .map_err(MeowithDataError::from)?;
+    let sessions: Vec<UploadSession> = sessions.into_iter().map(UploadSession::from).collect();
+
+    Ok(web::Json(UploadSessionsResponse { sessions }))
 }

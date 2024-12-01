@@ -1,6 +1,6 @@
 use crate::dto::controller::UpdateStorageNodeProperties;
 use crate::model::app_model::{App, AppByOwner, AppMember, AppToken, MemberByUser, UserRole};
-use crate::model::file_model::Bucket;
+use crate::model::file_model::{Bucket, BucketUploadSession};
 use crate::model::microservice_node_model::ServiceRegisterCode;
 use crate::model::user_model::{User, UsersByName};
 use charybdis::types::{BigInt, Boolean, Text, Timestamp};
@@ -156,6 +156,34 @@ pub struct UploadSessionStartResponse {
 pub struct UploadSessionRequest {
     /// Entry size in bytes
     pub size: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UploadSessionsResponse {
+    pub sessions: Vec<UploadSession>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UploadSession {
+    pub app_id: Uuid,
+    pub bucket_id: Uuid,
+    pub path: String,
+    pub size: u64,
+    pub durable: bool,
+    pub last_access: DateTime<Utc>,
+}
+
+impl From<BucketUploadSession> for UploadSession {
+    fn from(value: BucketUploadSession) -> Self {
+        UploadSession {
+            app_id: value.app_id,
+            bucket_id: value.bucket,
+            path: value.path,
+            size: value.size as u64,
+            durable: value.durable,
+            last_access: value.last_access,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

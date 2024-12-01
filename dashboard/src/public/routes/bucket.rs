@@ -1,8 +1,10 @@
-use crate::public::service::bucket_service::{do_create_bucket, do_delete_bucket, do_edit_bucket};
+use crate::public::service::bucket_service::{
+    do_create_bucket, do_delete_bucket, do_edit_bucket, do_get_upload_sessions,
+};
 use crate::AppState;
-use actix_web::{delete, patch, post, web, HttpResponse};
+use actix_web::{delete, get, patch, post, web, HttpResponse};
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
-use data::dto::entity::BucketDto;
+use data::dto::entity::{BucketDto, UploadSessionsResponse};
 use data::model::user_model::User;
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -67,4 +69,13 @@ pub async fn edit_bucket(
 ) -> NodeClientResponse<HttpResponse> {
     do_edit_bucket(&app_state.session, req.into_inner(), which.0, which.1, user).await?;
     Ok(HttpResponse::Ok().finish())
+}
+
+#[get("/sessions/{app_id}/{bucket_id}")]
+pub async fn get_sessions(
+    app_state: web::Data<AppState>,
+    which: web::Path<(Uuid, Uuid)>,
+    user: User,
+) -> NodeClientResponse<web::Json<UploadSessionsResponse>> {
+    do_get_upload_sessions(&app_state.session, which.1, which.0, user).await
 }
