@@ -5,6 +5,7 @@ use actix_web::{
 };
 use charybdis::errors::CharybdisError;
 use derive_more::Display;
+use scylla::cql_to_rust::FromRowError;
 use scylla::transport::errors::QueryError;
 use scylla::transport::iterator::NextRowError;
 
@@ -31,7 +32,10 @@ impl ResponseError for DataResponseError {
 pub enum MeowithDataError {
     QueryError(QueryError),
     InternalFailure(CharybdisError),
+    FromRowError(FromRowError),
     NextRowError(NextRowError),
+    /// Used when a LWT couldn't update the record
+    LockingError,
     NotFound,
     UnknownFailure,
 }

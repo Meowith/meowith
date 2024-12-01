@@ -55,6 +55,7 @@ impl From<MeowithDataError> for NodeClientError {
     fn from(value: MeowithDataError) -> Self {
         match value {
             MeowithDataError::NotFound => NodeClientError::NotFound,
+            MeowithDataError::LockingError => NodeClientError::BadRequest,
             _ => {
                 error!("DB ERROR: {:?}", value);
                 NodeClientError::InternalError

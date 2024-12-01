@@ -3,12 +3,12 @@ use charybdis::batch::ModelBatch;
 use charybdis::errors::CharybdisError;
 use charybdis::operations::{Delete, Find, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
-use charybdis::types::Timestamp;
+use charybdis::types::{Timestamp, TinyInt};
 use chrono::Utc;
 use futures::stream::Skip;
 use futures::stream::Take;
 use futures::{try_join, Stream, StreamExt, TryFutureExt};
-use log::error;
+use log::{error, trace};
 use scylla::query::Query;
 use scylla::{CachingSession, IntoTypedRows, QueryResult};
 use std::collections::VecDeque;
@@ -18,8 +18,9 @@ pub const ROOT_DIR: Uuid = Uuid::from_u128(0);
 
 use crate::error::MeowithDataError;
 use crate::model::file_model::{
-    update_bucket_query, Bucket, BucketUploadSession, Directory, File, UpdateBucketQuota,
-    UpdateBucketUploadSession, UpdateFileChunks,
+    update_bucket_query, update_bucket_upload_session_query, Bucket, BucketUploadSession,
+    Directory, File, SessionState, UpdateBucketQuota, UpdateBucketUploadSession,
+    UpdateBucketUploadSessionState, UpdateFileChunks,
 };
 use crate::pathlib::split_path;
 
@@ -601,6 +602,29 @@ pub async fn delete_upload_session_by(
         .map_err(MeowithDataError::from)
 }
 
+pub async fn update_upload_session_last_access_and_state(
+    app_id: Uuid,
+    bucket: Uuid,
+    id: Uuid,
+    last_access: Timestamp,
+    state: SessionState,
+    session: &CachingSession,
+) -> Result<QueryResult, MeowithDataError> {
+    let upload_session_update = UpdateBucketUploadSessionState {
+        app_id,
+        bucket,
+        id,
+        last_access,
+        state: state.into(),
+    };
+
+    upload_session_update
+        .update()
+        .execute(session)
+        .await
+        .map_err(|e| e.into())
+}
+
 pub async fn update_upload_session_last_access(
     app_id: Uuid,
     bucket: Uuid,
@@ -620,4 +644,52 @@ pub async fn update_upload_session_last_access(
         .execute(session)
         .await
         .map_err(|e| e.into())
+}
+
+pub async fn try_update_upload_session_state(
+    last_access: Timestamp,
+    state: SessionState,
+    upload_session: &mut BucketUploadSession,
+    session: &CachingSession,
+) -> Result<(), MeowithDataError> {
+    trace!("try_update_upload_session_state {:?}", state);
+    let update_query = concat!(
+        update_bucket_upload_session_query!("last_access = ?, state = ?"),
+        " IF last_access = ? and state = ?",
+    );
+
+    let query = Query::new(update_query);
+    let result = session
+        .execute_unpaged(
+            query,
+            (
+                last_access,
+                <SessionState as Into<i8>>::into(state),
+                upload_session.app_id,
+                upload_session.bucket,
+                upload_session.id,
+                upload_session.last_access,
+                upload_session.state,
+            ),
+        )
+        .await?;
+
+    trace!("try_update_upload_session_state {:?}", result);
+
+    if let Some(rows) = result.rows {
+        if let Some(row) = rows.into_typed::<(bool, Timestamp, TinyInt)>().next() {
+            let (applied, a, b) = row.map_err(MeowithDataError::FromRowError)?;
+            trace!("res {applied} {a} {b} {upload_session:?}");
+            return if applied {
+                upload_session.last_access = last_access;
+                upload_session.state = state.into();
+                Ok(())
+            } else {
+                Err(MeowithDataError::LockingError)
+            };
+        }
+    }
+
+    trace!("No result rows for try_update_upload_session_state");
+    Err(MeowithDataError::LockingError)
 }

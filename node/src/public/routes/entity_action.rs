@@ -9,7 +9,6 @@ use actix_web::{delete, post, web, HttpResponse};
 use commons::error::std_response::NodeClientResponse;
 use data::dto::entity::DeleteDirectoryRequest;
 use data::pathlib::normalize;
-use log::info;
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
@@ -36,7 +35,6 @@ pub async fn delete_file(
     accessor: BucketAccessor,
     app_data: web::Data<AppState>,
 ) -> NodeClientResponse<HttpResponse> {
-    info!("DELETE FILE {path:?}");
     delete_file_srv(path.into_inner(), accessor, app_data).await?;
     Ok(HttpResponse::Ok().finish())
 }
@@ -70,7 +68,6 @@ pub async fn delete_directory(
     app_data: web::Data<AppState>,
 ) -> NodeClientResponse<HttpResponse> {
     let path = path.into_inner();
-    info!("do_delete_directory");
     do_delete_directory(path, req.0, accessor, app_data).await?;
 
     Ok(HttpResponse::Ok().finish())

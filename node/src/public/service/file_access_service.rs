@@ -7,7 +7,7 @@ use actix_web::web;
 use actix_web::web::Data;
 use chrono::Utc;
 use futures_util::future::try_join_all;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, trace, warn};
 use mime_guess::mime;
 use scylla::CachingSession;
 use tokio::io::AsyncWriteExt;
@@ -19,7 +19,9 @@ use data::access::file_access::{
     get_bucket, get_directory, get_file, get_file_dir, insert_directory, insert_file,
     update_upload_session_last_access, ROOT_DIR,
 };
-use data::model::file_model::{Bucket, BucketUploadSession, Directory, File, FileChunk};
+use data::model::file_model::{
+    Bucket, BucketUploadSession, Directory, File, FileChunk, SessionState,
+};
 use protocol::mdsftp::data::{ChunkRange, CommitFlags, ReserveFlags};
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 
@@ -118,6 +120,7 @@ pub async fn handle_upload_oneshot(
         durable: false,
         fragments: reserve_info_to_file_chunks(&reservation),
         last_access: Utc::now(),
+        state: SessionState::Writing.into(),
     };
 
     let session_id = app_state
@@ -266,6 +269,7 @@ pub async fn start_upload_session(
         durable: true,
         fragments: reserve_info_to_file_chunks(&reservation),
         last_access: Utc::now(),
+        state: SessionState::AwaitingData.into(),
     };
 
     trace!("Starting upload session {bucket_upload_session:?}");
@@ -290,11 +294,21 @@ pub async fn handle_upload_durable(
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {
     trace!("Handle upload durable");
-    let session = app_state
+    let mut session = app_state
         .upload_manager
         .get_session(app_id, bucket_id, session_id)
         .await?;
     let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
+    trace!("Durable try lock");
+    app_state
+        .upload_manager
+        .try_lock_session(
+            &mut session,
+            SessionState::AwaitingData,
+            SessionState::Writing,
+        )
+        .await?;
+    trace!("Durable lock acquired");
 
     let mut sorted_chunks: Vec<FileChunk> = session.fragments.clone().into_iter().collect();
     sorted_chunks.sort_by_key(|c| c.chunk_order);
@@ -385,7 +399,12 @@ pub async fn handle_upload_durable(
         warn!("Durable upload interrupted");
         app_state
             .upload_manager
-            .update_session(session.app_id, session.bucket, session.id)
+            .update_session(
+                session.app_id,
+                session.bucket,
+                session.id,
+                SessionState::TimedOut,
+            )
             .await?;
 
         return Err(NodeClientError::BadRequest);
@@ -410,21 +429,32 @@ pub async fn resume_upload_session(
     session_id: Uuid,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<i64> {
-    let session = app_state
+    trace!("resume_upload_session call");
+    let mut session = app_state
         .upload_manager
         .get_session(app_id, bucket_id, session_id)
         .await?;
+    trace!("session obtained");
+    app_state
+        .upload_manager
+        .try_lock_session(
+            &mut session,
+            SessionState::TimedOut,
+            SessionState::AwaitingData,
+        )
+        .await?;
+    trace!("session locked");
 
     let mut sorted_chunks: Vec<FileChunk> = session.fragments.clone().into_iter().collect();
     sorted_chunks.sort_by_key(|c| c.chunk_order);
-
-    info!("Resuming upload session");
+    trace!("Resuming upload session");
 
     let mut futures = vec![];
     for chunk in &sorted_chunks {
         futures.push(query_chunk(chunk.chunk_id, chunk.server_id, &app_state));
     }
 
+    trace!("chunks scheduled");
     Ok(try_join_all(futures)
         .await?
         .iter()

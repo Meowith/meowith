@@ -1,6 +1,8 @@
 use crate::pathlib::join_parent_name;
 use charybdis::macros::{charybdis_model, charybdis_udt_model};
 use charybdis::types::{BigInt, Boolean, Frozen, Set, Text, Timestamp, TinyInt, Uuid};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use strum::EnumIter;
 
 #[charybdis_udt_model(type_name = filechunk)]
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Default)]
@@ -124,8 +126,30 @@ pub struct BucketUploadSession {
     pub durable: Boolean,
     pub fragments: Set<Frozen<FileChunk>>,
     pub last_access: Timestamp,
+    /// maps to [SessionState]
+    pub state: TinyInt,
 }
 
+#[derive(Debug, Hash, Eq, PartialEq, EnumIter, IntoPrimitive, TryFromPrimitive, Clone, Copy)]
+#[repr(i8)]
+/// Represents the current [BucketUploadSession] state.
+pub enum SessionState {
+    /// The session is being currently written to, no other node may touch it.
+    Writing = 1i8,
+    /// The session has just been started, or resumed.
+    AwaitingData = 2i8,
+    /// An error occurred, and the session is awaiting being resumed or auto deletion.
+    TimedOut = 3i8,
+}
+
+partial_bucket_upload_session!(
+    UpdateBucketUploadSessionState,
+    app_id,
+    bucket,
+    id,
+    last_access,
+    state
+);
 partial_bucket_upload_session!(UpdateBucketUploadSession, app_id, bucket, id, last_access);
 
 impl Default for BucketUploadSession {
@@ -140,6 +164,7 @@ impl Default for BucketUploadSession {
             durable: false,
             fragments: Default::default(),
             last_access: Default::default(),
+            state: 0,
         }
     }
 }

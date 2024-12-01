@@ -9,9 +9,9 @@ use uuid::Uuid;
 
 use data::access::file_access::{
     delete_upload_session_by, get_upload_session, get_upload_sessions, insert_upload_session,
-    update_upload_session_last_access,
+    try_update_upload_session_state, update_upload_session_last_access_and_state,
 };
-use data::model::file_model::BucketUploadSession;
+use data::model::file_model::{BucketUploadSession, SessionState};
 
 use crate::AppState;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
@@ -59,12 +59,14 @@ impl DurableTransferSessionManager {
         app_id: Uuid,
         bucket_id: Uuid,
         id: Uuid,
+        state: SessionState,
     ) -> NodeClientResponse<()> {
-        let _ = update_upload_session_last_access(
+        let _ = update_upload_session_last_access_and_state(
             app_id,
             bucket_id,
             id,
             Utc::now(),
+            state,
             &obtain_session(&self.session).await.session,
         )
         .await?;
@@ -86,9 +88,29 @@ impl DurableTransferSessionManager {
         .await
         .map_err(|_| NodeClientError::NoSuchSession)?;
 
-        self.update_session(app_id, bucket_id, id).await?;
-
         Ok(remote)
+    }
+
+    pub async fn try_lock_session(
+        &self,
+        session: &mut BucketUploadSession,
+        expected: SessionState,
+        target: SessionState,
+    ) -> NodeClientResponse<()> {
+        if session.state != <SessionState as Into<i8>>::into(expected) {
+            return Err(NodeClientError::BadRequest);
+        }
+
+        let t = Utc::now();
+        try_update_upload_session_state(
+            t,
+            target,
+            session,
+            &obtain_session(&self.session).await.session,
+        )
+        .await?;
+
+        Ok(())
     }
 
     pub async fn end_session(&self, app_id: Uuid, bucket_id: Uuid, id: Uuid) {
