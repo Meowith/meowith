@@ -4,6 +4,8 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use crate::framework::error::ProtocolError;
+use crate::framework::server_wire::handle_incoming_connection;
 use async_trait::async_trait;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
@@ -12,11 +14,9 @@ use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::{broadcast, oneshot, Mutex};
-use tokio_rustls::{rustls, TlsAcceptor};
 use tokio_rustls::server::TlsStream;
+use tokio_rustls::{rustls, TlsAcceptor};
 use uuid::Uuid;
-use crate::framework::error::ProtocolError;
-use crate::framework::server_wire::handle_incoming_connection;
 
 /// Trait that defines a protocol that the server can handle
 #[async_trait]
@@ -92,13 +92,16 @@ impl InternalProtocolServer {
             .with_no_client_auth()
             .with_single_cert(
                 vec![CertificateDer::from(cert.0.to_der()?)],
-                PrivateKeyDer::try_from(cert.1.private_key_to_der()?).map_err(|_| ProtocolError::AuthenticationFailed)?,
-            ).map_err(|_| ProtocolError::AuthenticationFailed)?;
+                PrivateKeyDer::try_from(cert.1.private_key_to_der()?)
+                    .map_err(|_| ProtocolError::AuthenticationFailed)?,
+            )
+            .map_err(|_| ProtocolError::AuthenticationFailed)?;
 
         let acceptor = TlsAcceptor::from(Arc::new(config));
 
         // Create a TCP listener
-        let listener = TcpListener::bind(SocketAddr::new(IpAddr::from_str("0.0.0.0").unwrap(), port)).await?;
+        let listener =
+            TcpListener::bind(SocketAddr::new(IpAddr::from_str("0.0.0.0").unwrap(), port)).await?;
 
         self.running.store(true, Ordering::SeqCst);
 
@@ -123,8 +126,9 @@ impl InternalProtocolServer {
                     &listener,
                     &shutdown_sender,
                     &running,
-                    protocol_handler.clone()
-                ).await
+                    protocol_handler.clone(),
+                )
+                .await
                 {
                     if matches!(err, ProtocolError::ShuttingDown) {
                         break; // Gracefully exit
@@ -163,4 +167,3 @@ impl Drop for InternalProtocolServer {
         });
     }
 }
-
