@@ -1,32 +1,51 @@
+use crate::framework::auth::ProtocolAuthenticator;
+use crate::framework::connection::ProtocolConnection;
 use crate::framework::error::ProtocolError;
-use crate::framework::server::{Protocol, ProtocolConnection};
+use crate::framework::reader::PacketParser;
+use crate::framework::server::Protocol;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::Mutex;
 use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
-use uuid::{Bytes, Uuid};
+
+#[derive(Clone)]
+pub struct ProtocolBehaviour<T> {
+    pub protocol_handler: Arc<dyn Protocol>,
+    pub packet_parser: Arc<dyn PacketParser>,
+    pub authenticator: Arc<dyn ProtocolAuthenticator<T>>,
+}
 
 /// Handles incoming connections, including TLS handshake, authentication, and protocol handoff.
-pub async fn handle_incoming_connection(
+pub async fn handle_incoming_connection<T>(
     acceptor: &TlsAcceptor,
     listener: &TcpListener,
     shutdown_sender: &Arc<Mutex<Option<Sender<()>>>>,
     running: &Arc<AtomicBool>,
-    protocol_handler: Arc<dyn Protocol>,
+    protocol_behaviour: ProtocolBehaviour<T>,
+    connections: Arc<Mutex<Vec<ProtocolConnection>>>,
 ) -> Result<(), ProtocolError> {
     let stream = select_tcp_connection(listener, shutdown_sender, running).await?;
     let mut tls_stream = accept_tls_connection(acceptor.clone(), stream).await?;
-    let id = authenticate_connection(&mut tls_stream).await?;
+    let authenticated = protocol_behaviour
+        .authenticator
+        .authenticate(&mut tls_stream)
+        .await;
 
-    let connection = ProtocolConnection {
-        stream: tls_stream,
-        id,
-    };
-    protocol_handler.handle_connection(connection).await?;
+    if authenticated.is_err() {
+        return Err(ProtocolError::AuthenticationFailed);
+    }
+
+    let connection = ProtocolConnection::new(tls_stream, protocol_behaviour.packet_parser)
+        .await
+        .map_err(|_| ProtocolError::ConnectionError)?;
+    protocol_behaviour
+        .protocol_handler
+        .handle_connection(&connection)
+        .await?;
+    connections.lock().await.push(connection);
 
     Ok(())
 }
@@ -61,19 +80,4 @@ async fn accept_tls_connection(
         .accept(stream)
         .await
         .map_err(|_| ProtocolError::ConnectionError)
-}
-
-/// Authenticates the incoming connection by reading a UUID from the stream.
-async fn authenticate_connection(stream: &mut TlsStream<TcpStream>) -> Result<Uuid, ProtocolError> {
-    let mut auth_header = [0u8; 16];
-
-    stream
-        .read_exact(&mut auth_header)
-        .await
-        .map_err(|_| ProtocolError::AuthenticationFailed)?;
-
-    let id = Uuid::from_bytes(
-        Bytes::try_from(auth_header).unwrap_or_else(|_| Uuid::nil().to_bytes_le()),
-    );
-    Ok(id)
 }
