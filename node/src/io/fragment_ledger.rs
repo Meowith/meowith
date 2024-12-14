@@ -414,7 +414,7 @@ impl FragmentLedger {
                 reservation.file_space
             );
             let reservation = reservations.get_mut(id).unwrap();
-            reservation.completed += size_actual;
+            reservation.completed = size_actual;
             reservation.last_update = Instant::now();
         } else if !transfer_completed && !reservation.durable {
             trace!("Non durable upload failure");
