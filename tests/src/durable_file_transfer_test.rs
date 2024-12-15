@@ -62,7 +62,6 @@ async fn resume_upload_session(
         .expect("")
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn upload_file(
     path: &str,
     session_id: &str,

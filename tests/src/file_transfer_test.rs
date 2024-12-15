@@ -1,6 +1,8 @@
 use crate::directory_test::NodeArgs;
 use crate::header;
-use crate::utils::{file_to_body, test_files, Logger};
+use crate::utils::{
+    file_to_body, file_to_body_ranged, file_to_body_ranged_await, test_files, Logger,
+};
 use commons::permission::PermissionList;
 use dashboard_lib::public::auth::auth_routes::{AuthResponse, RegisterRequest};
 use dashboard_lib::public::routes::application::CreateApplicationRequest;
@@ -185,6 +187,34 @@ pub(crate) async fn upload_file(path: &str, remote_path: &str, node: &str, args:
         .expect("");
 }
 
+async fn upload_file_ranged(
+    path: &str,
+    remote_path: &str,
+    node: &str,
+    args: &NodeArgs<'_>,
+    range: Range<u64>,
+    interrupt: bool,
+) {
+    let file = File::open(path).await.unwrap();
+    let size = file.metadata().await.unwrap().len();
+
+    let _ = args
+        .client
+        .put(format!(
+            "http://{}/api/file/upload/oneshot/{}/{}/{remote_path}",
+            node, args.app_id, args.bucket_id,
+        ))
+        .header(AUTHORIZATION, args.token.to_string())
+        .header(CONTENT_LENGTH, size.to_string())
+        .body(if interrupt {
+            file_to_body_ranged(file, range).await
+        } else {
+            file_to_body_ranged_await(file, range).await
+        })
+        .send()
+        .await;
+}
+
 pub async fn download_file(path: &str, remote_path: &str, addr: &str, args: &NodeArgs<'_>) {
     let mut response = args
         .client
@@ -331,6 +361,17 @@ pub async fn test_file_transfer() -> (AppDto, BucketDto, String, String) {
 
     header!("Files deleted");
 
+    assert_bucket_info(&args, 0, 0).await;
+
+    upload_file_ranged(
+        "test_data/test2.txt",
+        "test14",
+        "127.0.0.2:4000",
+        &args,
+        0..700_000,
+        true,
+    )
+    .await;
     assert_bucket_info(&args, 0, 0).await;
 
     (app_dto, bucket_dto, token, user_token)
