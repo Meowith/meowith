@@ -14,7 +14,8 @@ members = [
     "protocol",
     "tests",
     "dashboard",
-    "auth_framework"
+    "auth_framework",
+    "protocol_macro"
 ]
 
 [workspace.metadata.cross.target.aarch64-unknown-linux-gnu]

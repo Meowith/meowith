@@ -1,5 +1,4 @@
-use async_trait::async_trait;
-use log::{error, trace};
+use log::{error};
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -9,17 +8,9 @@ use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
-use tokio_rustls::server::TlsStream;
+use tokio_rustls::TlsStream;
+use crate::framework::packet::parser::{Packet, PacketParser};
 
-/// Trait for parsing incoming packets from the stream
-#[async_trait]
-pub trait PacketParser: Send + Debug + Sync + 'static {
-    /// Parses a packet from the given stream. Returns the parsed data or an error.
-    async fn parse_packet(
-        &self,
-        stream: &mut ReadHalf<TlsStream<TcpStream>>,
-    ) -> Result<(), PacketParseError>;
-}
 
 /// Custom error type for packet parsing issues
 #[derive(Debug, thiserror::Error)]
@@ -33,18 +24,18 @@ pub enum PacketParseError {
 }
 
 #[derive(Debug)]
-pub(crate) struct PacketReader {
+pub(crate) struct PacketReader<T: Packet + 'static + Send> {
     stream: Arc<Mutex<ReadHalf<TlsStream<TcpStream>>>>,
     running: Arc<AtomicBool>,
-    parser: Arc<dyn PacketParser>,
+    parser: Arc<dyn PacketParser<T>>,
     last_read: Arc<Mutex<Instant>>,
 }
 
-impl PacketReader {
+impl <T: Packet + 'static + Send> PacketReader<T> {
     /// Creates a new PacketReader with an abstracted packet parser
     pub(crate) fn new(
         stream: ReadHalf<TlsStream<TcpStream>>,
-        parser: Arc<dyn PacketParser>,
+        parser: Arc<dyn PacketParser<T>>,
     ) -> Self {
         PacketReader {
             stream: Arc::new(Mutex::new(stream)),
@@ -68,21 +59,17 @@ impl PacketReader {
             while running.load(Ordering::Relaxed) {
                 match parser.parse_packet(&mut stream).await {
                     Ok(_) => {
-                        // Update last read timestamp
                         *last_read.lock().await = Instant::now();
                     }
                     Err(PacketParseError::ReadError(err)) => {
                         error!("Stream read error: {}", err);
-                        break; // Connection is likely closed
+                        break;
                     }
                     Err(err) => {
                         error!("Packet parse error: {}", err);
-                        // Decide if you want to continue on a parse error
                     }
                 }
             }
-
-            trace!("Reader loop closed");
         })
     }
 

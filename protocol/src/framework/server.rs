@@ -17,14 +17,14 @@ use tokio_rustls::{rustls, TlsAcceptor};
 use crate::framework::auth::ProtocolAuthenticator;
 use crate::framework::connection::ProtocolConnection;
 use crate::framework::error::ProtocolError;
-use crate::framework::reader::PacketParser;
+use crate::framework::packet::parser::{Packet, PacketBuilder, PacketParser};
 use crate::framework::server_wire::{handle_incoming_connection, ProtocolBehaviour};
 
 /// Trait that defines a protocol that the server can handle
 #[async_trait]
-pub trait Protocol: Send + Sync + 'static {
+pub trait Protocol<T: Packet + 'static + Send>: Send + Sync + 'static {
     /// Called to handle an incoming connection.
-    async fn handle_connection(&self, connection: &ProtocolConnection)
+    async fn handle_connection(&self, connection: &ProtocolConnection<T>)
         -> Result<(), ProtocolError>;
 
     /// Allows downcasting of the trait.
@@ -32,31 +32,32 @@ pub trait Protocol: Send + Sync + 'static {
 }
 
 #[derive(Clone)]
-pub struct ProtocolServer<T: 'static + Send> {
-    internal: Arc<InternalProtocolServer<T>>,
+pub struct ProtocolServer<T: Packet + 'static + Send, A: 'static + Send> {
+    internal: Arc<InternalProtocolServer<T, A>>,
 }
 
-pub struct InternalProtocolServer<T: 'static + Send> {
+pub struct InternalProtocolServer<T: Packet + 'static + Send, A: 'static + Send> {
     running: Arc<AtomicBool>,
-    connections: Arc<Mutex<Vec<ProtocolConnection>>>,
+    connections: Arc<Mutex<Vec<ProtocolConnection<T>>>>,
     shutdown_sender: Arc<Mutex<Option<Sender<()>>>>,
-    protocol_handler: Arc<dyn Protocol>,
-    packet_parser: Arc<dyn PacketParser>,
-    protocol_authenticator: Arc<dyn ProtocolAuthenticator<T>>,
+    protocol_handler: Arc<dyn Protocol<T>>,
+    packet_parser: Arc<dyn PacketParser<T>>,
+    protocol_authenticator: Arc<dyn ProtocolAuthenticator<A>>,
+    packet_builder: Arc<dyn PacketBuilder<T>>,
 }
 
-impl<T: 'static + Send> ProtocolServer<T> {
+impl<T: Packet + 'static + Send, A: 'static + Send> ProtocolServer<T, A> {
     /// Create a new server instance
     pub fn new(
-        protocol_handler: Arc<dyn Protocol>,
-        protocol_authenticator: Arc<dyn ProtocolAuthenticator<T>>,
-        packet_parser: Arc<dyn PacketParser>,
+        protocol_handler: Arc<dyn Protocol<T>>,
+        protocol_authenticator: Arc<dyn ProtocolAuthenticator<A>>,
     ) -> Self {
         ProtocolServer {
             internal: Arc::new(InternalProtocolServer::new(
                 protocol_handler,
                 protocol_authenticator,
-                packet_parser,
+                todo!("Automatic parser and builder generation"),
+                todo!("")
             )),
         }
     }
@@ -77,16 +78,18 @@ impl<T: 'static + Send> ProtocolServer<T> {
     }
 }
 
-impl<T: 'static + Send> InternalProtocolServer<T> {
+impl<T: Packet + 'static + Send, A: 'static + Send> InternalProtocolServer<T, A> {
     pub fn new(
-        protocol_handler: Arc<dyn Protocol>,
-        protocol_authenticator: Arc<dyn ProtocolAuthenticator<T>>,
-        packet_parser: Arc<dyn PacketParser>,
+        protocol_handler: Arc<dyn Protocol<T>>,
+        protocol_authenticator: Arc<dyn ProtocolAuthenticator<A>>,
+        packet_parser: Arc<dyn PacketParser<T>>,
+        packet_builder: Arc<dyn PacketBuilder<T>>,
     ) -> Self {
         InternalProtocolServer {
             running: Arc::new(AtomicBool::new(false)),
             shutdown_sender: Arc::new(Mutex::new(None)),
             connections: Arc::new(Mutex::new(Vec::new())),
+            packet_builder,
             protocol_handler,
             packet_parser,
             protocol_authenticator,
@@ -100,7 +103,6 @@ impl<T: 'static + Send> InternalProtocolServer<T> {
         port: u16,
         cert: (X509, PKey<Private>),
     ) -> io::Result<()> {
-        // Configure the TLS acceptor
         let config = rustls::ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(
@@ -112,7 +114,6 @@ impl<T: 'static + Send> InternalProtocolServer<T> {
 
         let acceptor = TlsAcceptor::from(Arc::new(config));
 
-        // Create a TCP listener
         let listener = TcpListener::bind(SocketAddr::new(
             IpAddr::from_str(addr.as_str()).unwrap(),
             port,
@@ -121,7 +122,6 @@ impl<T: 'static + Send> InternalProtocolServer<T> {
 
         self.running.store(true, Ordering::SeqCst);
 
-        // Broadcast channel for shutdown signal
         let (shutdown_tx, _) = broadcast::channel(1);
         *self.shutdown_sender.lock().await = Some(shutdown_tx);
 
@@ -129,16 +129,15 @@ impl<T: 'static + Send> InternalProtocolServer<T> {
         let shutdown_sender = self.shutdown_sender.clone();
         let protocol_handler = self.protocol_handler.clone();
         let packet_parser = self.packet_parser.clone();
+        let packet_builder = self.packet_builder.clone();
         let protocol_authenticator = self.protocol_authenticator.clone();
         let connections = self.connections.clone();
 
         let (startup_tx, startup_rx) = oneshot::channel();
 
         tokio::spawn(async move {
-            // Notify that the server has started
             let _ = startup_tx.send(());
 
-            // Run the server loop
             while running.load(Ordering::Relaxed) {
                 if let Err(err) = handle_incoming_connection(
                     &acceptor,
@@ -148,6 +147,7 @@ impl<T: 'static + Send> InternalProtocolServer<T> {
                     ProtocolBehaviour {
                         protocol_handler: protocol_handler.clone(),
                         packet_parser: packet_parser.clone(),
+                        packet_builder: packet_builder.clone(),
                         authenticator: protocol_authenticator.clone(),
                     },
                     connections.clone(),
@@ -163,7 +163,7 @@ impl<T: 'static + Send> InternalProtocolServer<T> {
             }
         });
 
-        let _ = startup_rx.await; // Ensure the server is fully initialized before returning
+        let _ = startup_rx.await;
         Ok(())
     }
 
@@ -177,7 +177,7 @@ impl<T: 'static + Send> InternalProtocolServer<T> {
     }
 }
 
-impl<T: 'static + Send> Drop for InternalProtocolServer<T> {
+impl<T: Packet + 'static + Send, A: 'static + Send> Drop for InternalProtocolServer<T, A> {
     fn drop(&mut self) {
         let running = self.running.clone();
         let sender = self.shutdown_sender.clone();

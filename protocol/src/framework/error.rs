@@ -15,3 +15,13 @@ impl From<ProtocolError> for Error {
         Error::new(io::ErrorKind::InvalidInput, format!("{:?}", value))
     }
 }
+
+
+/// Custom error type for packet parsing issues
+#[derive(Debug, thiserror::Error)]
+pub enum PacketBuildError {
+    #[error("Failed to write packet into the stream")]
+    WriteError(#[from] Error),
+    #[error("Invalid packet format")]
+    InvalidFormat,
+}
