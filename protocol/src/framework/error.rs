@@ -16,7 +16,6 @@ impl From<ProtocolError> for Error {
     }
 }
 
-
 /// Custom error type for packet parsing issues
 #[derive(Debug, thiserror::Error)]
 pub enum PacketBuildError {

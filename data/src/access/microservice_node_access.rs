@@ -7,7 +7,7 @@ use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
 use charybdis::types::{BigInt, Text, Timestamp, TinyInt, Uuid};
 use chrono::Utc;
-use scylla::transport::iterator::TypedRowIterator;
+use scylla::transport::iterator::TypedRowStream;
 use scylla::{CachingSession, QueryResult};
 
 static GET_ALL_NODES_QUERY: &str = "SELECT microservice_type, id, max_space, used_space, access_token, access_token_issued_at, renewal_token, address, created, register_code FROM microservice_nodes";
@@ -31,12 +31,13 @@ partial_microservice_node!(
 
 pub async fn get_microservices(
     session: &CachingSession,
-) -> Result<TypedRowIterator<MicroserviceNode>, MeowithDataError> {
-    Ok(session
+) -> Result<TypedRowStream<MicroserviceNode>, MeowithDataError> {
+    session
         .execute_iter(GET_ALL_NODES_QUERY, &[])
         .await
         .map_err(<scylla::transport::errors::QueryError as Into<MeowithDataError>>::into)?
-        .into_typed::<MicroserviceNode>())
+        .rows_stream()
+        .map_err(<scylla::deserialize::TypeCheckError as Into<MeowithDataError>>::into)
 }
 
 pub async fn get_microservice_node(
@@ -124,12 +125,13 @@ pub async fn update_service_register_code(
 
 pub async fn get_service_register_codes(
     session: &CachingSession,
-) -> Result<TypedRowIterator<ServiceRegisterCode>, MeowithDataError> {
-    Ok(session
+) -> Result<TypedRowStream<ServiceRegisterCode>, MeowithDataError> {
+    session
         .execute_iter(GET_ALL_CODES_QUERY, &[])
         .await
         .map_err(<scylla::transport::errors::QueryError as Into<MeowithDataError>>::into)?
-        .into_typed::<ServiceRegisterCode>())
+        .rows_stream()
+        .map_err(<scylla::deserialize::TypeCheckError as Into<MeowithDataError>>::into)
 }
 
 pub async fn update_service_access_token(

@@ -3,14 +3,14 @@ use charybdis::batch::ModelBatch;
 use charybdis::errors::CharybdisError;
 use charybdis::operations::{Delete, Find, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
-use charybdis::types::{Timestamp, TinyInt};
+use charybdis::types::{BigInt, Timestamp, TinyInt};
 use chrono::Utc;
 use futures::stream::Skip;
 use futures::stream::Take;
 use futures::{try_join, Stream, StreamExt, TryFutureExt};
 use log::{error, trace};
 use scylla::query::Query;
-use scylla::{CachingSession, IntoTypedRows, QueryResult};
+use scylla::{CachingSession, QueryResult};
 use std::collections::VecDeque;
 use uuid::Uuid;
 
@@ -492,18 +492,17 @@ pub async fn update_bucket_space(
                     bucket.space_taken,
                 ),
             )
-            .await?;
+            .await?
+            .into_rows_result()?;
+        let mut rows = result.rows()?;
 
-        if let Some(rows) = result.rows {
-            if let Some(row) = rows.into_typed::<(bool, i64, i64)>().next() {
-                let (applied, file_count, space_taken) =
-                    row.map_err(|_| MeowithDataError::UnknownFailure)?;
-                if applied {
-                    return Ok(());
-                } else {
-                    bucket.space_taken = space_taken;
-                    bucket.file_count = file_count;
-                }
+        if let Some(row) = rows.next() {
+            let (applied, file_count, space_taken): (bool, BigInt, BigInt) = row?;
+            if applied {
+                return Ok(());
+            } else {
+                bucket.space_taken = space_taken;
+                bucket.file_count = file_count;
             }
         }
     }
@@ -672,22 +671,22 @@ pub async fn try_update_upload_session_state(
                 upload_session.state,
             ),
         )
-        .await?;
+        .await?
+        .into_rows_result()?;
+    let mut rows = result.rows()?;
 
     trace!("try_update_upload_session_state {:?}", result);
 
-    if let Some(rows) = result.rows {
-        if let Some(row) = rows.into_typed::<(bool, Timestamp, TinyInt)>().next() {
-            let (applied, a, b) = row.map_err(MeowithDataError::FromRowError)?;
-            trace!("res {applied} {a} {b} {upload_session:?}");
-            return if applied {
-                upload_session.last_access = last_access;
-                upload_session.state = state.into();
-                Ok(())
-            } else {
-                Err(MeowithDataError::LockingError)
-            };
-        }
+    if let Some(row) = rows.next() {
+        let (applied, a, b): (bool, Timestamp, TinyInt) = row?;
+        trace!("res {applied} {a} {b} {upload_session:?}");
+        return if applied {
+            upload_session.last_access = last_access;
+            upload_session.state = state.into();
+            Ok(())
+        } else {
+            Err(MeowithDataError::LockingError)
+        };
     }
 
     trace!("No result rows for try_update_upload_session_state");

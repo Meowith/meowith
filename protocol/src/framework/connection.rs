@@ -1,22 +1,22 @@
 use crate::catche::error::CatcheError;
-use crate::framework::packet::parser::{PacketParser, PacketBuilder, Packet};
+use crate::framework::packet::parser::{Packet, PacketBuilder, PacketParser};
+use crate::framework::reader::PacketReader;
 use crate::framework::writer::PacketWriter;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpStream;
 use tokio_rustls::TlsStream;
-use crate::framework::reader::PacketReader;
 
 /// Represents a single connection
 
 #[derive(Debug)]
-pub struct ProtocolConnection {
-    writer: Arc<Mutex<PacketWriter>>,
-    reader: Arc<PacketReader>,
+pub struct ProtocolConnection<T: Packet + 'static + Send> {
+    writer: Arc<Mutex<PacketWriter<T>>>,
+    reader: Arc<PacketReader<T>>,
     is_closing: AtomicBool,
 }
 
-impl <T: Packet + 'static + Send> ProtocolConnection<T> {
+impl<T: Packet + 'static + Send> ProtocolConnection<T> {
     pub async fn new(
         conn: TlsStream<TcpStream>,
         packet_parser: Arc<dyn PacketParser<T>>,

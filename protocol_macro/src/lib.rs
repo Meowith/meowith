@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, Data, Fields};
+use syn::{parse_macro_input, Data, DeriveInput, Fields};
 
 #[proc_macro_derive(Protocol)]
 pub fn my_macro(input: TokenStream) -> TokenStream {
@@ -28,7 +28,6 @@ pub fn my_macro(input: TokenStream) -> TokenStream {
 
     let handler_name = format!("{}{}", name, "Handler");
     let handler_name = Ident::new(&handler_name, name.span());
-
 
     // Derives:
     // Builder trait

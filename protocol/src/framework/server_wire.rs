@@ -1,15 +1,15 @@
 use crate::framework::auth::ProtocolAuthenticator;
 use crate::framework::connection::ProtocolConnection;
 use crate::framework::error::ProtocolError;
+use crate::framework::packet::parser::{Packet, PacketBuilder, PacketParser};
 use crate::framework::server::Protocol;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::Mutex;
-use tokio_rustls::TlsStream;
 use tokio_rustls::TlsAcceptor;
-use crate::framework::packet::parser::{Packet, PacketBuilder, PacketParser};
+use tokio_rustls::TlsStream;
 
 #[derive(Clone)]
 pub struct ProtocolBehaviour<T: Packet + 'static + Send, A: Send + 'static> {
@@ -39,9 +39,13 @@ pub async fn handle_incoming_connection<T: Packet + 'static + Send, A: Send + 's
         return Err(ProtocolError::AuthenticationFailed);
     }
 
-    let connection = ProtocolConnection::new(tls_stream, protocol_behaviour.packet_parser, protocol_behaviour.packet_builder)
-        .await
-        .map_err(|_| ProtocolError::ConnectionError)?;
+    let connection = ProtocolConnection::new(
+        tls_stream,
+        protocol_behaviour.packet_parser,
+        protocol_behaviour.packet_builder,
+    )
+    .await
+    .map_err(|_| ProtocolError::ConnectionError)?;
     protocol_behaviour
         .protocol_handler
         .handle_connection(&connection)

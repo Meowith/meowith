@@ -5,9 +5,11 @@ use actix_web::{
 };
 use charybdis::errors::CharybdisError;
 use derive_more::Display;
-use scylla::cql_to_rust::FromRowError;
+use scylla::deserialize::{DeserializationError, TypeCheckError};
 use scylla::transport::errors::QueryError;
 use scylla::transport::iterator::NextRowError;
+use scylla::transport::query_result::{IntoRowsResultError, RowsError};
+use std::error::Error;
 
 #[derive(Debug, Display)]
 pub enum DataResponseError {
@@ -32,7 +34,7 @@ impl ResponseError for DataResponseError {
 pub enum MeowithDataError {
     QueryError(QueryError),
     InternalFailure(CharybdisError),
-    FromRowError(FromRowError),
+    FromRowError(Box<dyn Error + Send + Sync>),
     NextRowError(NextRowError),
     /// Used when a LWT couldn't update the record
     LockingError,
@@ -46,6 +48,30 @@ impl From<CharybdisError> for MeowithDataError {
             CharybdisError::NotFoundError(_) => MeowithDataError::NotFound,
             _ => MeowithDataError::InternalFailure(value),
         }
+    }
+}
+
+impl From<TypeCheckError> for MeowithDataError {
+    fn from(value: TypeCheckError) -> Self {
+        MeowithDataError::FromRowError(Box::new(value))
+    }
+}
+
+impl From<IntoRowsResultError> for MeowithDataError {
+    fn from(value: IntoRowsResultError) -> Self {
+        MeowithDataError::FromRowError(Box::new(value))
+    }
+}
+
+impl From<RowsError> for MeowithDataError {
+    fn from(value: RowsError) -> Self {
+        MeowithDataError::FromRowError(Box::new(value))
+    }
+}
+
+impl From<DeserializationError> for MeowithDataError {
+    fn from(value: DeserializationError) -> Self {
+        MeowithDataError::FromRowError(Box::new(value))
     }
 }
 

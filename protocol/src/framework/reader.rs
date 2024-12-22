@@ -1,16 +1,15 @@
-use log::{error};
+use log::error;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use crate::framework::packet::parser::{Packet, PacketParser};
 use tokio::io::ReadHalf;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use tokio_rustls::TlsStream;
-use crate::framework::packet::parser::{Packet, PacketParser};
-
 
 /// Custom error type for packet parsing issues
 #[derive(Debug, thiserror::Error)]
@@ -31,7 +30,7 @@ pub(crate) struct PacketReader<T: Packet + 'static + Send> {
     last_read: Arc<Mutex<Instant>>,
 }
 
-impl <T: Packet + 'static + Send> PacketReader<T> {
+impl<T: Packet + 'static + Send> PacketReader<T> {
     /// Creates a new PacketReader with an abstracted packet parser
     pub(crate) fn new(
         stream: ReadHalf<TlsStream<TcpStream>>,

@@ -1,10 +1,10 @@
+use crate::framework::error::PacketBuildError;
+use crate::framework::packet::parser::{Packet, PacketBuilder};
 use std::sync::Arc;
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
 use tokio::time::Instant;
 use tokio_rustls::TlsStream;
-use crate::framework::error::PacketBuildError;
-use crate::framework::packet::parser::{Packet, PacketBuilder};
 
 #[derive(Debug)]
 pub(crate) struct PacketWriter<T: Packet + 'static + Send> {
@@ -13,8 +13,11 @@ pub(crate) struct PacketWriter<T: Packet + 'static + Send> {
     builder: Arc<dyn PacketBuilder<T>>,
 }
 
-impl <T: Packet + 'static + Send> PacketWriter<T> {
-    pub(crate) fn new(stream: WriteHalf<TlsStream<TcpStream>>, builder: Arc<dyn PacketBuilder<T>>) -> Self {
+impl<T: Packet + 'static + Send> PacketWriter<T> {
+    pub(crate) fn new(
+        stream: WriteHalf<TlsStream<TcpStream>>,
+        builder: Arc<dyn PacketBuilder<T>>,
+    ) -> Self {
         PacketWriter {
             stream,
             builder,
@@ -32,7 +35,8 @@ impl <T: Packet + 'static + Send> PacketWriter<T> {
     pub(crate) async fn write_packet(&mut self, packet: T) -> Result<(), PacketBuildError> {
         let packet = self.builder.build_packet(packet)?;
 
-        self.write(packet.as_slice()).await
+        self.write(packet.as_slice())
+            .await
             .map_err(PacketBuildError::WriteError)?;
 
         Ok(())

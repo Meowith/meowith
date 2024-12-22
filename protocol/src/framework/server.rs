@@ -24,8 +24,10 @@ use crate::framework::server_wire::{handle_incoming_connection, ProtocolBehaviou
 #[async_trait]
 pub trait Protocol<T: Packet + 'static + Send>: Send + Sync + 'static {
     /// Called to handle an incoming connection.
-    async fn handle_connection(&self, connection: &ProtocolConnection<T>)
-        -> Result<(), ProtocolError>;
+    async fn handle_connection(
+        &self,
+        connection: &ProtocolConnection<T>,
+    ) -> Result<(), ProtocolError>;
 
     /// Allows downcasting of the trait.
     fn as_any(&self) -> &dyn Any;
@@ -57,7 +59,7 @@ impl<T: Packet + 'static + Send, A: 'static + Send> ProtocolServer<T, A> {
                 protocol_handler,
                 protocol_authenticator,
                 todo!("Automatic parser and builder generation"),
-                todo!("")
+                todo!(""),
             )),
         }
     }
