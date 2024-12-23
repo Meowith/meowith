@@ -34,6 +34,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::{AbortHandle, JoinHandle};
 use uuid::Uuid;
+use protocol_macro::Protocol;
 
 pub mod caching;
 pub mod config;
@@ -72,6 +73,13 @@ pub struct AppState {
     node_storage_map: NodeStorageMap,
     req_ctx: Arc<MicroserviceRequestContext>,
     pause_handle: Arc<Mutex<Option<ServerHandle>>>,
+}
+
+#[derive(Protocol)]
+enum Packet {
+    a { a: i32, b: u32 },
+    b { g: u32, c: Uuid },
+    c
 }
 
 impl AppState {

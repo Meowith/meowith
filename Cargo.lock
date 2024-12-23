@@ -2199,6 +2199,7 @@ dependencies = [
  "ntest",
  "openssl",
  "protocol",
+ "protocol_macro",
  "rand",
  "reqwest",
  "scylla",
