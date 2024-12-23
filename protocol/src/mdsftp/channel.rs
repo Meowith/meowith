@@ -546,6 +546,7 @@ impl InternalMDSFTPChannel {
                 return Ok(());
             }
             MDSFTPPacketType::PutOk => {
+
                 if let Some(tx) = self.put_sender.lock().await.as_ref() {
                     let chunk_buffer: u16 =
                         u16::from_be_bytes(packet.payload[0..2].try_into().unwrap());

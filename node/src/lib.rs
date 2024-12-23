@@ -75,6 +75,7 @@ pub struct AppState {
     pause_handle: Arc<Mutex<Option<ServerHandle>>>,
 }
 
+// Note: test enum, remove before git squash
 #[derive(Protocol)]
 enum Packet {
     a { a: i32, b: u32 },
