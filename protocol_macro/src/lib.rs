@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields, Type, Variant};
+use syn::{parse_macro_input, Data, DeriveInput, Fields, Type, TypePath, Variant};
 
 fn pascal_to_snake_case(ident: &Ident) -> String {
     let pascal_case = ident.to_string();
@@ -18,6 +18,42 @@ fn pascal_to_snake_case(ident: &Ident) -> String {
         .collect::<String>()
         .to_lowercase();
     snake_case
+}
+
+fn extract_type_name(path: &TypePath) -> String {
+    path.path
+        .segments
+        .iter()
+        .map(|segment| {
+            let mut result = segment.ident.to_string();
+
+            if let syn::PathArguments::AngleBracketed(ref args) = segment.arguments {
+                let args_str = args
+                    .args
+                    .iter()
+                    .filter_map(|arg| {
+                        if let syn::GenericArgument::Type(Type::Path(type_path)) = arg {
+                            Some(
+                                type_path
+                                    .path
+                                    .segments
+                                    .iter()
+                                    .map(|seg| seg.ident.to_string())
+                                    .collect::<Vec<_>>()
+                                    .join("::"),
+                            )
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                result = format!("{}<{}>", result, args_str);
+            }
+            result
+        })
+        .collect::<Vec<_>>()
+        .join("::")
 }
 
 const PROTOCOL_HEADER_SIZE: usize = 5;
@@ -61,13 +97,8 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
     let handler_name = Ident::new(&handler_name, name.span());
 
     // TODO Derives:
-    // Parser trait
     // Protocol trait
     // TODO errors
-    // TODO consider a streamId field in header
-    // TODO handle arbitrary size payloads (string and Vec<u8>)
-    // note: we can force them to be at the end of the payload
-    // thus skipping the need to encode the length of each such field before it
 
     let builder_arms = variants.clone().into_iter().map(|variant| {
         let variant_name = &variant.ident;
@@ -84,22 +115,38 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
             Fields::Named(named_args) => {
                 let named = named_args.clone().named.into_iter();
 
+                let mut arg_order = 0;
+                let len_args = named_args.named.len();
                 let serialize_steps = named_args.named.into_iter().map(|field| match &field.ty {
                     Type::Path(type_path) => {
                         let field_ident = field.ident.clone().expect("Fields must have a name");
-                        let type_name = type_path.path.get_ident().map(|ident| ident.to_string());
-                        match type_name.as_deref() {
-                            Some("i8") | Some("i16") | Some("i32") | Some("i64") | Some("i128")
-                            | Some("isize") | Some("u8") | Some("u16") | Some("u32")
-                            | Some("u64") | Some("u128") | Some("usize") | Some("f32")
-                            | Some("f64") => {
+                        let type_name = extract_type_name(type_path);
+
+                        let res = match type_name.as_str() {
+                            "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16"
+                            | "u32" | "u64" | "u128" | "usize" | "f32" | "f64" => {
                                 quote! { res.push(&#field_ident.to_be_bytes()); }
                             }
-                            Some("Uuid") => {
+                            "Uuid" => {
                                 quote! { res.push(#field_ident.as_bytes().as_slice()); }
                             }
-                            _ => panic!("Unsupported datatype {:?}", &type_path.path),
-                        }
+                            "Vec<u8>" => {
+                                if arg_order + 1 == len_args {
+                                    // is last, just dump the data
+                                    quote! {
+                                        res.append(&mut #field_ident);
+                                    }
+                                } else {
+                                    quote! {
+                                        res.push(&(#field_ident.len() as u32).to_be_bytes());
+                                        res.append(&mut #field_ident);
+                                    }
+                                }
+                            }
+                            _ => panic!("Unsupported datatype {:?} {:?}", type_name, type_path),
+                        };
+                        arg_order += 1;
+                        res
                     }
                     _ => panic!("Bad type {:?}", &field.ty),
                 });
@@ -139,20 +186,20 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
     // it should pass it some sort of a channel and return some sort of Result<(), SomeError>
     let handler_type = {
         let handler_methods = variants.clone().into_iter().map(|variant| {
-            let handler_name = format!("handler_{}", pascal_to_snake_case(&variant.ident));
-            let handler_name = Ident::new(&*handler_name, proc_macro2::Span::call_site());
+            let handler_method_name = format!("handle_{}", pascal_to_snake_case(&variant.ident));
+            let handler_method_name = Ident::new(&*handler_method_name, proc_macro2::Span::call_site());
 
             match variant.fields {
                 Fields::Named(named_args) => {
                     let named = named_args.named.into_iter();
                     quote! {
-                        pub async fn #handler_name(#(#named),*);
+                        pub async fn #handler_method_name(#(#named),*);
                     }
                 }
                 Fields::Unnamed(_) => panic!("Unnamed fields are not supported"),
                 Fields::Unit => {
-                    quote! {
-                        pub async fn #handler_name();
+                     quote! {
+                        pub async fn #handler_method_name();
                     }
                 }
             }
@@ -209,13 +256,11 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
         }
     };
 
-    // TODO: either return the constructed packet enum from each arm, and pass it further
-    // (like in the trait)
-    // OR: make the trait not return anything,
-    // and instead have each arm call the respective handler method.
     let parser = {
         let parser_arms = variants.clone().into_iter().map(|variant| {
             let variant_name = &variant.ident;
+            let handler_method_name = format!("handle_{}", pascal_to_snake_case(&variant.ident));
+            let handler_method_name = Ident::new(&*handler_method_name, proc_macro2::Span::call_site());
 
             match variant.fields {
                 Fields::Unnamed(_) => {
@@ -228,19 +273,21 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
                 }
                 Fields::Named(named_args) => {
                     let named = named_args.clone().named.into_iter();
+                    let named2 = named.clone().map(|arg| arg.ident.unwrap());
+                    let mut arg_order = 0;
+                    let len_args = named_args.named.len();
+
+
                     let deserialize_steps = named_args.named.into_iter().map(|field| {
-                        match &field.ty {
+                        let ret = match &field.ty {
                             Type::Path(type_path) => {
                                 let field_ident =
                                     field.ident.clone().expect("Fields must have a name");
-                                let type_name =
-                                    type_path.path.get_ident().map(|ident| ident.to_string());
+                                let type_name = extract_type_name(type_path);
 
-                                match type_name.as_deref() {
-                                    Some("i8") | Some("i16") | Some("i32") | Some("i64")
-                                    | Some("i128") | Some("isize") | Some("u8") | Some("u16")
-                                    | Some("u32") | Some("u64") | Some("u128") | Some("usize")
-                                    | Some("f32") | Some("f64") => {
+                                match type_name.as_str() {
+                                    "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16"
+                                    | "u32" | "u64" | "u128" | "usize" | "f32" | "f64" => {
                                         let primitive_name = type_path.path.get_ident().unwrap();
                                         quote! {
                                             let size = #primitive_name::BITS / 8;
@@ -248,25 +295,43 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
                                             i += size;
                                         }
                                     }
-                                    Some("Uuid") => {
+                                    "Uuid" => {
                                         quote! {
                                             let size = 16;
                                             let #field_ident = Uuid::from_slice(&packet.payload[i..i+size])?;
                                             i += size;
                                         }
                                     }
-                                    _ => panic!("Unsupported datatype {:?}", &type_path.path),
+                                    "Vec<u8>" => {
+                                        if arg_order + 1 == len_args { // is last, just dump the data
+                                            quote! {
+                                                let size = packet.payload.len() - size;
+                                                let #field_ident = Vec::from(&packet.payload[i..i+size]);
+                                            }
+                                        } else {
+                                            quote! {
+                                                // Read length first
+                                                let size = u32::from_be_bytes(packet.payload[i..i+4].try_into().unwrap());
+                                                i += 4;
+                                                let #field_ident = Vec::from(&packet.payload[i..i+size]);
+                                                i += size;
+                                            }
+                                        }
+                                    },
+                                    _ => panic!("Unsupported datatype {:?} {:?}", type_name, type_path),
                                 }
                             }
                             _ => panic!("Bad type {:?}", &field.ty),
-                        }
+                        };
+                        arg_order += 1;
+                        ret
                     });
 
                     quote! {
                         #name::#variant_name { #(#named),* } => {
                             let i = 0usize;
                             #(#deserialize_steps)*
-                            ()
+                            self.handler.#handler_method_name(#(#named2),*)
                         }
                     }
                 }
@@ -274,7 +339,9 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
         });
 
         quote! {
-            struct #parser_name {};
+            struct #parser_name {
+                handler: #handler_name,
+            };
 
             impl PacketParser<#name> for #parser_name {
                 async fn parse_packet(

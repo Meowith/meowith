@@ -78,9 +78,11 @@ pub struct AppState {
 // Note: test enum, remove before git squash
 #[derive(Protocol)]
 enum Packet {
-    a { a: i32, b: u32 },
-    b { g: u32, c: Uuid },
-    c
+    A { a: i32, b: u32 },
+    B { g: u32, c: Uuid },
+    C,
+    D { bytes: Vec<u8> },
+    E { bytes: Vec<u8>, other: u32 },
 }
 
 impl AppState {

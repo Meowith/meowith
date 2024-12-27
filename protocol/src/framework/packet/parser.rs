@@ -9,11 +9,11 @@ use tokio_rustls::TlsStream;
 /// Trait for parsing incoming packets from the stream
 #[async_trait]
 pub trait PacketParser<T: Packet>: Send + Debug + Sync + 'static {
-    /// Parses a packet from the given stream. Returns the parsed data or an error.
+    /// Parses a packet from the given stream. Calls the associated PacketHandler method.
     async fn parse_packet(
         &self,
         stream: &mut ReadHalf<TlsStream<TcpStream>>,
-    ) -> Result<T, PacketParseError>;
+    ) -> Result<(), PacketParseError>;
 }
 
 pub trait PacketBuilder<T: Packet>: Send + Debug + Sync + 'static {
