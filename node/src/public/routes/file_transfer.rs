@@ -49,6 +49,9 @@ pub async fn upload_oneshot(
 
     let abstract_reader: AbstractReadStream =
         Arc::new(Mutex::new(Box::pin(BufReader::new(receiver))));
+    let token = CancellationToken::new();
+    let cancel_sender = token.clone();
+
     let channel_handle = tokio::spawn(async move {
         let err = handle_upload_oneshot(
             path.into_inner(),
@@ -58,6 +61,7 @@ pub async fn upload_oneshot(
             abstract_reader,
         )
         .await;
+        cancel_sender.cancel();
         if let Err(err) = err {
             warn!("Oneshot upload error: {err:?}");
             return Err(err);
@@ -65,14 +69,26 @@ pub async fn upload_oneshot(
         Ok(())
     });
 
-    while let Some(item) = payload.next().await {
-        let item = item.map_err(|_| NodeClientError::BadRequest)?;
-        sender.write_all(&item).await?;
+    let send_res: NodeClientResponse<()> = async {
+        while let Some(item) = select! {
+            _ = token.cancelled() => {
+                return Ok(());
+            },
+            data = payload.next() => { data }
+        } {
+            let item = item?;
+            sender.write_all(&item).await?;
+        }
+        Ok(())
     }
+    .await;
+
+    sender.shutdown().await?;
+    drop(sender);
 
     channel_handle.await??;
 
-    Ok(HttpResponse::Ok().finish())
+    send_res.map(|_| HttpResponse::Ok().finish())
 }
 
 #[post("/upload/durable/{app_id}/{bucket_id}/{path:.*}")]
@@ -129,12 +145,8 @@ pub async fn upload_durable(
             },
             data = payload.next() => { data }
         } {
-            let item = item.map_err(|_| NodeClientError::BadRequest)?;
-
-            sender
-                .write_all(&item)
-                .await
-                .map_err(|_| NodeClientError::InternalError)?;
+            let item = item?;
+            sender.write_all(&item).await?;
         }
         Ok(())
     }
@@ -143,9 +155,7 @@ pub async fn upload_durable(
     sender.shutdown().await?;
     drop(sender);
 
-    channel_handle
-        .await
-        .map_err(|_| NodeClientError::InternalError)??;
+    channel_handle.await??;
 
     send_res.map(|_| HttpResponse::Ok().finish())
 }

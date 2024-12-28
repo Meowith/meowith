@@ -24,7 +24,7 @@ pub async fn do_create_directory(
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {
     bucket_accessor.has_permission(&path.app_id, &path.bucket_id, *CREATE_DIRECTORY_ALLOWANCE)?;
-    let _ = try_mkdir(path.bucket_id, path.path(), &app_state.session).await;
+    let _ = try_mkdir(path.bucket_id, path.path(), &app_state.session).await?;
     Ok(())
 }
 

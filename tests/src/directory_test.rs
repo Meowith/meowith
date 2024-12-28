@@ -145,6 +145,7 @@ pub async fn stat_entity(name: &str, args: &NodeArgs<'_>) -> Entity {
 pub struct NodeArgs<'a> {
     pub node: &'a str,
     pub token: &'a str,
+    pub user_token: &'a str,
     pub app_id: Uuid,
     pub bucket_id: Uuid,
     pub client: &'a ClientWithMiddleware,
@@ -173,6 +174,7 @@ pub async fn directory_test(data: (AppDto, BucketDto, String, String)) {
     let args = NodeArgs {
         node: "127.0.0.2:4000",
         token: &token,
+        user_token: "",
         app_id: app_dto.id,
         bucket_id: bucket_dto.id,
         client: &client,

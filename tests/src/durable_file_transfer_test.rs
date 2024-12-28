@@ -106,6 +106,7 @@ pub async fn test_durable_upload(data: (AppDto, BucketDto, String, String)) {
     let args = NodeArgs {
         node: "127.0.0.2:4000",
         token: &token,
+        user_token: "",
         app_id: app_dto.id,
         bucket_id: bucket_dto.id,
         client: &client,

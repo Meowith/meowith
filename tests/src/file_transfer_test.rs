@@ -8,7 +8,9 @@ use dashboard_lib::public::auth::auth_routes::{AuthResponse, RegisterRequest};
 use dashboard_lib::public::routes::application::CreateApplicationRequest;
 use dashboard_lib::public::routes::bucket::CreateBucketRequest;
 use dashboard_lib::public::routes::token::AppTokenResponse;
-use data::dto::entity::{AppDto, BucketDto, ScopedPermission, TokenIssueRequest};
+use data::dto::entity::{
+    AppDto, BucketDto, ScopedPermission, TokenIssueRequest, UploadSessionsResponse,
+};
 use data::model::permission_model::UserPermission;
 use http::header::{CONTENT_LENGTH, RANGE};
 use log::info;
@@ -16,8 +18,10 @@ use rand::{distributions::Alphanumeric, Rng};
 use reqwest::header::AUTHORIZATION;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use std::ops::Range;
+use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
+use tokio::time::sleep;
 use uuid::Uuid;
 
 pub const TEST_3_SIZE: usize = 98 * 1024;
@@ -123,6 +127,27 @@ pub(crate) async fn fetch_bucket_info(
         .expect("")
 }
 
+pub(crate) async fn fetch_bucket_sessions(args: &NodeArgs<'_>) -> UploadSessionsResponse {
+    args.client
+        .get(format!(
+            "http://127.0.0.4:4002/api/bucket/sessions/{}/{}",
+            args.app_id, args.bucket_id
+        ))
+        .header(AUTHORIZATION, format!("Bearer {}", args.user_token))
+        .send()
+        .await
+        .expect("")
+        .json::<UploadSessionsResponse>()
+        .await
+        .expect("")
+}
+
+pub(crate) async fn assert_bucket_session_count(args: &NodeArgs<'_>, count: usize) {
+    let sessions = fetch_bucket_sessions(args).await;
+    info!("{:?}, {:#?}", sessions, count);
+    assert_eq!(sessions.sessions.len(), count);
+}
+
 pub(crate) async fn assert_bucket_info(args: &NodeArgs<'_>, files: i64, space_taken: i64) {
     let fetched_bucket_dto: BucketDto =
         fetch_bucket_info(args.token, args.app_id, args.bucket_id, args.client).await;
@@ -185,6 +210,34 @@ pub(crate) async fn upload_file(path: &str, remote_path: &str, node: &str, args:
         .send()
         .await
         .expect("");
+}
+
+async fn upload_part_file(
+    path: &str,
+    remote_path: &str,
+    node: &str,
+    args: &NodeArgs<'_>,
+    range: Range<u64>,
+    interrupt: bool,
+) {
+    let file = File::open(path).await.unwrap();
+    let size = file.metadata().await.unwrap().len();
+
+    let _ = args
+        .client
+        .post(format!(
+            "http://{}/api/file/upload/oneshot/{}/{}/{}",
+            node, args.app_id, args.bucket_id, remote_path
+        ))
+        .header(AUTHORIZATION, args.token.to_string())
+        .header(CONTENT_LENGTH, size.to_string())
+        .body(if interrupt {
+            file_to_body_ranged(file, range).await
+        } else {
+            file_to_body_ranged_await(file, range).await
+        })
+        .send()
+        .await;
 }
 
 async fn upload_file_ranged(
@@ -298,6 +351,7 @@ pub async fn test_file_transfer() -> (AppDto, BucketDto, String, String) {
     let args = NodeArgs {
         node: "127.0.0.2:4000",
         token: &token,
+        user_token: &user_token,
         app_id: app_dto.id,
         bucket_id: bucket_dto.id,
         client: &client,
@@ -373,6 +427,23 @@ pub async fn test_file_transfer() -> (AppDto, BucketDto, String, String) {
     )
     .await;
     assert_bucket_info(&args, 0, 0).await;
+
+    header!("Testing incomplete uploads");
+    assert_bucket_session_count(&args, 0).await;
+    upload_part_file(
+        "test_data/test2.txt",
+        "test2",
+        "127.0.0.3:4001",
+        &args,
+        0..700_000,
+        true,
+    )
+    .await;
+
+    sleep(Duration::from_secs(2)).await;
+
+    assert_bucket_info(&args, 0, 0).await;
+    assert_bucket_session_count(&args, 0).await;
 
     (app_dto, bucket_dto, token, user_token)
 }
