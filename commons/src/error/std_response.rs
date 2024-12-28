@@ -1,5 +1,6 @@
 use crate::error::io_error::MeowithIoError;
 use crate::error::mdsftp_error::MDSFTPError;
+use actix_web::error::PayloadError;
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::{error, HttpResponse};
@@ -115,5 +116,12 @@ impl From<std::io::Error> for NodeClientError {
     fn from(value: std::io::Error) -> Self {
         error!("STD::IO::ERROR: {:?}", value);
         NodeClientError::InternalError
+    }
+}
+
+impl From<PayloadError> for NodeClientError {
+    fn from(value: PayloadError) -> Self {
+        error!("ACTIX_HTTP::ERROR::PAYLOAD_ERROR: {:?}", value);
+        NodeClientError::BadRequest
     }
 }

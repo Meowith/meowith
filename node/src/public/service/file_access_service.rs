@@ -160,6 +160,7 @@ pub async fn handle_upload_oneshot(
     }
     .await;
 
+    trace!("Aborting the notifier");
     notifier.abort();
 
     if transfer_result.is_err() {
@@ -175,11 +176,11 @@ pub async fn handle_upload_oneshot(
                 &app_state,
             ));
         }
-        try_join_all(futures).await?;
         app_state
             .upload_manager
             .end_session(path.app_id, path.bucket_id, session_id)
             .await;
+        try_join_all(futures).await?;
 
         return Err(err);
     }

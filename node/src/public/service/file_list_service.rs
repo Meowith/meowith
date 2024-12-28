@@ -151,7 +151,7 @@ pub async fn do_list_dir(
         if length == 0 {
             break;
         }
-        let dir = dir.map_err(|_| NodeClientError::InternalError)?;
+        let dir = dir.map_err(MeowithDataError::from)?;
 
         entries.push(Entity {
             name: dir.name,
