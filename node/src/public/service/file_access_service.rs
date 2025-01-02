@@ -1,5 +1,5 @@
 use std::cmp::{max, min};
-use std::collections::HashSet;
+use std::sync::Arc;
 use std::time::Duration;
 
 use actix_web::http::header::{ByteRangeSpec, ContentType};
@@ -11,13 +11,13 @@ use log::{debug, error, trace, warn};
 use mime_guess::mime;
 use scylla::CachingSession;
 use tokio::io::AsyncWriteExt;
+use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time;
 use uuid::Uuid;
 
 use data::access::file_access::{
-    get_bucket, get_directory, get_file, get_file_dir, insert_directory, insert_file,
-    update_upload_session_last_access, ROOT_DIR,
+    get_bucket, get_directory, get_file, get_file_dir, insert_directory, insert_file, ROOT_DIR,
 };
 use data::model::file_model::{
     Bucket, BucketUploadSession, Directory, File, FileChunk, SessionState,
@@ -128,16 +128,8 @@ pub async fn handle_upload_oneshot(
         .start_session(&bucket_upload_session)
         .await?;
 
-    let chunks_clone = bucket_upload_session.fragments.clone();
-    let session_clone = app_state.clone();
-
-    let notifier = create_commit_notifier(
-        path.app_id,
-        path.bucket_id,
-        session_id,
-        chunks_clone,
-        session_clone,
-    );
+    let bucket_upload_session = Arc::new(Mutex::new(bucket_upload_session));
+    let notifier = create_commit_notifier(bucket_upload_session.clone(), app_state.clone());
 
     let transfer_result: NodeClientResponse<()> = async {
         for space in reservation.fragments.into_iter() {
@@ -161,6 +153,9 @@ pub async fn handle_upload_oneshot(
     .await;
 
     trace!("Aborting the notifier");
+    // We are getting the session BEFORE the .abort call to ensure it is not in the middle of
+    // updating the sessions last_access
+    let mut session = bucket_upload_session.lock().await;
     notifier.abort();
 
     if transfer_result.is_err() {
@@ -168,7 +163,7 @@ pub async fn handle_upload_oneshot(
         debug!("Oneshot upload failure, deleting. {}", &err);
 
         let mut futures = vec![];
-        for chunk in &bucket_upload_session.fragments {
+        for chunk in &session.fragments {
             futures.push(commit_chunk(
                 CommitFlags::reject(),
                 chunk.server_id,
@@ -185,13 +180,11 @@ pub async fn handle_upload_oneshot(
         return Err(err);
     }
 
-    let chunks = bucket_upload_session.fragments;
-
     end_session(
         app_state,
         split_path,
         size as i64,
-        chunks,
+        &mut session,
         bucket,
         (path.app_id, session_id),
         Some(old_file),
@@ -300,7 +293,7 @@ pub async fn handle_upload_durable(
         .get_session(app_id, bucket_id, session_id)
         .await?;
     let bucket = get_bucket(app_id, bucket_id, &app_state.session).await?;
-    trace!("Durable try lock");
+    trace!("Durable try lock {}", session.last_access);
     app_state
         .upload_manager
         .try_lock_session(
@@ -309,7 +302,7 @@ pub async fn handle_upload_durable(
             SessionState::Writing,
         )
         .await?;
-    trace!("Durable lock acquired");
+    trace!("Durable lock acquired {}", session.last_access);
 
     let mut sorted_chunks: Vec<FileChunk> = session.fragments.clone().into_iter().collect();
     sorted_chunks.sort_by_key(|c| c.chunk_order);
@@ -323,20 +316,19 @@ pub async fn handle_upload_durable(
         .iter()
         .map(|item| item.unwrap_or(0) as i64)
         .sum();
-
     let split_path = split_path(&session.path);
-    let chunks = sorted_chunks.clone().into_iter().collect();
 
     if already_uploaded == session.size {
+        let file_id = session.file_id;
         return end_session(
             app_state,
             split_path,
             session.size,
-            chunks,
+            &mut session,
             bucket,
             (app_id, session_id),
             None,
-            session.file_id,
+            file_id,
         )
         .await;
     }
@@ -359,13 +351,8 @@ pub async fn handle_upload_durable(
         return Err(NodeClientError::InternalError);
     }
 
-    let notifier = create_commit_notifier(
-        app_id,
-        bucket_id,
-        session_id,
-        session.fragments,
-        app_state.clone(),
-    );
+    let bucket_upload_session = Arc::new(Mutex::new(session));
+    let notifier = create_commit_notifier(bucket_upload_session.clone(), app_state.clone());
 
     let transfer_result: NodeClientResponse<()> = async {
         let mut first = already_uploaded > 0; // Note handling user vs internal mdsftp_error would be nice.
@@ -394,32 +381,32 @@ pub async fn handle_upload_durable(
     }
     .await;
 
+    let mut session = bucket_upload_session.lock().await;
+    // We are getting the session BEFORE the .abort call to ensure it is not in the middle of
+    // updating the sessions last_access
     notifier.abort();
 
     if transfer_result.is_err() {
         warn!("Durable upload interrupted");
+        session.state = SessionState::TimedOut.into();
         app_state
             .upload_manager
-            .update_session(
-                session.app_id,
-                session.bucket,
-                session.id,
-                SessionState::TimedOut,
-            )
+            .update_session(&mut session)
             .await?;
 
         return Err(NodeClientError::BadRequest);
     }
 
+    let file_id = session.file_id;
     end_session(
         app_state,
         split_path,
         session.size,
-        chunks,
+        &mut session,
         bucket,
         (app_id, session_id),
         None,
-        session.file_id,
+        file_id,
     )
     .await
 }
@@ -468,15 +455,15 @@ pub async fn end_session(
     app_state: Data<AppState>,
     split_path: (Option<String>, String),
     size: i64,
-    chunks: HashSet<FileChunk>,
+    bucket_upload_session: &mut BucketUploadSession,
     bucket: Bucket,
     app_session_ids: (Uuid, Uuid),
     old_file: Option<Option<File>>,
     file_id: Uuid,
 ) -> NodeClientResponse<()> {
-    debug!("Committing chunks {:?}", &chunks);
+    debug!("Committing chunks {:?}", &bucket_upload_session.fragments);
     let mut futures = vec![];
-    for chunk in &chunks {
+    for chunk in &bucket_upload_session.fragments {
         futures.push(commit_chunk(
             CommitFlags::r#final(),
             chunk.server_id,
@@ -505,7 +492,7 @@ pub async fn end_session(
         name: split_path.1.clone(),
         id: file_id,
         size,
-        chunk_ids: chunks,
+        chunk_ids: bucket_upload_session.fragments.clone(),
         created: now,
         last_modified: now,
     };
@@ -584,10 +571,7 @@ pub async fn try_mkdir(
 }
 
 pub fn create_commit_notifier(
-    app_id: Uuid,
-    bucket_id: Uuid,
-    session_id: Uuid,
-    chunks_clone: HashSet<FileChunk>,
+    bucket_upload_session: Arc<Mutex<BucketUploadSession>>,
     data: Data<AppState>,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
@@ -595,23 +579,22 @@ pub fn create_commit_notifier(
         loop {
             interval.tick().await;
             let mut futures = vec![];
-            for chunk in &chunks_clone {
-                futures.push(commit_chunk(
-                    CommitFlags::keep_alive(),
-                    chunk.server_id,
-                    chunk.chunk_id,
-                    &data,
-                ));
+            {
+                let session = bucket_upload_session.lock().await;
+                for chunk in &session.fragments {
+                    futures.push(commit_chunk(
+                        CommitFlags::keep_alive(),
+                        chunk.server_id,
+                        chunk.chunk_id,
+                        &data,
+                    ));
+                }
             }
             let _ = try_join_all(futures).await;
-            let _ = update_upload_session_last_access(
-                app_id,
-                bucket_id,
-                session_id,
-                Utc::now(),
-                &data.session,
-            )
-            .await;
+            {
+                let mut session = bucket_upload_session.lock().await;
+                let _ = data.upload_manager.update_session(&mut session).await;
+            }
         }
     })
 }

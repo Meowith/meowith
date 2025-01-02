@@ -119,8 +119,8 @@ partial_bucket!(UpdateBucketQuota, app_id, id, quota);
 pub struct BucketUploadSession {
     pub app_id: Uuid,
     pub bucket: Uuid,
-    pub file_id: Uuid,
     pub id: Uuid,
+    pub file_id: Uuid,
     pub path: Text,
     pub size: BigInt,
     pub durable: Boolean,
@@ -141,16 +141,6 @@ pub enum SessionState {
     /// An error occurred, and the session is awaiting being resumed or auto deletion.
     TimedOut = 3i8,
 }
-
-partial_bucket_upload_session!(
-    UpdateBucketUploadSessionState,
-    app_id,
-    bucket,
-    id,
-    last_access,
-    state
-);
-partial_bucket_upload_session!(UpdateBucketUploadSession, app_id, bucket, id, last_access);
 
 impl Default for BucketUploadSession {
     fn default() -> Self {
