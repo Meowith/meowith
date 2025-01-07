@@ -9,12 +9,13 @@ use uuid::Uuid;
 
 use data::access::file_access::{
     delete_upload_session_by, get_upload_session, get_upload_sessions, insert_upload_session,
-    try_update_upload_session_state, update_upload_session_last_access_and_state,
+    try_update_upload_session,
 };
 use data::model::file_model::{BucketUploadSession, SessionState};
 
 use crate::AppState;
 use commons::error::std_response::{NodeClientError, NodeClientResponse};
+use data::error::MeowithDataError;
 
 pub const DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS: usize = 3600;
 
@@ -56,20 +57,9 @@ impl DurableTransferSessionManager {
 
     pub async fn update_session(
         &self,
-        app_id: Uuid,
-        bucket_id: Uuid,
-        id: Uuid,
-        state: SessionState,
+        session: &mut BucketUploadSession,
     ) -> NodeClientResponse<()> {
-        let _ = update_upload_session_last_access_and_state(
-            app_id,
-            bucket_id,
-            id,
-            Utc::now(),
-            state,
-            &obtain_session(&self.session).await.session,
-        )
-        .await?;
+        try_update_upload_session(session, &obtain_session(&self.session).await.session).await?;
         Ok(())
     }
 
@@ -97,18 +87,14 @@ impl DurableTransferSessionManager {
         expected: SessionState,
         target: SessionState,
     ) -> NodeClientResponse<()> {
-        if session.state != <SessionState as Into<i8>>::into(expected) {
+        let target_i8: i8 = target.into();
+        let expected_i8: i8 = expected.into();
+        if session.state != expected_i8 {
             return Err(NodeClientError::BadRequest);
         }
 
-        let t = Utc::now();
-        try_update_upload_session_state(
-            t,
-            target,
-            session,
-            &obtain_session(&self.session).await.session,
-        )
-        .await?;
+        session.state = target_i8;
+        try_update_upload_session(session, &obtain_session(&self.session).await.session).await?;
 
         Ok(())
     }
@@ -153,7 +139,7 @@ impl DurableTransferSessionManager {
         )
         .await?;
         while let Some(session) = stream.next().await {
-            let session = session.map_err(|_| NodeClientError::NoSuchSession)?;
+            let session = session.map_err(MeowithDataError::from)?;
             if self.validate_session(&session).await {
                 total += session.size;
             }
