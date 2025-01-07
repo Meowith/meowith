@@ -74,24 +74,22 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
             .variants
             .into_iter()
             .filter_map(|variant| {
-                if let Fields::Named(_) = &variant.fields {
-                    Some(variant)
-                } else if let Fields::Unit = &variant.fields {
-                    Some(variant)
-                } else {
-                    None
+                match &variant.fields {
+                    Fields::Named(_) => Some(variant),
+                    Fields::Unit => Some(variant),
+                    _ => None
                 }
             })
             .collect()
     } else {
-        panic!("MyMacro can only be derived for enums");
+        panic!("Protocol trait can only be derived for enums");
     };
 
     let parser_name = format!("{}{}", name, "Parser");
     let parser_name = Ident::new(&parser_name, name.span());
 
-    let builder_name = format!("{}{}", name, "Builder");
-    let builder_name = Ident::new(&builder_name, name.span());
+    let serializer_name = format!("{}{}", name, "Serializer");
+    let serializer_name = Ident::new(&serializer_name, name.span());
 
     let handler_name = format!("{}{}", name, "Handler");
     let handler_name = Ident::new(&handler_name, name.span());
@@ -100,7 +98,7 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
     // Protocol trait
     // TODO errors
 
-    let builder_arms = variants.clone().into_iter().map(|variant| {
+    let serializer_arms = variants.clone().into_iter().map(|variant| {
         let variant_name = &variant.ident;
 
         match variant.fields {
@@ -170,13 +168,13 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
         }
     });
 
-    let builder = quote! {
-        struct #builder_name {};
+    let serializer = quote! {
+        struct #serializer_name {};
 
-        impl PacketBuilder<#name> for #builder_name {
+        impl PacketSerializer<#name> for #serializer_name {
             fn build_packet<T>(&self, packet: T) -> Vec<u8> {
                 match self {
-                    #(#builder_arms)*
+                    #(#serializer_arms)*
                 }
             }
         }
@@ -343,11 +341,11 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
                 handler: #handler_name,
             };
 
-            impl PacketParser<#name> for #parser_name {
-                async fn parse_packet(
+            impl PacketDispatcher<#name> for #parser_name {
+                async fn dispatch_packet(
                     &self,
                     stream: &mut ReadHalf<TlsStream<TcpStream>>,
-                ) -> Result<T, PacketParseError> {
+                ) -> Result<(), PacketParseError> {
                     let header = [0u8; 5];
                     stream.read_exact(&mut header)?;
 
@@ -369,7 +367,7 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
 
         #u8_conversion
 
-        #builder
+        #serializer
 
         #parser
     };

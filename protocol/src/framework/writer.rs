@@ -1,5 +1,5 @@
 use crate::framework::error::PacketBuildError;
-use crate::framework::packet::parser::{Packet, PacketBuilder};
+use crate::framework::parser::{Packet, PacketSerializer};
 use std::sync::Arc;
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
@@ -10,13 +10,13 @@ use tokio_rustls::TlsStream;
 pub(crate) struct PacketWriter<T: Packet + 'static + Send> {
     pub(crate) stream: WriteHalf<TlsStream<TcpStream>>,
     last_write: Instant,
-    builder: Arc<dyn PacketBuilder<T>>,
+    builder: Arc<dyn PacketSerializer<T>>,
 }
 
 impl<T: Packet + 'static + Send> PacketWriter<T> {
     pub(crate) fn new(
         stream: WriteHalf<TlsStream<TcpStream>>,
-        builder: Arc<dyn PacketBuilder<T>>,
+        builder: Arc<dyn PacketSerializer<T>>,
     ) -> Self {
         PacketWriter {
             stream,
@@ -33,7 +33,7 @@ impl<T: Packet + 'static + Send> PacketWriter<T> {
     }
 
     pub(crate) async fn write_packet(&mut self, packet: T) -> Result<(), PacketBuildError> {
-        let packet = self.builder.build_packet(packet)?;
+        let packet = self.builder.serialize_packet(packet)?;
 
         self.write(packet.as_slice())
             .await

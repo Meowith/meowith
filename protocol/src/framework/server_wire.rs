@@ -1,7 +1,7 @@
 use crate::framework::auth::ProtocolAuthenticator;
 use crate::framework::connection::ProtocolConnection;
 use crate::framework::error::ProtocolError;
-use crate::framework::packet::parser::{Packet, PacketBuilder, PacketParser};
+use crate::framework::parser::{Packet, PacketSerializer, PacketDispatcher};
 use crate::framework::server::Protocol;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -14,8 +14,8 @@ use tokio_rustls::TlsStream;
 #[derive(Clone)]
 pub struct ProtocolBehaviour<T: Packet + 'static + Send, A: Send + 'static> {
     pub protocol_handler: Arc<dyn Protocol<T>>,
-    pub packet_parser: Arc<dyn PacketParser<T>>,
-    pub packet_builder: Arc<dyn PacketBuilder<T>>,
+    pub packet_parser: Arc<dyn PacketDispatcher<T>>,
+    pub packet_builder: Arc<dyn PacketSerializer<T>>,
     pub authenticator: Arc<dyn ProtocolAuthenticator<A>>,
 }
 

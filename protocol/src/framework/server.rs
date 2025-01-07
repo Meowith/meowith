@@ -17,7 +17,7 @@ use tokio_rustls::{rustls, TlsAcceptor};
 use crate::framework::auth::ProtocolAuthenticator;
 use crate::framework::connection::ProtocolConnection;
 use crate::framework::error::ProtocolError;
-use crate::framework::packet::parser::{Packet, PacketBuilder, PacketParser};
+use crate::framework::parser::{Packet, PacketSerializer, PacketDispatcher};
 use crate::framework::server_wire::{handle_incoming_connection, ProtocolBehaviour};
 
 /// Trait that defines a protocol that the server can handle
@@ -43,9 +43,9 @@ pub struct InternalProtocolServer<T: Packet + 'static + Send, A: 'static + Send>
     connections: Arc<Mutex<Vec<ProtocolConnection<T>>>>,
     shutdown_sender: Arc<Mutex<Option<Sender<()>>>>,
     protocol_handler: Arc<dyn Protocol<T>>,
-    packet_parser: Arc<dyn PacketParser<T>>,
+    packet_parser: Arc<dyn PacketDispatcher<T>>,
     protocol_authenticator: Arc<dyn ProtocolAuthenticator<A>>,
-    packet_builder: Arc<dyn PacketBuilder<T>>,
+    packet_builder: Arc<dyn PacketSerializer<T>>,
 }
 
 impl<T: Packet + 'static + Send, A: 'static + Send> ProtocolServer<T, A> {
@@ -84,8 +84,8 @@ impl<T: Packet + 'static + Send, A: 'static + Send> InternalProtocolServer<T, A>
     pub fn new(
         protocol_handler: Arc<dyn Protocol<T>>,
         protocol_authenticator: Arc<dyn ProtocolAuthenticator<A>>,
-        packet_parser: Arc<dyn PacketParser<T>>,
-        packet_builder: Arc<dyn PacketBuilder<T>>,
+        packet_parser: Arc<dyn PacketDispatcher<T>>,
+        packet_builder: Arc<dyn PacketSerializer<T>>,
     ) -> Self {
         InternalProtocolServer {
             running: Arc::new(AtomicBool::new(false)),

@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use crate::framework::packet::parser::{Packet, PacketParser};
+use crate::framework::parser::{Packet, PacketDispatcher};
 use tokio::io::ReadHalf;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
@@ -26,7 +26,7 @@ pub enum PacketParseError {
 pub(crate) struct PacketReader<T: Packet + 'static + Send> {
     stream: Arc<Mutex<ReadHalf<TlsStream<TcpStream>>>>,
     running: Arc<AtomicBool>,
-    parser: Arc<dyn PacketParser<T>>,
+    parser: Arc<dyn PacketDispatcher<T>>,
     last_read: Arc<Mutex<Instant>>,
 }
 
@@ -34,7 +34,7 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
     /// Creates a new PacketReader with an abstracted packet parser
     pub(crate) fn new(
         stream: ReadHalf<TlsStream<TcpStream>>,
-        parser: Arc<dyn PacketParser<T>>,
+        parser: Arc<dyn PacketDispatcher<T>>,
     ) -> Self {
         PacketReader {
             stream: Arc::new(Mutex::new(stream)),
@@ -56,7 +56,7 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
         tokio::spawn(async move {
             let mut stream = stream.lock().await;
             while running.load(Ordering::Relaxed) {
-                match parser.parse_packet(&mut stream).await {
+                match parser.dispatch_packet(&mut stream).await {
                     Ok(_) => {
                         *last_read.lock().await = Instant::now();
                     }

@@ -1,5 +1,5 @@
 use crate::catche::error::CatcheError;
-use crate::framework::packet::parser::{Packet, PacketBuilder, PacketParser};
+use crate::framework::parser::{Packet, PacketSerializer, PacketDispatcher};
 use crate::framework::reader::PacketReader;
 use crate::framework::writer::PacketWriter;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -19,8 +19,8 @@ pub struct ProtocolConnection<T: Packet + 'static + Send> {
 impl<T: Packet + 'static + Send> ProtocolConnection<T> {
     pub async fn new(
         conn: TlsStream<TcpStream>,
-        packet_parser: Arc<dyn PacketParser<T>>,
-        packet_builder: Arc<dyn PacketBuilder<T>>,
+        packet_parser: Arc<dyn PacketDispatcher<T>>,
+        packet_builder: Arc<dyn PacketSerializer<T>>,
     ) -> Result<Self, CatcheError> {
         let split = tokio::io::split(conn);
 
