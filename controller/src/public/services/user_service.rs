@@ -29,8 +29,7 @@ pub async fn do_update_role(
     session: &CachingSession,
 ) -> NodeClientResponse<EmptyResponse> {
     update_user_role(user_id, role, session)
-        .await
-        .map_err(MeowithDataError::from)?;
+        .await?;
 
     Ok(EmptyResponse)
 }
@@ -41,8 +40,7 @@ pub async fn do_update_quota(
     session: &CachingSession,
 ) -> NodeClientResponse<EmptyResponse> {
     update_user_quota(user_id, quota, session)
-        .await
-        .map_err(MeowithDataError::from)?;
+        .await?;
 
     Ok(EmptyResponse)
 }

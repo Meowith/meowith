@@ -21,4 +21,6 @@ pub trait PacketSerializer<T: Packet>: Send + Debug + Sync + 'static {
     fn serialize_packet(&self, packet: T) -> Result<Vec<u8>, PacketBuildError>;
 }
 
-pub trait Packet: Debug {}
+pub trait Packet: Debug {
+    fn validate_length(&self, len: u32) -> bool;
+}

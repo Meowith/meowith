@@ -1,5 +1,5 @@
 use crate::framework::error::PacketBuildError;
-use crate::framework::parser::{Packet, PacketSerializer};
+use crate::framework::traits::{Packet, PacketSerializer};
 use std::sync::Arc;
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
@@ -10,17 +10,17 @@ use tokio_rustls::TlsStream;
 pub(crate) struct PacketWriter<T: Packet + 'static + Send> {
     pub(crate) stream: WriteHalf<TlsStream<TcpStream>>,
     last_write: Instant,
-    builder: Arc<dyn PacketSerializer<T>>,
+    serializer: Arc<dyn PacketSerializer<T>>,
 }
 
 impl<T: Packet + 'static + Send> PacketWriter<T> {
     pub(crate) fn new(
         stream: WriteHalf<TlsStream<TcpStream>>,
-        builder: Arc<dyn PacketSerializer<T>>,
+        serializer: Arc<dyn PacketSerializer<T>>,
     ) -> Self {
         PacketWriter {
             stream,
-            builder,
+            serializer,
             last_write: Instant::now(),
         }
     }
@@ -33,7 +33,7 @@ impl<T: Packet + 'static + Send> PacketWriter<T> {
     }
 
     pub(crate) async fn write_packet(&mut self, packet: T) -> Result<(), PacketBuildError> {
-        let packet = self.builder.serialize_packet(packet)?;
+        let packet = self.serializer.serialize_packet(packet)?;
 
         self.write(packet.as_slice())
             .await
@@ -47,5 +47,9 @@ impl<T: Packet + 'static + Send> PacketWriter<T> {
         self.last_write
     }
 
-    pub(crate) fn close(&mut self) {}
+    pub(crate) async fn close(&mut self) -> std::io::Result<()> {
+        self.stream.shutdown().await?;
+
+        Ok(())
+    }
 }

@@ -1,6 +1,8 @@
 use std::io;
 use std::io::Error;
 
+pub type ProtocolResult<T> = Result<T, ProtocolError>;
+
 /// Errors that can occur in the protocol
 #[derive(Debug)]
 pub enum ProtocolError {

@@ -28,13 +28,13 @@ use openssl::ssl::SslAcceptorBuilder;
 use peer::peer_utils::fetch_peer_storage_info;
 use protocol::catche::catche_client::CatcheClient;
 use protocol::mdsftp::server::MDSFTPServer;
+use protocol_macro::Protocol;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::{AbortHandle, JoinHandle};
 use uuid::Uuid;
-use protocol_macro::Protocol;
 
 pub mod caching;
 pub mod config;
@@ -77,12 +77,13 @@ pub struct AppState {
 
 // Note: test enum, remove before git squash
 #[derive(Protocol)]
-enum Packet {
+enum MyPacket {
     A { a: i32, b: u32 },
     B { g: u32, c: Uuid },
     C,
     D { bytes: Vec<u8> },
     E { bytes: Vec<u8>, other: u32 },
+    F { data: u16, str: String, datum: i32 },
 }
 
 impl AppState {

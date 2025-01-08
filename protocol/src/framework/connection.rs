@@ -1,31 +1,36 @@
 use crate::catche::error::CatcheError;
-use crate::framework::parser::{Packet, PacketSerializer, PacketDispatcher};
+use crate::framework::error::{ProtocolError, ProtocolResult};
 use crate::framework::reader::PacketReader;
+use crate::framework::traits::{Packet, PacketDispatcher, PacketSerializer};
 use crate::framework::writer::PacketWriter;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::net::TcpStream;
+use tokio::sync::Mutex;
 use tokio_rustls::TlsStream;
 
 /// Represents a single connection
 
+#[derive(Clone)]
+pub struct ProtocolConnection<T: Packet + 'static + Send>(Arc<InternalProtocolConnection<T>>);
+
 #[derive(Debug)]
-pub struct ProtocolConnection<T: Packet + 'static + Send> {
+struct InternalProtocolConnection<T: Packet + 'static + Send> {
     writer: Arc<Mutex<PacketWriter<T>>>,
-    reader: Arc<PacketReader<T>>,
+    reader: PacketReader<T>,
     is_closing: AtomicBool,
 }
 
-impl<T: Packet + 'static + Send> ProtocolConnection<T> {
+impl<T: Packet + 'static + Send> InternalProtocolConnection<T> {
     pub async fn new(
         conn: TlsStream<TcpStream>,
-        packet_parser: Arc<dyn PacketDispatcher<T>>,
-        packet_builder: Arc<dyn PacketSerializer<T>>,
+        dispatcher: Arc<dyn PacketDispatcher<T>>,
+        serializer: Arc<dyn PacketSerializer<T>>,
     ) -> Result<Self, CatcheError> {
         let split = tokio::io::split(conn);
 
-        let writer = Arc::new(Mutex::new(PacketWriter::new(split.1, packet_builder)));
-        let reader = Arc::new(PacketReader::new(split.0, packet_parser));
+        let writer = Arc::new(Mutex::new(PacketWriter::new(split.1, serializer)));
+        let reader = PacketReader::new(split.0, dispatcher);
 
         reader.start();
 
@@ -36,9 +41,31 @@ impl<T: Packet + 'static + Send> ProtocolConnection<T> {
         })
     }
 
-    pub async fn shutdown(&self) {
+    pub fn obtain_writer(&self) -> Arc<Mutex<PacketWriter<T>>> {
+        Arc::clone(&self.writer)
+    }
+
+    pub async fn shutdown(&self) -> ProtocolResult<()> {
         self.is_closing.store(true, Ordering::SeqCst);
-        self.writer.lock().unwrap().close();
         self.reader.close();
+        self.writer
+            .lock()
+            .await
+            .close()
+            .await
+            .map_err(|_| ProtocolError::ShuttingDown)?;
+
+        Ok(())
+    }
+}
+
+impl<T: Packet + 'static + Send> Drop for ProtocolConnection<T> {
+    fn drop(&mut self) {
+        let internal = self.0.clone();
+        tokio::spawn(async move {
+            if let Err(e) = internal.shutdown().await {
+                log::error!("Error while shutting down protocol connection {:?}", e);
+            }
+        });
     }
 }

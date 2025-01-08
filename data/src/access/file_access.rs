@@ -3,14 +3,14 @@ use charybdis::batch::ModelBatch;
 use charybdis::errors::CharybdisError;
 use charybdis::operations::{Delete, Find, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
-use charybdis::types::Timestamp;
+use charybdis::types::{BigInt, Timestamp};
 use chrono::Utc;
 use futures::stream::Skip;
 use futures::stream::Take;
 use futures::{try_join, Stream, StreamExt, TryFutureExt};
 use log::{error, trace};
 use scylla::query::Query;
-use scylla::{CachingSession, IntoTypedRows, QueryResult};
+use scylla::{CachingSession, QueryResult};
 use std::collections::VecDeque;
 use uuid::Uuid;
 
@@ -306,8 +306,7 @@ pub async fn get_file_dir(
     session: &CachingSession,
 ) -> Result<FileDir, MeowithDataError> {
     let directory = get_directory(bucket_id, directory, session)
-        .await
-        .map_err(MeowithDataError::from)?;
+        .await?;
     let id: Uuid;
     if let Some(directory) = &directory {
         id = directory.id;
@@ -328,8 +327,7 @@ pub async fn maybe_get_file_dir(
     session: &CachingSession,
 ) -> Result<MaybeFileDir, MeowithDataError> {
     let directory = get_directory(bucket_id, directory, session)
-        .await
-        .map_err(MeowithDataError::from)?;
+        .await?;
     let id: Uuid;
     if let Some(directory) = &directory {
         id = directory.id;
@@ -491,18 +489,17 @@ pub async fn update_bucket_space(
                     bucket.space_taken,
                 ),
             )
-            .await?;
+            .await?
+            .into_rows_result()?;
+        let mut rows = result.rows()?;
 
-        if let Some(rows) = result.rows {
-            if let Some(row) = rows.into_typed::<(bool, i64, i64)>().next() {
-                let (applied, file_count, space_taken) =
-                    row.map_err(|_| MeowithDataError::UnknownFailure)?;
-                if applied {
-                    return Ok(());
-                } else {
-                    bucket.space_taken = space_taken;
-                    bucket.file_count = file_count;
-                }
+        if let Some(row) = rows.next() {
+            let (applied, file_count, space_taken): (bool, BigInt, BigInt) = row?;
+            if applied {
+                return Ok(());
+            } else {
+                bucket.space_taken = space_taken;
+                bucket.file_count = file_count;
             }
         }
     }
@@ -607,8 +604,8 @@ pub async fn try_update_upload_session(
 ) -> Result<(), MeowithDataError> {
     // We are updating all fields to ensure their ttl is consistent
     let update_query = concat!(
-        update_bucket_upload_session_query!("file_id = ?, path = ?, size = ?, durable = ?, fragments = ?, last_access = ?, state = ?"),
-        " IF last_access = ?",
+    update_bucket_upload_session_query!("file_id = ?, path = ?, size = ?, durable = ?, fragments = ?, last_access = ?, state = ?"),
+    " IF last_access = ?",
     );
 
     let query = Query::new(update_query);
@@ -631,20 +628,20 @@ pub async fn try_update_upload_session(
                 last_access,
             ),
         )
-        .await?;
+        .await?
+        .into_rows_result()?;
     trace!("try_update_upload_session {:?}", result);
+    let mut rows = result.rows()?;
 
-    if let Some(rows) = result.rows {
-        if let Some(row) = rows.into_typed::<(bool, Timestamp)>().next() {
-            let (applied, db_last_access) = row.map_err(MeowithDataError::FromRowError)?;
-            trace!("res {applied} {db_last_access} {upload_session:?}");
-            return if applied {
-                Ok(())
-            } else {
-                upload_session.last_access = db_last_access;
-                Err(MeowithDataError::LockingError)
-            };
-        }
+    if let Some(row) = rows.next() {
+        let (applied, db_last_access): (bool, Timestamp) = row?;
+        trace!("res {applied} {db_last_access} {upload_session:?}");
+        return if applied {
+            Ok(())
+        } else {
+            upload_session.last_access = db_last_access;
+            Err(MeowithDataError::LockingError)
+        };
     }
 
     trace!("No result rows for try_update_upload_session");
