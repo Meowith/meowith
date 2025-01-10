@@ -1,6 +1,6 @@
 use crate::utils::extract_type_name;
 use proc_macro2::{Ident, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{Fields, Type, Variant};
 
 pub fn generate_validator(name: Ident, variants: Vec<Variant>) -> TokenStream {
@@ -62,11 +62,11 @@ pub fn generate_validator(name: Ident, variants: Vec<Variant>) -> TokenStream {
                                         packet_size += 4;
                                     }
                                 }
-                                _ => panic!("Unsupported datatype {:?} {:?}", type_name, type_path),
+                                _ => panic!("Unsupported datatype {:?} {:?}", type_name, type_path.path.get_ident().unwrap().to_string()),
                             };
                             arg_order += 1;
                         }
-                        _ => panic!("Bad type {:?}", &field.ty),
+                        _ => panic!("Bad type {:?}", &field.ty.to_token_stream().to_string()),
                     });
 
                 if is_var {

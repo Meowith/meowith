@@ -32,7 +32,7 @@ use data::database_session::{build_session, CACHE_SIZE};
 use data::dto::config::GeneralConfiguration;
 use log::error;
 use openssl::ssl::SslAcceptorBuilder;
-use protocol::catche::catche_client::CatcheClient;
+use protocol::mgpp::client::MGPPClient;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
@@ -46,7 +46,7 @@ pub mod public;
 
 pub struct DashboardHandle {
     external_handle: ServerHandle,
-    catche_client: CatcheClient,
+    catche_client: MGPPClient,
     heart_handle: AbortHandle,
     req_ctx: Arc<MicroserviceRequestContext>,
     pub join_handle: JoinHandle<()>,
@@ -65,7 +65,7 @@ pub struct AppState {
     session: CachingSession,
     jwt_service: AccessTokenJwtService,
     authentication_jwt_service: AuthenticationJwtService,
-    catche_client: CatcheClient,
+    catche_client: MGPPClient,
     authentication: AuthenticationMethodList,
     #[allow(unused)]
     req_ctx: Arc<MicroserviceRequestContext>,

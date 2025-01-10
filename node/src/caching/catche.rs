@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use commons::context::microservice_request_context::{MicroserviceRequestContext, NodeStorageMap};
 use data::dto::config::GeneralConfiguration;
 use openssl::x509::X509;
-use protocol::catche::catche_client::CatcheClient;
-use protocol::catche::handler::CatcheHandler;
+use protocol::mgpp::client::MGPPClient;
+use protocol::mgpp::handler::CatcheHandler;
 use std::any::Any;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
@@ -54,8 +54,8 @@ pub async fn connect_catche(
     certificate: X509,
     token: String,
     nsm_data: NsmData,
-) -> Result<CatcheClient, NodeClientError> {
-    CatcheClient::connect(
+) -> Result<MGPPClient, NodeClientError> {
+    MGPPClient::connect(
         &SocketAddr::new(
             IpAddr::from_str(controller_addr).unwrap(),
             general_configuration.port_configuration.catche_server_port,

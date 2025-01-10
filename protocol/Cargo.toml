@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 commons = { path = "../commons", version = "0.1.0" }
+protocol_macro = { path = "../protocol_macro" }
 openssl = "0.10.64"
 rand = "0.8.5"
 uuid = { version = "1.9.1", features = ["v4"] }

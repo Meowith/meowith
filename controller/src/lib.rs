@@ -38,7 +38,7 @@ use log::{debug, error, info};
 use openssl::pkey::{PKey, Private};
 use openssl::ssl::SslAcceptorBuilder;
 use openssl::x509::X509;
-use protocol::catche::catche_server::CatcheServer;
+use protocol::mgpp::server::MGPPServer;
 use reqwest::Certificate;
 use scylla::CachingSession;
 use tokio::task;
@@ -64,7 +64,7 @@ pub struct AppState {
     pub ca_cert: X509,
     pub ca_private_key: PKey<Private>,
     req_ctx: ControllerRequestContext,
-    catche_server: CatcheServer,
+    catche_server: MGPPServer,
     auth_jwt_service: AuthenticationJwtService,
     auth: AuthMethodMap,
 }
@@ -72,7 +72,7 @@ pub struct AppState {
 pub struct ControllerHandle {
     internode_server_handle: ServerHandle,
     public_server_handle: ServerHandle,
-    catche_server: CatcheServer,
+    catche_server: MGPPServer,
     pub join_handle: JoinHandle<()>,
 }
 

@@ -8,7 +8,7 @@ use tokio_rustls::TlsStream;
 
 #[derive(Debug)]
 pub struct PacketWriter<T: Packet + 'static + Send> {
-    pub(crate) stream: WriteHalf<TlsStream<TcpStream>>,
+    pub stream: WriteHalf<TlsStream<TcpStream>>,
     last_write: Instant,
     serializer: Arc<dyn PacketSerializer<T>>,
 }
@@ -25,14 +25,14 @@ impl<T: Packet + 'static + Send> PacketWriter<T> {
         }
     }
 
-    async fn write(&mut self, slice: &[u8]) -> std::io::Result<()> {
+    pub async fn write(&mut self, slice: &[u8]) -> std::io::Result<()> {
         self.stream.write_all(slice).await?;
         self.last_write = Instant::now();
 
         Ok(())
     }
 
-    pub(crate) async fn write_packet(&mut self, packet: T) -> ProtocolResult<()> {
+    pub async fn write_packet(&mut self, packet: T) -> ProtocolResult<()> {
         let packet = self.serializer.serialize_packet(packet);
 
         self.write(packet.as_slice())

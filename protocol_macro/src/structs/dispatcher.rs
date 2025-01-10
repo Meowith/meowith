@@ -1,6 +1,6 @@
 use crate::utils::{extract_type_name, pascal_to_snake_case};
 use proc_macro2::{Ident, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{Fields, Type, Variant};
 
 pub fn generate_dispatcher_struct(
@@ -97,10 +97,10 @@ pub fn generate_dispatcher_struct(
                                         }
                                     }
                                 }
-                                _ => panic!("Unsupported datatype {:?} {:?}", type_name, type_path),
+                                _ => panic!("Unsupported datatype {:?} {:?}", type_name, type_path.path.get_ident().unwrap()),
                             }
                         }
-                        _ => panic!("Bad type {:?}", &field.ty),
+                        _ => panic!("Bad type {:?}", &field.ty.to_token_stream().to_string()),
                     };
                     arg_order += 1;
                     ret
@@ -118,12 +118,13 @@ pub fn generate_dispatcher_struct(
     });
     let struct_def = quote! {
       #[derive(Debug)]
-        struct #dispatcher_name {
-            handler: Box<dyn #handler_name<#name>>,
-            writer: Weak<Mutex<PacketWriter< #name >>>,
-        };
+        pub struct #dispatcher_name {
+            pub handler: Box<dyn #handler_name<#name>>,
+            pub writer: Weak<Mutex<PacketWriter< #name >>>,
+        }
     };
     let trait_impl = quote! {
+
         #[async_trait]
         impl PacketDispatcher<#name> for #dispatcher_name {
             async fn dispatch_packet(
@@ -152,13 +153,9 @@ pub fn generate_dispatcher_struct(
             }
         }
     };
-    let sync_impl = quote! {
-        unsafe impl Sync for #dispatcher_name {}
-    };
-
     quote! {
         #struct_def
-        #sync_impl
+
         #trait_impl
     }
 }

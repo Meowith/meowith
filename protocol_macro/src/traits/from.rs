@@ -1,6 +1,6 @@
 use crate::utils::extract_type_name;
 use proc_macro2::{Ident, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{Type, Variant};
 
 pub fn default_value(ty: &Type) -> TokenStream {
@@ -14,10 +14,10 @@ pub fn default_value(ty: &Type) -> TokenStream {
                 "Uuid" => quote! { Uuid::nil() },
                 "Vec<u8>" => quote! { Vec::new() },
                 "String" => quote! { String::new() },
-                _ => panic!("Unsupported datatype {:?} {:?}", type_name, type_path),
+                _ => panic!("Unsupported datatype {:?} {:?}", type_name, type_path.path.get_ident().unwrap().to_string()),
             }
         }
-        _ => panic!("Bad type {:?}", ty),
+        _ => panic!("Bad type {:?}", ty.to_token_stream().to_string()),
     }
 }
 

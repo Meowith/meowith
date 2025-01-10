@@ -26,7 +26,7 @@ pub fn generate_handler(handler_name: Ident, variants: Vec<Variant>) -> TokenStr
 
     quote! {
         #[async_trait]
-        trait #handler_name<T: Packet + 'static + Send>: Debug + Send {
+        pub trait #handler_name<T: Packet + 'static + Send>: Debug + Send + Sync {
             #(
                 #handler_methods
             )*

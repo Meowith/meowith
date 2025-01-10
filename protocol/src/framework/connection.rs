@@ -1,35 +1,43 @@
 use crate::framework::error::{ProtocolError, ProtocolResult};
 use crate::framework::reader::PacketReader;
-use crate::framework::traits::{Packet, PacketDispatcher, PacketSerializer};
+use crate::framework::traits::{Packet, PacketDispatcher};
 use crate::framework::writer::PacketWriter;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tokio::io::ReadHalf;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_rustls::TlsStream;
 
 /// Represents a single connection
 
-#[derive(Clone)]
-pub struct ProtocolConnection<T: Packet + 'static + Send>(Arc<InternalProtocolConnection<T>>);
+#[derive(Clone, Debug)]
+pub struct ProtocolConnection<T: Packet + 'static + Send>(pub Arc<InternalProtocolConnection<T>>);
+
+impl <T: Packet + 'static + Send> ProtocolConnection<T> {
+    pub fn new(
+        reader_stream: ReadHalf<TlsStream<TcpStream>>,
+        dispatcher: Arc<dyn PacketDispatcher<T>>,
+        writer: Arc<Mutex<PacketWriter<T>>>
+    ) -> Self {
+        Self(Arc::new(InternalProtocolConnection::new(reader_stream, dispatcher, writer)))
+    }
+}
 
 #[derive(Debug)]
-struct InternalProtocolConnection<T: Packet + 'static + Send> {
+pub struct InternalProtocolConnection<T: Packet + 'static + Send> {
     writer: Arc<Mutex<PacketWriter<T>>>,
     reader: PacketReader<T>,
     is_closing: AtomicBool,
 }
 
 impl<T: Packet + 'static + Send> InternalProtocolConnection<T> {
-    pub async fn new(
-        conn: TlsStream<TcpStream>,
+    fn new(
+        reader_stream: ReadHalf<TlsStream<TcpStream>>,
         dispatcher: Arc<dyn PacketDispatcher<T>>,
-        serializer: Arc<dyn PacketSerializer<T>>,
+        writer: Arc<Mutex<PacketWriter<T>>>
     ) -> Self {
-        let split = tokio::io::split(conn);
-
-        let writer = Arc::new(Mutex::new(PacketWriter::new(split.1, serializer)));
-        let reader = PacketReader::new(split.0, dispatcher);
+        let reader = PacketReader::new(reader_stream, dispatcher);
 
         reader.start();
 

@@ -1,10 +1,17 @@
-use std::any::Any;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use async_trait::async_trait;
+use crate::framework::connection::ProtocolConnection;
+use crate::framework::writer::PacketWriter;
+use crate::mdsftp::authenticator::ConnectionAuthContext;
+use crate::mdsftp::server::ZERO_UUID;
+use crate::mgpp::error::MGPPError;
+use crate::mgpp::handler::{MGPPHandlers, MGPPHandlersMapper};
+use crate::mgpp::packet::{MGPPPacket, MGPPPacketDispatcher, MGPPPacketSerializer};
+use crate::mgpp::server_handlers::MGPPServerCacheInvalidateHandler;
+use crate::mgpp::MGPPConnection;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
@@ -16,56 +23,34 @@ use tokio::sync::{broadcast, oneshot, Mutex};
 use tokio_rustls::{rustls, TlsAcceptor, TlsStream};
 use uuid::{Bytes, Uuid};
 
-use crate::catche::connection::CatcheConnection;
-use crate::catche::error::CatcheError;
-use crate::catche::handler::CatcheHandler;
-use crate::mdsftp::authenticator::ConnectionAuthContext;
-use crate::mdsftp::server::ZERO_UUID;
-
 #[derive(Clone)]
-pub struct CatcheServer {
-    _internal: Arc<InternalCatcheServer>,
+pub struct MGPPServer {
+    _internal: Arc<InternalMGPPServer>,
 }
 
-pub struct InternalCatcheServer {
+pub struct InternalMGPPServer {
     running: Arc<AtomicBool>,
-    connections: Arc<Mutex<Vec<CatcheConnection>>>,
+    connections: Arc<Mutex<Vec<MGPPConnection>>>,
     connection_auth_context: Arc<ConnectionAuthContext>,
-    shutdown_sender: Arc<Mutex<Option<Sender<()>>>>,
+    shutdown_sender: Arc<Mutex<Option<Sender<()>>>>
 }
 
-#[derive(Clone, Debug)]
-pub struct CatcheServerHandler {
-    connections: Arc<Mutex<Vec<CatcheConnection>>>,
-}
-
-#[async_trait]
-impl CatcheHandler for CatcheServerHandler {
-    async fn handle_invalidate(&mut self, cache_id: u32, cache: &[u8]) {
-        let connections = self.connections.lock().await;
-
-        for connection in &*connections {
-            let _ = connection.write_invalidate_packet(cache_id, cache).await;
-        }
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-impl CatcheServer {
-    pub async fn write_invalidate_packet(&self, cache_id: u32, cache: &[u8]) {
+impl MGPPServer {
+    pub async fn broadcast_packet(&self, packet: MGPPPacket) -> Result<(), MGPPError> {
         let connections = self._internal.connections.lock().await;
 
         for connection in &*connections {
-            let _ = connection.write_invalidate_packet(cache_id, cache).await;
+            let writer = connection.0.obtain_writer();
+            writer.lock().await.write_packet(packet.clone()).await
+                .map_err(|_| MGPPError::ConnectionError)?;
         }
+
+        Ok(())
     }
 
     pub fn new(connection_auth_context: Arc<ConnectionAuthContext>) -> Self {
-        CatcheServer {
-            _internal: Arc::new(InternalCatcheServer::new(connection_auth_context)),
+        MGPPServer {
+            _internal: Arc::new(InternalMGPPServer::new(connection_auth_context)),
         }
     }
 
@@ -78,13 +63,13 @@ impl CatcheServer {
     }
 }
 
-impl InternalCatcheServer {
+impl InternalMGPPServer {
     pub fn new(connection_auth_context: Arc<ConnectionAuthContext>) -> Self {
-        InternalCatcheServer {
+        InternalMGPPServer {
             running: Arc::new(AtomicBool::new(false)),
             shutdown_sender: Arc::new(Mutex::new(None)),
             connections: Arc::new(Mutex::new(Vec::new())),
-            connection_auth_context,
+            connection_auth_context
         }
     }
 
@@ -114,7 +99,7 @@ impl InternalCatcheServer {
             startup_tx.send(()).unwrap();
 
             while running.load(Ordering::Relaxed) {
-                let res: Result<(), CatcheError> = async {
+                let res: Result<(), MGPPError> = async {
                     let stream: TcpStream;
                     let mut rx: Receiver<()>;
                     {
@@ -124,15 +109,15 @@ impl InternalCatcheServer {
                     }
 
                     if !running.load(Ordering::Relaxed) {
-                        return Err(CatcheError::ShuttingDown);
+                        return Err(MGPPError::ShuttingDown);
                     }
 
                     tokio::select! {
                         _val = rx.recv() => {
-                            return Err(CatcheError::ShuttingDown);
+                            return Err(MGPPError::ShuttingDown);
                         }
                         val = listener.accept() => {
-                            stream = val.map_err(|_| CatcheError::ConnectionError)?.0
+                            stream = val.map_err(|_| MGPPError::ConnectionError)?.0
                         }
                     }
 
@@ -140,7 +125,7 @@ impl InternalCatcheServer {
                     let stream = acceptor
                         .accept(stream)
                         .await
-                        .map_err(|_| CatcheError::ConnectionError)?;
+                        .map_err(|_| MGPPError::ConnectionError)?;
 
                     let mut stream = TlsStream::from(stream);
 
@@ -150,8 +135,8 @@ impl InternalCatcheServer {
                         stream
                             .shutdown()
                             .await
-                            .map_err(|_| CatcheError::ConnectionError)?;
-                        return Err(CatcheError::ConnectionError);
+                            .map_err(|_| MGPPError::ConnectionError)?;
+                        return Err(MGPPError::ConnectionError);
                     }
 
                     let microservice_id =
@@ -161,26 +146,31 @@ impl InternalCatcheServer {
                         if !auth
                             .authenticate_incoming(&mut stream, microservice_id)
                             .await
-                            .map_err(|_| CatcheError::ConnectionAuthenticationError)?
+                            .map_err(|_| MGPPError::ConnectionAuthenticationError)?
                         {
                             stream
                                 .shutdown()
                                 .await
-                                .map_err(|_| CatcheError::ConnectionAuthenticationError)?;
-                            return Err(CatcheError::ConnectionAuthenticationError);
+                                .map_err(|_| MGPPError::ConnectionAuthenticationError)?;
+                            return Err(MGPPError::ConnectionAuthenticationError);
                         }
                     }
 
                     let connections_clone = connections.clone();
 
+                    let (read, write) = tokio::io::split(stream);
+                    let writer = Arc::new(Mutex::new(PacketWriter::new(write, Arc::new(MGPPPacketSerializer))));
+                    let handlers = MGPPHandlers {
+                        invalidate_cache: Box::new(MGPPServerCacheInvalidateHandler {
+                            connections: connections_clone,
+                        }),
+                    };
+
                     connections.lock().await.push(
-                        CatcheConnection::from_conn(
-                            stream,
-                            Arc::new(Mutex::new(Box::new(CatcheServerHandler {
-                                connections: connections_clone,
-                            }))),
-                        )
-                        .await?,
+                        ProtocolConnection::new(read, Arc::new(MGPPPacketDispatcher {
+                            handler: Box::new(MGPPHandlersMapper::new(handlers)),
+                            writer: Arc::downgrade(&writer),
+                        }), writer)
                     );
 
                     Ok(())
@@ -189,7 +179,7 @@ impl InternalCatcheServer {
 
                 match res {
                     Ok(_) => {}
-                    Err(CatcheError::ShuttingDown) => {
+                    Err(MGPPError::ShuttingDown) => {
                         break;
                     }
                     Err(_) => {}
@@ -211,7 +201,7 @@ impl InternalCatcheServer {
     }
 }
 
-impl Drop for InternalCatcheServer {
+impl Drop for InternalMGPPServer {
     fn drop(&mut self) {
         let running = self.running.clone();
         let sender = self.shutdown_sender.clone();

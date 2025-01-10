@@ -11,8 +11,8 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use data::dto::config::GeneralConfiguration;
-use protocol::catche::catche_client::CatcheClient;
-use protocol::catche::handler::CatcheHandler;
+use protocol::mgpp::client::MGPPClient;
+use protocol::mgpp::handler::CatcheHandler;
 
 use crate::caching::invalidator::{insert_invalidator_map, CacheInvalidator};
 use commons::error::std_response::NodeClientError;
@@ -52,8 +52,8 @@ pub async fn connect_catche(
     microservice_id: Uuid,
     certificate: X509,
     token: String,
-) -> Result<CatcheClient, NodeClientError> {
-    CatcheClient::connect(
+) -> Result<MGPPClient, NodeClientError> {
+    MGPPClient::connect(
         &SocketAddr::new(
             IpAddr::from_str(controller_addr).unwrap(),
             general_configuration.port_configuration.catche_server_port,

@@ -1,6 +1,6 @@
 use crate::utils::extract_type_name;
 use proc_macro2::{Ident, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{Fields, Type, Variant};
 
 pub fn generate_serializer_struct(
@@ -42,7 +42,7 @@ pub fn generate_serializer_struct(
                                     _ => { quote! { #field_ident } }
                                 }
                             }
-                            _ => panic!("Bad type {:?}", &field.ty),
+                            _ => panic!("Bad type {:?}", &field.ty.to_token_stream().to_string()),
                         }
                     });
 
@@ -88,12 +88,12 @@ pub fn generate_serializer_struct(
                                     }
                                 }
                             }
-                            _ => panic!("Unsupported datatype {:?} {:?}", type_name, type_path),
+                            _ => panic!("Unsupported datatype {:?} {:?}", type_name, type_path.path.get_ident().unwrap().to_string()),
                         };
                         arg_order += 1;
                         res
                     }
-                    _ => panic!("Bad type {:?}", &field.ty),
+                    _ => panic!("Bad type {:?}", &field.ty.to_token_stream().to_string()),
                 });
 
                 quote! {
@@ -104,7 +104,7 @@ pub fn generate_serializer_struct(
 
                         #(#serialize_steps)*
 
-                        let payload_length = res.len() - PROTOCOL_HEADER_SIZE;
+                        let payload_length = (res.len() - PROTOCOL_HEADER_SIZE) as u32;
                         res[1 .. 5].copy_from_slice(&payload_length.to_be_bytes());
 
                         res
@@ -115,7 +115,7 @@ pub fn generate_serializer_struct(
     });
     let struct_def = quote! {
         #[derive(Debug)]
-        struct #serializer_name;
+        pub struct #serializer_name;
     };
     let trait_impl = quote! {
         #[async_trait]

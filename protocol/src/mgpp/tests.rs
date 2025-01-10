@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod int_tests {
-    use std::any::Any;
     use std::net::{IpAddr, SocketAddr};
     use std::str::FromStr;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,31 +15,27 @@ mod int_tests {
     use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
     use logging::initialize_test_logging;
 
-    use crate::catche::catche_client::CatcheClient;
-    use crate::catche::catche_server::CatcheServer;
-    use crate::catche::handler::CatcheHandler;
-    use crate::catche::reader::CatchePacketHandler;
+    use crate::mgpp::client::MGPPClient;
+    use crate::mgpp::server::MGPPServer;
     use crate::mdsftp::authenticator::ConnectionAuthContext;
+    use crate::mgpp::handler::{InvalidateCacheHandler, MGPPHandlers};
+    use crate::mgpp::packet::MGPPPacket;
 
     const CACHE_ID: usize = 5;
     const FIRST_BYTE: u8 = 32;
 
     #[async_trait]
-    impl CatcheHandler for TestCatcheHandler {
-        async fn handle_invalidate(&mut self, cache_id: u32, cache: &[u8]) {
+    impl InvalidateCacheHandler for TestCacheHandler {
+        async fn handle_invalidate(&self, cache_id: u32, cache: &[u8]) {
             if CACHE_ID == cache_id as usize && cache[0] == FIRST_BYTE {
-                self.received.store(true, Ordering::SeqCst);
+                self.received.lock().await.store(true, Ordering::SeqCst);
             }
-        }
-
-        fn as_any(&self) -> &dyn Any {
-            self
         }
     }
 
     #[derive(Debug)]
-    struct TestCatcheHandler {
-        pub received: AtomicBool,
+    struct TestCacheHandler {
+        pub received: Arc<Mutex<AtomicBool>>,
     }
 
     #[tokio::test]
@@ -60,40 +55,40 @@ mod int_tests {
             own_id: Uuid::new_v4(),
         });
 
-        let server = CatcheServer::new(connection_auth_context.clone());
+        let server = MGPPServer::new(connection_auth_context.clone());
 
         assert!(server.start_server(7810, (cert, key)).await.is_ok());
 
         {
             let id = Uuid::new_v4();
-            let handler: CatchePacketHandler = Arc::new(Mutex::new(Box::new(TestCatcheHandler {
-                received: AtomicBool::new(false),
-            })
-                as Box<dyn CatcheHandler>));
+            let received = Arc::new(Mutex::new(AtomicBool::new(false)));
 
-            let client = CatcheClient::connect(
+            let client = MGPPClient::connect(
                 &SocketAddr::new(IpAddr::from_str("127.0.0.1").unwrap(), 7810),
                 id,
                 ca.clone(),
-                handler.clone(),
                 None,
+                MGPPHandlers::new(Box::new(TestCacheHandler {
+                    received: received.clone(),
+                }))
             )
             .await;
             assert!(client.is_ok());
-
             let client = client.unwrap();
 
             assert!(client
-                .write_invalidate_packet(5, vec![32].as_slice())
+                .write_packet(MGPPPacket::InvalidateCache {
+                    cache_id: 5,
+                    cache_key: vec![32],
+                })
                 .await
                 .is_ok());
 
             sleep(Duration::from_millis(100)).await;
 
-            let lock = handler.lock().await;
-            let handler = lock.as_any().downcast_ref::<TestCatcheHandler>().unwrap();
+            let handler = received.lock().await;
 
-            assert!(handler.received.load(Ordering::SeqCst));
+            assert!(handler.load(Ordering::SeqCst));
         }
     }
 }

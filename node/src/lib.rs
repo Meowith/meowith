@@ -26,7 +26,7 @@ use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
 use data::database_session::{build_session, CACHE_SIZE};
 use openssl::ssl::SslAcceptorBuilder;
 use peer::peer_utils::fetch_peer_storage_info;
-use protocol::catche::catche_client::CatcheClient;
+use protocol::mgpp::client::MGPPClient;
 use protocol::mdsftp::server::MDSFTPServer;
 use scylla::CachingSession;
 use std::path::Path;
@@ -48,7 +48,7 @@ pub mod test;
 pub struct NodeHandle {
     external_handle: ServerHandle,
     mdsftp_server: MDSFTPServer,
-    catche_client: CatcheClient,
+    catche_client: MGPPClient,
     heart_handle: AbortHandle,
     req_ctx: Arc<MicroserviceRequestContext>,
     pub join_handle: JoinHandle<()>,
