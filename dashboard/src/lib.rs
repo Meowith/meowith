@@ -1,5 +1,5 @@
 use crate::auth::user_middleware::UserMiddlewareRequestTransform;
-use crate::caching::catche::connect_catche;
+use mgpp::connect_mgpp;
 use crate::dashboard_config::DashboardConfig;
 use crate::init_procedure::{initializer_heart, register_node};
 use crate::public::auth::auth_routes::{get_methods, login, own_user_info, register};
@@ -43,10 +43,11 @@ pub mod caching;
 pub mod dashboard_config;
 pub mod init_procedure;
 pub mod public;
+pub mod mgpp;
 
 pub struct DashboardHandle {
     external_handle: ServerHandle,
-    catche_client: MGPPClient,
+    mgpp_client: MGPPClient,
     heart_handle: AbortHandle,
     req_ctx: Arc<MicroserviceRequestContext>,
     pub join_handle: JoinHandle<()>,
@@ -56,8 +57,8 @@ impl DashboardHandle {
     pub async fn shutdown(&self) {
         self.heart_handle.abort();
         self.external_handle.stop(true).await;
-        self.catche_client.shutdown().await;
         self.req_ctx.shutdown().await;
+        let _ = self.mgpp_client.shutdown().await;
     }
 }
 
@@ -65,7 +66,7 @@ pub struct AppState {
     session: CachingSession,
     jwt_service: AccessTokenJwtService,
     authentication_jwt_service: AuthenticationJwtService,
-    catche_client: MGPPClient,
+    mgpp_client: MGPPClient,
     authentication: AuthenticationMethodList,
     #[allow(unused)]
     req_ctx: Arc<MicroserviceRequestContext>,
@@ -81,7 +82,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
     let req_ctx = Arc::new(req_ctx);
     let req_ctx_handle = req_ctx.clone();
 
-    let catche_client = connect_catche(
+    let mgpp_client = connect_mgpp(
         config.cnc_addr.as_str(),
         global_conf.clone(),
         req_ctx.id,
@@ -89,7 +90,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
         req_ctx.security_context.access_token.clone(),
     )
     .await
-    .expect("Catche connection failed");
+    .expect("MGPP connection failed");
 
     let mut external_ssl: Option<SslAcceptorBuilder> = None;
 
@@ -122,7 +123,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
             &global_conf.access_token_configuration,
         )
         .expect("Authentication JWT Service creation failed"),
-        catche_client: catche_client.clone(),
+        mgpp_client: mgpp_client.clone(),
         authentication: Arc::new(auth),
         req_ctx,
         global_config: global_conf,
@@ -214,7 +215,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
 
     Ok(DashboardHandle {
         external_handle,
-        catche_client,
+        mgpp_client,
         req_ctx: req_ctx_handle,
         join_handle,
         heart_handle,

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::io;
 use std::io::Error;
+use commons::error::std_response::NodeClientError;
 
 pub type ProtocolResult<T> = Result<T, ProtocolError>;
 
@@ -32,6 +33,14 @@ pub enum ProtocolError {
 impl From<ProtocolError> for Error {
     fn from(value: ProtocolError) -> Self {
         Error::new(io::ErrorKind::InvalidInput, format!("{:?}", value))
+    }
+}
+
+impl From<ProtocolError> for NodeClientError {
+    fn from(value: ProtocolError) -> Self {
+        NodeClientError::ProtocolError {
+            message: value.to_string(),
+        }
     }
 }
 impl From<Box<dyn std::error::Error>> for ProtocolError {

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 #[async_trait]
-pub trait CacheInvalidator: Send + Debug {
+pub trait CacheInvalidator: Send + Sync + Debug {
     async fn invalidate(&self, cache_key: &[u8]);
 }
 

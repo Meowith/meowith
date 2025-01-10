@@ -7,8 +7,8 @@ use commons::cache::CacheId;
 use commons::context::controller_request_context::NodeHealth;
 use data::dto::controller::{PeerStorage, StorageResponse, UpdateStorageNodeProperties};
 use data::model::microservice_node_model::{MicroserviceNode, MicroserviceType};
-use log::debug;
-
+use log::{debug, error};
+use protocol::mgpp::packet::MGPPPacket;
 use crate::discovery::routes::UpdateStorageNodeResponse;
 use crate::error::node::NodeError;
 use crate::health::health_service::perform_storage_node_properties_update;
@@ -75,10 +75,12 @@ pub async fn update_storage_node_properties(
     );
 
     let cache_id: u8 = CacheId::NodeStorageMap.into();
-    state
-        .catche_server
-        .write_invalidate_packet(cache_id as u32, &[])
-        .await;
+    if let Err(e) = state
+        .mgpp_server
+        .broadcast_packet(MGPPPacket::InvalidateCache { cache_id: cache_id as u32, cache_key: vec![] })
+        .await {
+        error!("MGPP Failed to send invalidate cache during node update {:?}", e);
+    }
 
     Ok(web::Json(UpdateStorageNodeResponse {}))
 }

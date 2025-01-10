@@ -1,13 +1,13 @@
-use crate::caching::catche::NsmData;
 use crate::caching::db::ValidateNonceInvalidator;
 use crate::caching::node_storage_map::NodeStorageMapInvalidator;
 use async_trait::async_trait;
 use commons::cache::CacheId;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use crate::caching::mgpp_handler::NsmData;
 
 #[async_trait]
-pub trait CacheInvalidator: Send + Debug {
+pub trait CacheInvalidator: Send + Sync + Debug {
     async fn invalidate(&self, cache_key: &[u8]);
 }
 

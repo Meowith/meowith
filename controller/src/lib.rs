@@ -3,7 +3,7 @@ use std::io::ErrorKind;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::catche::catche::{start_server, ControllerAuthenticator};
+use crate::mgpp::mgpp::{start_server, ControllerAuthenticator};
 use crate::config::controller_config::ControllerConfig;
 use crate::discovery::routes::{
     authenticate_node, config_fetch, register_node, security_csr, validate_peer,
@@ -44,7 +44,7 @@ use scylla::CachingSession;
 use tokio::task;
 use tokio::task::JoinHandle;
 
-pub mod catche;
+pub mod mgpp;
 pub mod config;
 pub mod discovery;
 pub mod error;
@@ -64,7 +64,7 @@ pub struct AppState {
     pub ca_cert: X509,
     pub ca_private_key: PKey<Private>,
     req_ctx: ControllerRequestContext,
-    catche_server: MGPPServer,
+    mgpp_server: MGPPServer,
     auth_jwt_service: AuthenticationJwtService,
     auth: AuthMethodMap,
 }
@@ -72,7 +72,7 @@ pub struct AppState {
 pub struct ControllerHandle {
     internode_server_handle: ServerHandle,
     public_server_handle: ServerHandle,
-    catche_server: MGPPServer,
+    mgpp_server: MGPPServer,
     pub join_handle: JoinHandle<()>,
 }
 
@@ -80,7 +80,7 @@ impl ControllerHandle {
     pub async fn shutdown(&self) {
         self.public_server_handle.stop(true).await;
         self.internode_server_handle.stop(true).await;
-        self.catche_server.shutdown().await;
+        self.mgpp_server.shutdown().await;
     }
 }
 
@@ -170,12 +170,12 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
     );
     let internal_certs = create_internal_certs((ca_cert.clone(), ca_private_key.clone()), &clonfig);
 
-    let catche = start_server(
+    let mgpp_server = start_server(
         config
             .clone()
             .general_configuration
             .port_configuration
-            .catche_server_port,
+            .mgpp_server_port,
         ca_cert.clone(),
         ControllerAuthenticator {
             req_ctx: Arc::new(req_ctx.clone()),
@@ -189,7 +189,7 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
         ca_cert: ca_cert.clone(),
         ca_private_key: ca_private_key.clone(),
         req_ctx: req_ctx.clone(),
-        catche_server: catche.clone(),
+        mgpp_server: mgpp_server.clone(),
         auth_jwt_service: AuthenticationJwtService::new(
             &config.general_configuration.access_token_configuration,
         )
@@ -312,7 +312,7 @@ pub async fn start_controller(config: ControllerConfig) -> std::io::Result<Contr
     Ok(ControllerHandle {
         internode_server_handle,
         public_server_handle,
-        catche_server: catche,
+        mgpp_server,
         join_handle,
     })
 }

@@ -26,8 +26,8 @@ pub async fn start_server(
         port,
         own_id: Uuid::new_v4(),
     }));
-    log_err("Catche start", server.start_server(port, cert).await);
-    info!("Catche started");
+    log_err("MGPP start", server.start_server(port, cert).await);
+    info!("MGPP started");
     server
 }
 

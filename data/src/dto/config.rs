@@ -14,7 +14,7 @@ pub struct GeneralConfiguration {
 pub struct PortConfiguration {
     pub internal_server_port: u16,
     pub mdsftp_server_port: u16,
-    pub catche_server_port: u16,
+    pub mgpp_server_port: u16,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -49,7 +49,7 @@ impl PortConfiguration {
         PortConfiguration {
             internal_server_port: 21100,
             mdsftp_server_port: 21101,
-            catche_server_port: 21102,
+            mgpp_server_port: 21102,
         }
     }
 }

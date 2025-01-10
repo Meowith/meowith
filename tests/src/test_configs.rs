@@ -32,7 +32,7 @@ lazy_static! {
             port_configuration: PortConfiguration {
                 internal_server_port: 2137,
                 mdsftp_server_port: 2139,
-                catche_server_port: 2140,
+                mgpp_server_port: 2140,
             },
             access_token_configuration: AccessTokenConfiguration {
                 token_validity: 1000u64,

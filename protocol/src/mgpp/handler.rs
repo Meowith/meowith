@@ -7,7 +7,7 @@ use crate::framework::writer::PacketWriter;
 use crate::mgpp::packet::{MGPPPacket, MGPPPacketHandler};
 
 #[async_trait]
-pub trait InvalidateCacheHandler: Send + Debug {
+pub trait InvalidateCacheHandler: Send + Sync + Debug {
     async fn handle_invalidate(&self, cache_id: u32, cache_key: &[u8]);
 }
 

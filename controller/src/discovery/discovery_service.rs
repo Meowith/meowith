@@ -4,7 +4,7 @@ use actix_web::{web, HttpRequest};
 use chrono::prelude::*;
 use commons::autoconfigure::addr_header::deserialize_header;
 use futures_util::TryFutureExt;
-use log::{info, warn};
+use log::{error, info, warn};
 use openssl::x509::X509Req;
 use scylla::CachingSession;
 use std::net::IpAddr;
@@ -24,7 +24,7 @@ use data::dto::controller::{
 };
 use data::error::MeowithDataError;
 use data::model::microservice_node_model::MicroserviceNode;
-
+use protocol::mgpp::packet::MGPPPacket;
 use crate::error::node::NodeError;
 use crate::token_service::{generate_access_token, generate_renewal_token};
 use crate::AppState;
@@ -116,10 +116,15 @@ pub async fn perform_token_creation(
         node_tk_map.insert(access_token.clone(), node.clone());
 
         let cache_id: u8 = CacheId::NodeStorageMap.into();
-        state
-            .catche_server
-            .write_invalidate_packet(cache_id as u32, &[])
-            .await;
+        if let Err(e) = state
+            .mgpp_server
+            .broadcast_packet(MGPPPacket::InvalidateCache {
+                cache_id: cache_id as u32,
+                cache_key: vec![],
+            })
+            .await {
+            error!("MGPP Failed to broadcast packet during token creation {e}");
+        }
 
         Ok(AuthenticationResponse {
             access_token,

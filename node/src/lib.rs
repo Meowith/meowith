@@ -2,7 +2,7 @@ use crate::config::node_config::NodeConfigInstance;
 use crate::init_procedure::{initialize_heart, initialize_io, register_node};
 use std::collections::HashMap;
 
-use crate::caching::catche::connect_catche;
+use mgpp::connect_mgpp;
 use crate::io::fragment_ledger::FragmentLedger;
 use crate::public::middleware::user_middleware::UserAuthenticate;
 use crate::public::routes::entity_action::{
@@ -43,12 +43,12 @@ pub mod io;
 pub mod locking;
 pub mod peer;
 pub mod public;
-pub mod test;
+pub mod mgpp;
 
 pub struct NodeHandle {
     external_handle: ServerHandle,
     mdsftp_server: MDSFTPServer,
-    catche_client: MGPPClient,
+    mgpp_client: MGPPClient,
     heart_handle: AbortHandle,
     req_ctx: Arc<MicroserviceRequestContext>,
     pub join_handle: JoinHandle<()>,
@@ -58,7 +58,7 @@ impl NodeHandle {
     pub async fn shutdown(&self) {
         self.heart_handle.abort();
         self.external_handle.stop(true).await;
-        self.catche_client.shutdown().await;
+        let _ = self.mgpp_client.shutdown().await;
         self.mdsftp_server.shutdown().await;
         self.req_ctx.shutdown().await;
     }
@@ -165,7 +165,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         .await
         .expect("Update storage failed");
 
-    let catche_client = connect_catche(
+    let mgpp_client = connect_mgpp(
         config.cnc_addr.as_str(),
         global_conf.clone(),
         req_ctx.id,
@@ -174,7 +174,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         (node_storage_map.clone(), req_ctx.clone()),
     )
     .await
-    .expect("Catche connection failed");
+    .expect("MGPP connection failed");
     let heart_req_ctx = req_ctx.clone();
     let heart_ledger = fragment_ledger.clone();
     let pause_handle = Arc::new(Mutex::new(None));
@@ -258,7 +258,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
 
     Ok(NodeHandle {
         external_handle,
-        catche_client,
+        mgpp_client,
         mdsftp_server: mdsftp_server_clone,
         req_ctx: req_ctx_handle,
         join_handle,
