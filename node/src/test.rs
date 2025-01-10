@@ -1,5 +1,5 @@
-use uuid::Uuid;
 use protocol_macro::Protocol;
+use uuid::Uuid;
 
 // Note: test enum, remove before git squash
 #[derive(Protocol, Debug)]

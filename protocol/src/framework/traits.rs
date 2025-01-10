@@ -1,9 +1,9 @@
+use crate::framework::error::ProtocolResult;
 use async_trait::async_trait;
 use std::fmt::Debug;
 use tokio::io::ReadHalf;
 use tokio::net::TcpStream;
 use tokio_rustls::TlsStream;
-use crate::framework::error::ProtocolResult;
 
 /// Trait for parsing incoming packets from the stream
 #[async_trait]

@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use crate::framework::error::ProtocolError;
 use crate::framework::traits::{Packet, PacketDispatcher};
 use tokio::io::ReadHalf;
 use tokio::net::TcpStream;
@@ -10,7 +11,6 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use tokio_rustls::TlsStream;
-use crate::framework::error::ProtocolError;
 
 #[derive(Debug)]
 pub(crate) struct PacketReader<T: Packet + 'static + Send> {

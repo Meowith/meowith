@@ -305,8 +305,7 @@ pub async fn get_file_dir(
     name: String,
     session: &CachingSession,
 ) -> Result<FileDir, MeowithDataError> {
-    let directory = get_directory(bucket_id, directory, session)
-        .await?;
+    let directory = get_directory(bucket_id, directory, session).await?;
     let id: Uuid;
     if let Some(directory) = &directory {
         id = directory.id;
@@ -326,8 +325,7 @@ pub async fn maybe_get_file_dir(
     name: String,
     session: &CachingSession,
 ) -> Result<MaybeFileDir, MeowithDataError> {
-    let directory = get_directory(bucket_id, directory, session)
-        .await?;
+    let directory = get_directory(bucket_id, directory, session).await?;
     let id: Uuid;
     if let Some(directory) = &directory {
         id = directory.id;
