@@ -4,7 +4,7 @@ use crate::model::user_model::{
     UpdateUser, UpdateUserQuota, UpdateUserRole, User, UsersByAuth, UsersByName,
 };
 use charybdis::operations::{Find, Insert, Update};
-use scylla::transport::iterator::TypedRowIterator;
+use scylla::transport::iterator::TypedRowStream;
 use scylla::{CachingSession, QueryResult};
 use uuid::Uuid;
 
@@ -115,10 +115,11 @@ pub async fn insert_user(
 
 pub async fn get_all_users(
     session: &CachingSession,
-) -> Result<TypedRowIterator<User>, MeowithDataError> {
-    Ok(session
+) -> Result<TypedRowStream<User>, MeowithDataError> {
+    session
         .execute_iter(GET_ALL_USERS_QUERY, &[])
         .await
         .map_err(<scylla::transport::errors::QueryError as Into<MeowithDataError>>::into)?
-        .into_typed::<User>())
+        .rows_stream()
+        .map_err(<scylla::deserialize::TypeCheckError as Into<MeowithDataError>>::into)
 }

@@ -2,7 +2,6 @@ use crate::config::node_config::NodeConfigInstance;
 use crate::init_procedure::{initialize_heart, initialize_io, register_node};
 use std::collections::HashMap;
 
-use crate::caching::catche::connect_catche;
 use crate::io::fragment_ledger::FragmentLedger;
 use crate::public::middleware::user_middleware::UserAuthenticate;
 use crate::public::routes::entity_action::{
@@ -24,10 +23,11 @@ use commons::autoconfigure::general_conf::fetch_general_config;
 use commons::context::microservice_request_context::{MicroserviceRequestContext, NodeStorageMap};
 use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
 use data::database_session::{build_session, CACHE_SIZE};
+use mgpp::connect_mgpp;
 use openssl::ssl::SslAcceptorBuilder;
 use peer::peer_utils::fetch_peer_storage_info;
-use protocol::catche::catche_client::CatcheClient;
 use protocol::mdsftp::server::MDSFTPServer;
+use protocol::mgpp::client::MGPPClient;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
@@ -41,13 +41,14 @@ pub mod file_transfer;
 pub mod init_procedure;
 pub mod io;
 pub mod locking;
+pub mod mgpp;
 pub mod peer;
 pub mod public;
 
 pub struct NodeHandle {
     external_handle: ServerHandle,
     mdsftp_server: MDSFTPServer,
-    catche_client: CatcheClient,
+    mgpp_client: MGPPClient,
     heart_handle: AbortHandle,
     req_ctx: Arc<MicroserviceRequestContext>,
     pub join_handle: JoinHandle<()>,
@@ -57,7 +58,7 @@ impl NodeHandle {
     pub async fn shutdown(&self) {
         self.heart_handle.abort();
         self.external_handle.stop(true).await;
-        self.catche_client.shutdown().await;
+        let _ = self.mgpp_client.shutdown().await;
         self.mdsftp_server.shutdown().await;
         self.req_ctx.shutdown().await;
     }
@@ -164,7 +165,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         .await
         .expect("Update storage failed");
 
-    let catche_client = connect_catche(
+    let mgpp_client = connect_mgpp(
         config.cnc_addr.as_str(),
         global_conf.clone(),
         req_ctx.id,
@@ -173,7 +174,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         (node_storage_map.clone(), req_ctx.clone()),
     )
     .await
-    .expect("Catche connection failed");
+    .expect("MGPP connection failed");
     let heart_req_ctx = req_ctx.clone();
     let heart_ledger = fragment_ledger.clone();
     let pause_handle = Arc::new(Mutex::new(None));
@@ -257,7 +258,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
 
     Ok(NodeHandle {
         external_handle,
-        catche_client,
+        mgpp_client,
         mdsftp_server: mdsftp_server_clone,
         req_ctx: req_ctx_handle,
         join_handle,

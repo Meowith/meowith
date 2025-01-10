@@ -11,23 +11,23 @@ use uuid::Uuid;
 use commons::context::controller_request_context::ControllerRequestContext;
 use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
 use logging::log_err;
-use protocol::catche::catche_server::CatcheServer;
 use protocol::mdsftp::authenticator::{ConnectionAuthContext, MeowithConnectionAuthenticator};
+use protocol::mgpp::server::MGPPServer;
 
 pub async fn start_server(
     port: u16,
     root_certificate: X509,
     authenticator: ControllerAuthenticator,
     cert: (X509, PKey<Private>),
-) -> CatcheServer {
-    let server = CatcheServer::new(Arc::new(ConnectionAuthContext {
+) -> MGPPServer {
+    let server = MGPPServer::new(Arc::new(ConnectionAuthContext {
         root_certificate,
         authenticator: Some(Box::new(authenticator)),
         port,
         own_id: Uuid::new_v4(),
     }));
-    log_err("Catche start", server.start_server(port, cert).await);
-    info!("Catche started");
+    log_err("MGPP start", server.start_server(port, cert).await);
+    info!("MGPP started");
     server
 }
 

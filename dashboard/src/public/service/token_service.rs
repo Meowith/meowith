@@ -21,6 +21,7 @@ use data::error::MeowithDataError;
 use data::model::app_model::AppToken;
 use data::model::user_model::User;
 use futures_util::StreamExt;
+use protocol::mgpp::packet::MGPPPacket;
 use scylla::CachingSession;
 use uuid::Uuid;
 
@@ -134,18 +135,17 @@ pub async fn do_delete_token(
     let cache_id: u8 = CacheId::ValidateNonce.into();
 
     state
-        .catche_client
-        .write_invalidate_packet(
-            cache_id as u32,
-            serde_cbor::to_vec(&ClaimKey {
+        .mgpp_client
+        .write_packet(MGPPPacket::InvalidateCache {
+            cache_id: cache_id as u32,
+            cache_key: serde_cbor::to_vec(&ClaimKey {
                 app_id: token.app_id,
                 issuer_id: token.issuer_id,
                 name: token.name,
                 nonce: token.nonce,
             })
-            .unwrap()
-            .as_slice(),
-        )
+            .unwrap(),
+        })
         .await?;
 
     Ok(())

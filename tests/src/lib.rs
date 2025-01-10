@@ -67,9 +67,18 @@ mod tests {
             .await
             .expect("Failed to switch keyspace");
 
+        info!("Attempting to setup migrations...");
+
+        let path = env::current_dir().unwrap();
+        let path = path.parent().unwrap().join("data");
+
         let current_env = env::current_dir().expect("set env failed");
         env::set_current_dir(data_path.to_string_lossy().to_string()).expect("set env failed");
-        let migration = MigrationBuilder::new().verbose(true).build(&conn).await;
+        let migration = MigrationBuilder::new()
+            .verbose(true)
+            .project_root(path.to_str().unwrap().to_string())
+            .build(&conn)
+            .await;
 
         info!("Attempting to run migrations...");
 
