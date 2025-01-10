@@ -1,4 +1,4 @@
-use crate::framework::error::PacketBuildError;
+use crate::framework::error::{ProtocolError, ProtocolResult};
 use crate::framework::traits::{Packet, PacketSerializer};
 use std::sync::Arc;
 use tokio::io::{AsyncWriteExt, WriteHalf};
@@ -7,14 +7,14 @@ use tokio::time::Instant;
 use tokio_rustls::TlsStream;
 
 #[derive(Debug)]
-pub(crate) struct PacketWriter<T: Packet + 'static + Send> {
+pub struct PacketWriter<T: Packet + 'static + Send> {
     pub(crate) stream: WriteHalf<TlsStream<TcpStream>>,
     last_write: Instant,
     serializer: Arc<dyn PacketSerializer<T>>,
 }
 
 impl<T: Packet + 'static + Send> PacketWriter<T> {
-    pub(crate) fn new(
+    pub fn new(
         stream: WriteHalf<TlsStream<TcpStream>>,
         serializer: Arc<dyn PacketSerializer<T>>,
     ) -> Self {
@@ -32,12 +32,12 @@ impl<T: Packet + 'static + Send> PacketWriter<T> {
         Ok(())
     }
 
-    pub(crate) async fn write_packet(&mut self, packet: T) -> Result<(), PacketBuildError> {
-        let packet = self.serializer.serialize_packet(packet)?;
+    pub(crate) async fn write_packet(&mut self, packet: T) -> ProtocolResult<()> {
+        let packet = self.serializer.serialize_packet(packet);
 
         self.write(packet.as_slice())
             .await
-            .map_err(PacketBuildError::WriteError)?;
+            .map_err(ProtocolError::WriteError)?;
 
         Ok(())
     }

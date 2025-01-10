@@ -28,7 +28,6 @@ use openssl::ssl::SslAcceptorBuilder;
 use peer::peer_utils::fetch_peer_storage_info;
 use protocol::catche::catche_client::CatcheClient;
 use protocol::mdsftp::server::MDSFTPServer;
-use protocol_macro::Protocol;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
@@ -44,6 +43,7 @@ pub mod io;
 pub mod locking;
 pub mod peer;
 pub mod public;
+pub mod test;
 
 pub struct NodeHandle {
     external_handle: ServerHandle,
@@ -73,17 +73,6 @@ pub struct AppState {
     node_storage_map: NodeStorageMap,
     req_ctx: Arc<MicroserviceRequestContext>,
     pause_handle: Arc<Mutex<Option<ServerHandle>>>,
-}
-
-// Note: test enum, remove before git squash
-#[derive(Protocol)]
-enum MyPacket {
-    A { a: i32, b: u32 },
-    B { g: u32, c: Uuid },
-    C,
-    D { bytes: Vec<u8> },
-    E { bytes: Vec<u8>, other: u32 },
-    F { data: u16, str: String, datum: i32 },
 }
 
 impl AppState {

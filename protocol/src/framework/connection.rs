@@ -1,4 +1,3 @@
-use crate::catche::error::CatcheError;
 use crate::framework::error::{ProtocolError, ProtocolResult};
 use crate::framework::reader::PacketReader;
 use crate::framework::traits::{Packet, PacketDispatcher, PacketSerializer};
@@ -26,7 +25,7 @@ impl<T: Packet + 'static + Send> InternalProtocolConnection<T> {
         conn: TlsStream<TcpStream>,
         dispatcher: Arc<dyn PacketDispatcher<T>>,
         serializer: Arc<dyn PacketSerializer<T>>,
-    ) -> Result<Self, CatcheError> {
+    ) -> Self {
         let split = tokio::io::split(conn);
 
         let writer = Arc::new(Mutex::new(PacketWriter::new(split.1, serializer)));
@@ -34,11 +33,11 @@ impl<T: Packet + 'static + Send> InternalProtocolConnection<T> {
 
         reader.start();
 
-        Ok(Self {
+        Self {
             writer,
             reader,
             is_closing: AtomicBool::new(false),
-        })
+        }
     }
 
     pub fn obtain_writer(&self) -> Arc<Mutex<PacketWriter<T>>> {

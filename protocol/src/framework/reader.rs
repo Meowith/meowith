@@ -10,17 +10,7 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use tokio_rustls::TlsStream;
-
-/// Custom error type for packet parsing issues
-#[derive(Debug, thiserror::Error)]
-pub enum PacketParseError {
-    #[error("Failed to read packet from stream")]
-    ReadError(#[from] tokio::io::Error),
-    #[error("Invalid packet format")]
-    InvalidFormat,
-    #[error("Unexpected packet size")]
-    SizeMismatch,
-}
+use crate::framework::error::ProtocolError;
 
 #[derive(Debug)]
 pub(crate) struct PacketReader<T: Packet + 'static + Send> {
@@ -60,7 +50,7 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
                     Ok(_) => {
                         *last_read.lock().await = Instant::now();
                     }
-                    Err(PacketParseError::ReadError(err)) => {
+                    Err(ProtocolError::ReadError(err)) => {
                         error!("Stream read error: {}", err);
                         break;
                     }

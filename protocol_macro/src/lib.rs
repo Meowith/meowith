@@ -100,19 +100,35 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
             Fields::Unit => {
                 quote! {
                     #name::#variant_name => {
-                        let res: Vec<u8> = Vec::new();
-                        let id: u8 = #name::#variant_name.into();
+                        let mut res: Vec<u8> = Vec::new();
                         res.push(id);
-                        res.push(&[0u8; 4]);
+                        res.extend_from_slice(&[0u8; 4]);
                         res
                     }
                 }
             }
             Fields::Named(named_args) => {
-                let named = named_args.clone().named.into_iter();
+                let len_args = named_args.named.len();
+
+                // Building enum variant fields list
+                let variant_body = named_args.named.clone().into_iter()
+                    .map(|field| {
+                        let field_ident = field.ident.clone().expect("Fields must have a name");
+
+                        match &field.ty {
+                            Type::Path(type_path) => {
+                                let type_name = extract_type_name(type_path);
+                                match type_name.as_str() {
+                                    // if type is Vec<u8> we have to specify mutability
+                                    "Vec<u8>" => { quote! { mut #field_ident } }
+                                    _ => { quote! { #field_ident } }
+                                }
+                            }
+                            _ => panic!("Bad type {:?}", &field.ty),
+                        }
+                    });
 
                 let mut arg_order = 0;
-                let len_args = named_args.named.len();
                 let serialize_steps = named_args.named.into_iter().map(|field| match &field.ty {
                     Type::Path(type_path) => {
                         let field_ident = field.ident.clone().expect("Fields must have a name");
@@ -121,10 +137,10 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
                         let res = match type_name.as_str() {
                             "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16"
                             | "u32" | "u64" | "u128" | "usize" | "f32" | "f64" => {
-                                quote! { res.push(&#field_ident.to_be_bytes()); }
+                                quote! { res.extend_from_slice(&#field_ident.to_be_bytes()); }
                             }
                             "Uuid" => {
-                                quote! { res.push(#field_ident.as_bytes().as_slice()); }
+                                quote! { res.extend_from_slice(#field_ident.as_bytes().as_slice()); }
                             }
                             "Vec<u8>" => {
                                 if arg_order + 1 == len_args {
@@ -134,7 +150,7 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
                                     }
                                 } else {
                                     quote! {
-                                        res.push(&(#field_ident.len() as u32).to_be_bytes());
+                                        res.extend_from_slice(&(#field_ident.len() as u32).to_be_bytes());
                                         res.append(&mut #field_ident);
                                     }
                                 }
@@ -143,15 +159,13 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
                                 if arg_order + 1 == len_args {
                                     // if last, just dump the data
                                     quote! {
-                                        for byte in #field_ident.as_bytes() {
-                                            res.push(&byte);
-                                        }
+                                        for byte in #field_ident.as_bytes() { res.push(&byte); }
                                     }
                                 } else {
                                     quote! {
-                                        res.push(&(#field_ident.len() as u32).to_be_bytes());
+                                        res.extend_from_slice(&(#field_ident.len() as u32).to_be_bytes());
                                         for byte in #field_ident.as_bytes() {
-                                            res.push(&byte);
+                                            res.push(*byte);
                                         }
                                     }
                                 }
@@ -165,11 +179,10 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
                 });
 
                 quote! {
-                    #name::#variant_name { #(#named),* } => {
-                        let res: Vec<u8> = Vec::new();
-                        let id: u8 = #name::#variant_name.into();
+                    #name::#variant_name { #(#variant_body),* } => {
+                        let mut res: Vec<u8> = Vec::new();
                         res.push(id);
-                        res.push(&[0u8; 4]); // yet empty size field
+                        res.extend_from_slice(&[0u8; 4]); // yet empty size field
 
                         #(#serialize_steps)*
 
@@ -184,11 +197,14 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
     });
 
     let serializer = quote! {
-        struct #serializer_name {};
+        #[derive(Debug)]
+        struct #serializer_name;
 
+        #[async_trait]
         impl PacketSerializer<#name> for #serializer_name {
             fn serialize_packet(&self, packet: #name) -> Vec<u8> {
-                match self {
+                let id = u8::from(&packet);
+                match packet {
                     #(#serializer_arms)*
                 }
             }
@@ -280,7 +296,7 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
 
     let validator = quote! {
         impl Packet for #name {
-            pub fn validate_length(&self, len: u32) -> bool {
+            fn validate_length(&self, len: u32) -> bool {
                 match &self {
                     #(#validator_arms)*
                 }
@@ -297,21 +313,21 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
                     Fields::Named(named_args) => {
                         let named = named_args.named.into_iter();
                         quote! {
-                        async fn #handler_method_name(writer: Arc<Mutex<PacketWriter<T>>>, #(#named),*) -> Result<(), ProtocolError>;
-                    }
+                            async fn #handler_method_name(&self, writer: Arc<Mutex<PacketWriter<T>>>, #(#named),*) -> ProtocolResult<()>;
+                        }
                     }
                     Fields::Unnamed(_) => panic!("Unnamed fields are not supported"),
                     Fields::Unit => {
                         quote! {
-                        async fn #handler_method_name(writer: Arc<Mutex<PacketWriter<T>>>) -> Result<(), ProtocolError>;
-                    }
+                            async fn #handler_method_name(&self, writer: Arc<Mutex<PacketWriter<T>>>) -> ProtocolResult<()>;
+                        }
                     }
                 }
             });
 
         quote! {
             #[async_trait]
-            trait #handler_name<T: Packet + 'static + Send> {
+            trait #handler_name<T: Packet + 'static + Send>: Debug + Send {
                 #(
                     #handler_methods
                 )*
@@ -319,40 +335,63 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
         }
     };
 
-    let mut i = 0;
+    let mut i: u8 = 0;
     let try_from_u8_arms = variants.clone().into_iter().map(|variant| {
         let variant_name = &variant.ident;
+        let variant_fields = variant.fields.into_iter()
+            .map(|field| {
+                let field_name = field.ident.expect("Fields must have a name");
+                let default_val = match &field.ty {
+                    Type::Path(type_path) => {
+                        let type_name = extract_type_name(type_path);
 
+                        match type_name.as_str() {
+                            "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16"
+                            | "u32" | "u64" | "u128" | "usize" | "f32" | "f64" => { quote! { 0 } },
+                            "Uuid" => quote! { Uuid::nil() },
+                            "Vec<u8>" => quote! { Vec::new() },
+                            "String" => quote! { String::new() },
+                            _ => panic!("Unsupported datatype {:?} {:?}", type_name, type_path),
+                        }
+                    }
+                    _ => panic!("Bad type {:?}", &field.ty),
+                };
+                quote! {
+                    #field_name: #default_val
+                }
+            });
         i += 1;
         quote! {
-            #i => Ok(#name::#variant_name),
+            #i => Ok(#name::#variant_name {
+                  #(#variant_fields),*
+            }),
         }
     });
 
-    let mut i = 0;
+    let mut i: u8 = 0;
 
     let from_self_arms = variants.clone().into_iter().map(|variant| {
         let variant_name = &variant.ident;
 
         i += 1;
         quote! {
-            #name::#variant_name => #i,
+            #name::#variant_name { .. } => #i,
         }
     });
 
     let u8_conversion = quote! {
         impl TryFrom<u8> for #name {
-            type Error = ();
+            type Error = ProtocolError;
 
             fn try_from(value: u8) -> Result<Self, Self::Error> {
                 match value {
                     #(#try_from_u8_arms)*
-                    _ => Err(())
+                    _ => Err(ProtocolError::InvalidFormat)
                 }
             }
         }
-        impl From<Self> for u8 {
-            fn from(value: Self) -> Self {
+        impl From<&#name> for u8 {
+            fn from(value: &#name) -> u8 {
                 match value {
                     #(#from_self_arms)*
                 }
@@ -372,14 +411,13 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
                     }
                     Fields::Unit => {
                         quote! {
-                        #name::#variant_name => {
-                            self.handler.#handler_method_name(writer);
-                        },
-                    }
+                            #name::#variant_name => {
+                                self.handler.#handler_method_name(writer).await?;
+                            },
+                        }
                     }
                     Fields::Named(named_args) => {
-                        let named = named_args.clone().named.into_iter();
-                        let named2 = named.clone().map(|arg| arg.ident.unwrap());
+                        let named = named_args.clone().named.into_iter().map(|field| field.ident);
                         let mut arg_order = 0;
                         let len_args = named_args.named.len();
 
@@ -395,46 +433,60 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
                                         | "u32" | "u64" | "u128" | "usize" | "f32" | "f64" => {
                                             let primitive_name = type_path.path.get_ident().unwrap();
                                             quote! {
-                                                let size = #primitive_name::BITS / 8;
-                                                let #field_ident = #primitive_name::from_be_bytes(packet.payload[i..i+size].try_into().unwrap());
+                                                let size = (#primitive_name::BITS / 8) as usize;
+                                                let #field_ident = #primitive_name::from_be_bytes(payload[i..i+size].try_into().unwrap());
                                                 i += size;
                                             }
                                         }
                                         "Uuid" => {
                                             quote! {
                                             let size = 16;
-                                            let #field_ident = Uuid::from_slice(&packet.payload[i..i+size])?;
+                                            let #field_ident = Uuid::from_slice(&payload[i..i+size])?;
                                             i += size;
                                         }
                                         }
                                         "Vec<u8>" => {
                                             if arg_order + 1 == len_args { // is last, just dump the data
+                                                // if first and last there will be no size defined, so just dump whole payload size
+                                                let size = if arg_order == 0 {
+                                                    quote! { let size = payload.len(); }
+                                                } else {
+                                                    quote! { let size = (payload.len() - size) as usize; }
+                                                };
+
                                                 quote! {
-                                                    let size = packet.payload.len() - size;
-                                                    let #field_ident = Vec::from(&packet.payload[i..i+size]);
+                                                    #size
+                                                    let #field_ident = Vec::from(&payload[i..i+size]);
                                                 }
                                             } else {
                                                 quote! {
                                                     // Read length first
-                                                    let size = u32::from_be_bytes(packet.payload[i..i+4].try_into().unwrap());
+                                                    let size = u32::from_be_bytes(payload[i..i+4].try_into().unwrap()) as usize;
                                                     i += 4;
-                                                    let #field_ident = Vec::from(&packet.payload[i..i+size]);
+                                                    let #field_ident = Vec::from(&payload[i..i+size]);
                                                     i += size;
                                                 }
                                             }
                                         }
                                         "String" => {
                                             if arg_order + 1 == len_args {
+                                                // if first and last there will be no size defined, so just dump whole payload size
+                                                let size = if arg_order == 0 {
+                                                    quote! { let size = payload.len(); }
+                                                } else {
+                                                    quote! { let size = (payload.len() - size) as usize; }
+                                                };
+
                                                 quote! {
-                                                    let size = packet.payload.len() - size;
-                                                    let #field_ident = String::from_utf8_lossy(&packet.payload[i..i+size]).as_str().to_string();
+                                                    #size
+                                                    let #field_ident = String::from_utf8_lossy(&payload[i..i+size]).to_string();
                                                 }
                                             } else {
                                                 quote! {
                                                     // Read length first
-                                                    let size = u32::from_be_bytes(packet.payload[i..i+4].try_into().unwrap());
+                                                    let size = u32::from_be_bytes(payload[i..i+4].try_into().unwrap()) as usize;
                                                     i += 4;
-                                                    let #field_ident = String::from_utf8_lossy(&packet.payload[i..i+size]).as_str().to_string();
+                                                    let #field_ident = String::from_utf8_lossy(&payload[i..i+size]).to_string();
                                                     i += size;
                                                 }
                                             }
@@ -449,29 +501,33 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
                         });
 
                         quote! {
-                        #name::#variant_name { #(#named),* } => {
-                            let i = 0usize;
-                            #(#deserialize_steps)*
-                            self.handler.#handler_method_name(writer, #(#named2),*)?;
+                            #name::#variant_name { .. } => {
+                                let mut i = 0usize;
+                                #(#deserialize_steps)*
+                                self.handler.#handler_method_name(writer, #(#named),*).await?;
+                            }
                         }
-                    }
                     }
                 }
             });
 
         quote! {
+            #[derive(Debug)]
             struct #dispatcher_name {
-                handler: #dispatcher_name,
-                writer: Weak<Mutex<PacketWriter<T>>>,
+                handler: Box<dyn #handler_name<#name>>,
+                writer: Weak<Mutex<PacketWriter< #name >>>,
             };
 
+            unsafe impl Sync for #dispatcher_name {}
+
+            #[async_trait]
             impl PacketDispatcher<#name> for #dispatcher_name {
                 async fn dispatch_packet(
                     &self,
                     stream: &mut ReadHalf<TlsStream<TcpStream>>,
-                ) -> Result<(), ProtocolError> {
-                    let header = [0u8; 5];
-                    stream.read_exact(&mut header)?;
+                ) -> ProtocolResult<()> {
+                    let mut header = [0u8; 5];
+                    stream.read_exact(&mut header).await?;
 
                     let packet_type = #name::try_from(header[0])?;
                     let payload_length = u32::from_be_bytes(header[1..5].try_into().unwrap());
@@ -479,8 +535,8 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
                         return Err(ProtocolError::ConnectionError);
                     }
 
-                    let mut payload = vec![0u8; header.payload_size as usize];
-                    stream.read_exact(&mut payload)?;
+                    let mut payload = vec![0u8; payload_length as usize];
+                    stream.read_exact(&mut payload).await?;
 
                     if let Some(writer) = self.writer.upgrade() {
                         match packet_type {
@@ -495,6 +551,20 @@ pub fn derive_protocol(input: TokenStream) -> TokenStream {
     };
 
     let expanded = quote! {
+        use std::fmt::Debug;
+        use async_trait::async_trait;
+        use ::protocol::framework::writer::PacketWriter;
+        use ::protocol::framework::PROTOCOL_HEADER_SIZE;
+        use ::protocol::framework::error::{ProtocolResult, ProtocolError};
+        use ::protocol::framework::traits::{Packet, PacketDispatcher, PacketSerializer};
+        use std::sync::{Arc, Weak};
+        use tokio::sync::Mutex;
+        use std::io::Read;
+        use tokio::io::ReadHalf;
+        use tokio::net::TcpStream;
+        use tokio_rustls::TlsStream;
+        use tokio::io::AsyncReadExt;
+
         #validator
 
         #handler_type

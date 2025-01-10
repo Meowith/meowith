@@ -1,6 +1,8 @@
-mod auth;
-mod connection;
+pub mod auth;
+pub mod connection;
 pub mod error;
-mod reader;
+pub mod reader;
 pub mod traits;
-mod writer;
+pub mod writer;
+
+pub const PROTOCOL_HEADER_SIZE: usize = 5;
