@@ -11,8 +11,8 @@ use uuid::Uuid;
 use commons::context::controller_request_context::ControllerRequestContext;
 use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
 use logging::log_err;
-use protocol::mgpp::server::MGPPServer;
 use protocol::mdsftp::authenticator::{ConnectionAuthContext, MeowithConnectionAuthenticator};
+use protocol::mgpp::server::MGPPServer;
 
 pub async fn start_server(
     port: u16,

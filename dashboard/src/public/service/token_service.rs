@@ -21,9 +21,9 @@ use data::error::MeowithDataError;
 use data::model::app_model::AppToken;
 use data::model::user_model::User;
 use futures_util::StreamExt;
+use protocol::mgpp::packet::MGPPPacket;
 use scylla::CachingSession;
 use uuid::Uuid;
-use protocol::mgpp::packet::MGPPPacket;
 
 pub async fn do_issue_app_token(
     req: TokenIssueRequest,
@@ -144,7 +144,7 @@ pub async fn do_delete_token(
                 name: token.name,
                 nonce: token.nonce,
             })
-                .unwrap(),
+            .unwrap(),
         })
         .await?;
 

@@ -14,13 +14,17 @@ use tokio_rustls::TlsStream;
 #[derive(Clone, Debug)]
 pub struct ProtocolConnection<T: Packet + 'static + Send>(pub Arc<InternalProtocolConnection<T>>);
 
-impl <T: Packet + 'static + Send> ProtocolConnection<T> {
+impl<T: Packet + 'static + Send> ProtocolConnection<T> {
     pub fn new(
         reader_stream: ReadHalf<TlsStream<TcpStream>>,
         dispatcher: Arc<dyn PacketDispatcher<T>>,
-        writer: Arc<Mutex<PacketWriter<T>>>
+        writer: Arc<Mutex<PacketWriter<T>>>,
     ) -> Self {
-        Self(Arc::new(InternalProtocolConnection::new(reader_stream, dispatcher, writer)))
+        Self(Arc::new(InternalProtocolConnection::new(
+            reader_stream,
+            dispatcher,
+            writer,
+        )))
     }
 }
 
@@ -35,7 +39,7 @@ impl<T: Packet + 'static + Send> InternalProtocolConnection<T> {
     fn new(
         reader_stream: ReadHalf<TlsStream<TcpStream>>,
         dispatcher: Arc<dyn PacketDispatcher<T>>,
-        writer: Arc<Mutex<PacketWriter<T>>>
+        writer: Arc<Mutex<PacketWriter<T>>>,
     ) -> Self {
         let reader = PacketReader::new(reader_stream, dispatcher);
 

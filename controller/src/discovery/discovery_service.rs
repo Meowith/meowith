@@ -11,6 +11,9 @@ use std::net::IpAddr;
 use std::str::FromStr;
 use uuid::Uuid;
 
+use crate::error::node::NodeError;
+use crate::token_service::{generate_access_token, generate_renewal_token};
+use crate::AppState;
 use commons::autoconfigure::ssl_conf::SigningData;
 use commons::cache::CacheId;
 use commons::context::controller_request_context::ControllerRequestContext;
@@ -25,9 +28,6 @@ use data::dto::controller::{
 use data::error::MeowithDataError;
 use data::model::microservice_node_model::MicroserviceNode;
 use protocol::mgpp::packet::MGPPPacket;
-use crate::error::node::NodeError;
-use crate::token_service::{generate_access_token, generate_renewal_token};
-use crate::AppState;
 
 pub async fn perform_register_node(
     req: NodeRegisterRequest,
@@ -122,7 +122,8 @@ pub async fn perform_token_creation(
                 cache_id: cache_id as u32,
                 cache_key: vec![],
             })
-            .await {
+            .await
+        {
             error!("MGPP Failed to broadcast packet during token creation {e}");
         }
 

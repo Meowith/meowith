@@ -1,7 +1,7 @@
+use commons::error::std_response::NodeClientError;
 use std::fmt::Debug;
 use std::io;
 use std::io::Error;
-use commons::error::std_response::NodeClientError;
 
 pub type ProtocolResult<T> = Result<T, ProtocolError>;
 

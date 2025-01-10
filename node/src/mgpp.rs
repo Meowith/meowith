@@ -6,8 +6,8 @@ use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use uuid::Uuid;
 
-use commons::error::std_response::NodeClientError;
 use crate::caching::mgpp_handler::{CacheInvalidationHandler, NsmData};
+use commons::error::std_response::NodeClientError;
 
 pub async fn connect_mgpp(
     controller_addr: &str,
@@ -25,9 +25,7 @@ pub async fn connect_mgpp(
         microservice_id,
         certificate,
         Some(token),
-        MGPPHandlers::new(Box::new(CacheInvalidationHandler::new(
-            nsm_data,
-        ))),
+        MGPPHandlers::new(Box::new(CacheInvalidationHandler::new(nsm_data))),
     )
     .await
     .map_err(|_| NodeClientError::InternalError)

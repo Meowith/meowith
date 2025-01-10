@@ -1,13 +1,13 @@
-use std::net::{IpAddr, SocketAddr};
-use std::str::FromStr;
-use log::error;
-use openssl::x509::X509;
-use uuid::Uuid;
+use crate::caching::mgpp_handler::CacheInvalidationHandler;
 use commons::error::std_response::NodeClientError;
 use data::dto::config::GeneralConfiguration;
+use log::error;
+use openssl::x509::X509;
 use protocol::mgpp::client::MGPPClient;
 use protocol::mgpp::handler::MGPPHandlers;
-use crate::caching::mgpp_handler::CacheInvalidationHandler;
+use std::net::{IpAddr, SocketAddr};
+use std::str::FromStr;
+use uuid::Uuid;
 
 pub async fn connect_mgpp(
     controller_addr: &str,

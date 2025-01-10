@@ -2,7 +2,6 @@ use crate::config::node_config::NodeConfigInstance;
 use crate::init_procedure::{initialize_heart, initialize_io, register_node};
 use std::collections::HashMap;
 
-use mgpp::connect_mgpp;
 use crate::io::fragment_ledger::FragmentLedger;
 use crate::public::middleware::user_middleware::UserAuthenticate;
 use crate::public::routes::entity_action::{
@@ -24,10 +23,11 @@ use commons::autoconfigure::general_conf::fetch_general_config;
 use commons::context::microservice_request_context::{MicroserviceRequestContext, NodeStorageMap};
 use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
 use data::database_session::{build_session, CACHE_SIZE};
+use mgpp::connect_mgpp;
 use openssl::ssl::SslAcceptorBuilder;
 use peer::peer_utils::fetch_peer_storage_info;
-use protocol::mgpp::client::MGPPClient;
 use protocol::mdsftp::server::MDSFTPServer;
+use protocol::mgpp::client::MGPPClient;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
@@ -41,9 +41,9 @@ pub mod file_transfer;
 pub mod init_procedure;
 pub mod io;
 pub mod locking;
+pub mod mgpp;
 pub mod peer;
 pub mod public;
-pub mod mgpp;
 
 pub struct NodeHandle {
     external_handle: ServerHandle,

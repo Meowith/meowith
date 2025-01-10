@@ -1,6 +1,10 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
+use crate::discovery::routes::UpdateStorageNodeResponse;
+use crate::error::node::NodeError;
+use crate::health::health_service::perform_storage_node_properties_update;
+use crate::AppState;
 use actix_web::{get, post, web};
 use chrono::Utc;
 use commons::cache::CacheId;
@@ -9,10 +13,6 @@ use data::dto::controller::{PeerStorage, StorageResponse, UpdateStorageNodePrope
 use data::model::microservice_node_model::{MicroserviceNode, MicroserviceType};
 use log::{debug, error};
 use protocol::mgpp::packet::MGPPPacket;
-use crate::discovery::routes::UpdateStorageNodeResponse;
-use crate::error::node::NodeError;
-use crate::health::health_service::perform_storage_node_properties_update;
-use crate::AppState;
 
 #[get("/storage")]
 pub async fn fetch_free_storage(
@@ -77,9 +77,16 @@ pub async fn update_storage_node_properties(
     let cache_id: u8 = CacheId::NodeStorageMap.into();
     if let Err(e) = state
         .mgpp_server
-        .broadcast_packet(MGPPPacket::InvalidateCache { cache_id: cache_id as u32, cache_key: vec![] })
-        .await {
-        error!("MGPP Failed to send invalidate cache during node update {:?}", e);
+        .broadcast_packet(MGPPPacket::InvalidateCache {
+            cache_id: cache_id as u32,
+            cache_key: vec![],
+        })
+        .await
+    {
+        error!(
+            "MGPP Failed to send invalidate cache during node update {:?}",
+            e
+        );
     }
 
     Ok(web::Json(UpdateStorageNodeResponse {}))

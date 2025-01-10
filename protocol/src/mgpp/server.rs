@@ -32,7 +32,7 @@ pub struct InternalMGPPServer {
     running: Arc<AtomicBool>,
     connections: Arc<Mutex<Vec<MGPPConnection>>>,
     connection_auth_context: Arc<ConnectionAuthContext>,
-    shutdown_sender: Arc<Mutex<Option<Sender<()>>>>
+    shutdown_sender: Arc<Mutex<Option<Sender<()>>>>,
 }
 
 impl MGPPServer {
@@ -41,7 +41,11 @@ impl MGPPServer {
 
         for connection in &*connections {
             let writer = connection.0.obtain_writer();
-            writer.lock().await.write_packet(packet.clone()).await
+            writer
+                .lock()
+                .await
+                .write_packet(packet.clone())
+                .await
                 .map_err(|_| MGPPError::ConnectionError)?;
         }
 
@@ -69,7 +73,7 @@ impl InternalMGPPServer {
             running: Arc::new(AtomicBool::new(false)),
             shutdown_sender: Arc::new(Mutex::new(None)),
             connections: Arc::new(Mutex::new(Vec::new())),
-            connection_auth_context
+            connection_auth_context,
         }
     }
 
@@ -159,19 +163,24 @@ impl InternalMGPPServer {
                     let connections_clone = connections.clone();
 
                     let (read, write) = tokio::io::split(stream);
-                    let writer = Arc::new(Mutex::new(PacketWriter::new(write, Arc::new(MGPPPacketSerializer))));
+                    let writer = Arc::new(Mutex::new(PacketWriter::new(
+                        write,
+                        Arc::new(MGPPPacketSerializer),
+                    )));
                     let handlers = MGPPHandlers {
                         invalidate_cache: Box::new(MGPPServerCacheInvalidateHandler {
                             connections: connections_clone,
                         }),
                     };
 
-                    connections.lock().await.push(
-                        ProtocolConnection::new(read, Arc::new(MGPPPacketDispatcher {
+                    connections.lock().await.push(ProtocolConnection::new(
+                        read,
+                        Arc::new(MGPPPacketDispatcher {
                             handler: Box::new(MGPPHandlersMapper::new(handlers)),
                             writer: Arc::downgrade(&writer),
-                        }), writer)
-                    );
+                        }),
+                        writer,
+                    ));
 
                     Ok(())
                 }

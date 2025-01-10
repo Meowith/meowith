@@ -3,7 +3,6 @@ use std::io::ErrorKind;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::mgpp::mgpp::{start_server, ControllerAuthenticator};
 use crate::config::controller_config::ControllerConfig;
 use crate::discovery::routes::{
     authenticate_node, config_fetch, register_node, security_csr, validate_peer,
@@ -12,6 +11,7 @@ use crate::health::routes::{
     fetch_free_storage, microservice_heart_beat, update_storage_node_properties,
 };
 use crate::ioutils::read_file;
+use crate::mgpp::mgpp::{start_server, ControllerAuthenticator};
 use crate::middleware::node_internal::NodeVerify;
 use crate::middleware::user_middleware::UserMiddlewareRequestTransform;
 use crate::public::routes::auth::{login, own_user_info};
@@ -44,12 +44,12 @@ use scylla::CachingSession;
 use tokio::task;
 use tokio::task::JoinHandle;
 
-pub mod mgpp;
 pub mod config;
 pub mod discovery;
 pub mod error;
 pub mod health;
 pub mod ioutils;
+pub mod mgpp;
 pub mod middleware;
 pub mod public;
 pub mod setup;

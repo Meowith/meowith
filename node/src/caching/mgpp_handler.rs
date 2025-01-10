@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use crate::caching::invalidator::{insert_invalidator_map, CacheInvalidator};
 use async_trait::async_trait;
 use commons::context::microservice_request_context::{MicroserviceRequestContext, NodeStorageMap};
 use protocol::mgpp::handler::InvalidateCacheHandler;
-use crate::caching::invalidator::{insert_invalidator_map, CacheInvalidator};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 //Node storage map invalidator data type
 pub type NsmData = (NodeStorageMap, Arc<MicroserviceRequestContext>);
@@ -19,7 +19,9 @@ impl CacheInvalidationHandler {
 
         insert_invalidator_map(&mut map, nsm_data);
 
-        CacheInvalidationHandler { invalidators: Arc::new(map) }
+        CacheInvalidationHandler {
+            invalidators: Arc::new(map),
+        }
     }
 }
 

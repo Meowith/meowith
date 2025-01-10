@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use crate::caching::invalidator::{insert_invalidator_map, CacheInvalidator};
 use async_trait::async_trait;
 use protocol::mgpp::handler::InvalidateCacheHandler;
-use crate::caching::invalidator::{insert_invalidator_map, CacheInvalidator};
+use std::collections::HashMap;
 
 #[derive(Debug, Default)]
 pub struct CacheInvalidationHandler {

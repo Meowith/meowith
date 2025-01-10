@@ -1,10 +1,10 @@
+use crate::framework::error::ProtocolResult;
+use crate::framework::writer::PacketWriter;
+use crate::mgpp::packet::{MGPPPacket, MGPPPacketHandler};
 use async_trait::async_trait;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::framework::error::ProtocolResult;
-use crate::framework::writer::PacketWriter;
-use crate::mgpp::packet::{MGPPPacket, MGPPPacketHandler};
 
 #[async_trait]
 pub trait InvalidateCacheHandler: Send + Sync + Debug {
@@ -24,7 +24,7 @@ impl MGPPHandlers {
 
 #[derive(Debug)]
 pub struct MGPPHandlersMapper {
-    handlers: MGPPHandlers
+    handlers: MGPPHandlers,
 }
 
 unsafe impl Sync for MGPPHandlersMapper {}
@@ -36,8 +36,16 @@ impl MGPPHandlersMapper {
 }
 #[async_trait]
 impl MGPPPacketHandler<MGPPPacket> for MGPPHandlersMapper {
-    async fn handle_invalidate_cache(&self, _: Arc<Mutex<PacketWriter<MGPPPacket>>>, cache_id: u32, cache_key: Vec<u8>) -> ProtocolResult<()> {
-        self.handlers.invalidate_cache.handle_invalidate(cache_id, cache_key.as_slice()).await;
+    async fn handle_invalidate_cache(
+        &self,
+        _: Arc<Mutex<PacketWriter<MGPPPacket>>>,
+        cache_id: u32,
+        cache_key: Vec<u8>,
+    ) -> ProtocolResult<()> {
+        self.handlers
+            .invalidate_cache
+            .handle_invalidate(cache_id, cache_key.as_slice())
+            .await;
 
         Ok(())
     }

@@ -15,11 +15,11 @@ mod int_tests {
     use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
     use logging::initialize_test_logging;
 
-    use crate::mgpp::client::MGPPClient;
-    use crate::mgpp::server::MGPPServer;
     use crate::mdsftp::authenticator::ConnectionAuthContext;
+    use crate::mgpp::client::MGPPClient;
     use crate::mgpp::handler::{InvalidateCacheHandler, MGPPHandlers};
     use crate::mgpp::packet::MGPPPacket;
+    use crate::mgpp::server::MGPPServer;
 
     const CACHE_ID: usize = 5;
     const FIRST_BYTE: u8 = 32;
@@ -70,7 +70,7 @@ mod int_tests {
                 None,
                 MGPPHandlers::new(Box::new(TestCacheHandler {
                     received: received.clone(),
-                }))
+                })),
             )
             .await;
             assert!(client.is_ok());

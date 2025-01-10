@@ -62,7 +62,11 @@ pub fn generate_validator(name: Ident, variants: Vec<Variant>) -> TokenStream {
                                         packet_size += 4;
                                     }
                                 }
-                                _ => panic!("Unsupported datatype {:?} {:?}", type_name, type_path.path.get_ident().unwrap().to_string()),
+                                _ => panic!(
+                                    "Unsupported datatype {:?} {:?}",
+                                    type_name,
+                                    type_path.path.get_ident().unwrap().to_string()
+                                ),
                             };
                             arg_order += 1;
                         }

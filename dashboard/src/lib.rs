@@ -1,5 +1,4 @@
 use crate::auth::user_middleware::UserMiddlewareRequestTransform;
-use mgpp::connect_mgpp;
 use crate::dashboard_config::DashboardConfig;
 use crate::init_procedure::{initializer_heart, register_node};
 use crate::public::auth::auth_routes::{get_methods, login, own_user_info, register};
@@ -31,6 +30,7 @@ use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
 use data::database_session::{build_session, CACHE_SIZE};
 use data::dto::config::GeneralConfiguration;
 use log::error;
+use mgpp::connect_mgpp;
 use openssl::ssl::SslAcceptorBuilder;
 use protocol::mgpp::client::MGPPClient;
 use scylla::CachingSession;
@@ -42,8 +42,8 @@ pub mod auth;
 pub mod caching;
 pub mod dashboard_config;
 pub mod init_procedure;
-pub mod public;
 pub mod mgpp;
+pub mod public;
 
 pub struct DashboardHandle {
     external_handle: ServerHandle,
