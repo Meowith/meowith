@@ -137,7 +137,7 @@ pub fn generate_dispatcher_struct(
                 let packet_type = #name::try_from(header[0])?;
                 let payload_length = u32::from_be_bytes(header[1..5].try_into().unwrap());
                 if !packet_type.validate_length(payload_length) {
-                    return Err(ProtocolError::ConnectionError);
+                    return Err(ProtocolError::Custom(format!("Packet validation error. Expected packet length mismatch. {:?} Actual {}", packet_type, payload_length)));
                 }
 
                 let mut payload = vec![0u8; payload_length as usize];

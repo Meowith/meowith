@@ -72,7 +72,7 @@ pub fn generate_validator(name: Ident, variants: Vec<Variant>) -> TokenStream {
                 if is_var {
                     quote! {
                         #name::#variant_name { .. } => {
-                            len > #packet_size
+                            len >= #packet_size
                         }
                     }
                 } else {

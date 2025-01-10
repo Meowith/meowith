@@ -56,6 +56,7 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
                     }
                     Err(err) => {
                         error!("Packet parse error: {}", err);
+                        break;
                     }
                 }
             }
