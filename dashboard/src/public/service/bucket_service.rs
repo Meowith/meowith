@@ -134,9 +134,9 @@ pub async fn do_edit_bucket(
         .into_iter()
         .map(|x| x.size)
         .sum();
-    let app_min = get_user_used_app_quota(&app, session).await? - bucket.quota as i64;
+    let app_used = get_user_used_app_quota(&app, session).await? - bucket.quota as i64;
 
-    if (req.quota as i64) < app_min {
+    if app_used + req.quota as i64 > app.quota {
         return Err(NodeClientError::InsufficientStorage {
             message: "Too little quota to edit bucket".to_string(),
         });
