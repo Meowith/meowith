@@ -1,5 +1,10 @@
 <img src="assets/meowith-full.svg" height="100" alt="Meowith logo">
 
+![](https://img.shields.io/github/license/Meowith/meowith)
+![](https://img.shields.io/github/checks-status/Meowith/meowith/master)
+![](https://img.shields.io/github/last-commit/Meowith/meowith)
+
+
 Meowith is a scalable, distributed blob storage solution built in Rust, designed for performance and reliability. It
 features a modular architecture with dedicated nodes for management, file access, and orchestration, and includes a
 built-in protocol framework for customizable communication.
@@ -34,7 +39,7 @@ This system is a learning project, aiming to create a distributed file system so
 3. Distribute the binaries.
    The binaries are in the target directory (`target/`)
 4. Set up the controller.
-5. Host the frontend  
+5. Host the [frontend](https://github.com/Meowith/dashboard)  
    This can be done using any web-server you'd like.
 6. Generate register codes and register dashboard(s) and node(s)  
    A node instance is created and provided with:
