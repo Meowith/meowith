@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg version="1.1" viewBox="0 0 420 120" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<linearGradient id="a" x1="18.25" x2="81.125" y1="31.75" y2="94.75" gradientTransform="matrix(1.1881 0 0 1.1881 -11.284 -11.284)" gradientUnits="userSpaceOnUse">
+<stop stop-color="#08c3f7" offset=".042683"/>
+<stop stop-color="#fd4bff" offset=".87956"/>
+</linearGradient>
+</defs>
+<g stroke-dashoffset="25.701" stroke-linecap="round" stroke-width="1.5">
+<circle cx="60" cy="60" r="60" display="none" style="paint-order:markers fill stroke"/>
+<path d="m16.041 26.14c-3.291 0-5.9404 2.6494-5.9404 5.9404v23.761c0 3.291 2.6494 5.9404 5.9404 5.9404h20.197a5.9404 5.9404 0 0 1 5.9404 5.9404v20.197c0 3.291 2.6494 5.9404 5.9404 5.9404h23.761c3.291 0 5.9404-2.6494 5.9404-5.9404v-20.197a5.9404 5.9404 0 0 1 5.9404-5.9404h20.197c3.291 0 5.9404-2.6494 5.9404-5.9404v-23.761c0-3.291-2.6494-5.9404-5.9404-5.9404h-23.761c-3.291 0-5.9404 2.6494-5.9404 5.9404v20.197a5.9404 5.9404 0 0 1-5.9404 5.9404h-16.633a5.9404 5.9404 0 0 1-5.9404-5.9404v-20.197c0-3.291-2.6494-5.9404-5.9404-5.9404z" fill="url(#a)" style="paint-order:markers fill stroke"/>
+<text x="128.69344" y="84.384003" fill="#ffffff" font-family="Arial" font-size="64px" style="paint-order:markers fill stroke" xml:space="preserve"><tspan x="128.69344" y="84.384003" fill="#ffffff" font-family="Ubuntu" font-weight="bold">Meowith</tspan></text>
+</g>
+</svg>
