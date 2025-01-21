@@ -53,7 +53,7 @@ mod tests {
         conn.execute_unpaged(&drop_keyspace, ())
             .await
             .expect("Failed to delete previous test data");
-        let create_keyspace = conn.prepare(format!("CREATE KEYSPACE {} WITH REPLICATION = {{ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }};;", &cfg.keyspace)).await.unwrap();
+        let create_keyspace = conn.prepare(format!("CREATE KEYSPACE {} WITH REPLICATION = {{ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }};", &cfg.keyspace)).await.unwrap();
         conn.execute_unpaged(&create_keyspace, ())
             .await
             .expect("Failed to create test data");
