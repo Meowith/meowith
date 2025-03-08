@@ -38,6 +38,7 @@ pub async fn register_node(
         security_ctx,
         MicroserviceType::Dashboard,
         Default::default(),
+        config.heart_beat_interval_seconds,
         Uuid::new_v4(),
     );
 
@@ -60,7 +61,7 @@ pub async fn register_node(
 
 pub fn initializer_heart(req_ctx: Arc<MicroserviceRequestContext>) -> AbortHandle {
     tokio::spawn(async move {
-        let mut interval = time::interval(Duration::from_secs(60u64));
+        let mut interval = time::interval(Duration::from_secs(req_ctx.heart_beat_interval_seconds));
         loop {
             interval.tick().await;
             let res = req_ctx.heartbeat().await;

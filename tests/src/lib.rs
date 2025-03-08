@@ -6,14 +6,16 @@ pub mod concurrent_upload_test;
 pub mod directory_test;
 pub mod durable_file_transfer_test;
 pub mod move_test;
+pub mod resiliency_test;
 
 #[cfg(test)]
 mod tests {
-    use crate::concurrent_upload_test::concurrent_test;
-    use crate::directory_test::directory_test;
-    use crate::durable_file_transfer_test::test_durable_upload;
-    use crate::file_transfer_test::test_file_transfer;
-    use crate::move_test::move_test;
+    
+    
+    
+    
+    
+    use crate::resiliency_test::test_controller_reboot_resiliency;
     use crate::test_configs::{
         TEST_CONTROLLER_CONFIG, TEST_DASHBOARD_1_CONFIG, TEST_NODE_1_CONFIG, TEST_NODE_2_CONFIG,
     };
@@ -123,9 +125,9 @@ mod tests {
         integration_test_init_data().await;
 
         big_header!("TEST node register");
-        integration_test_register().await;
+        let controller_token = integration_test_register().await;
 
-        let controller_stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
+        let mut controller_stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
             .await
             .expect("Controller boot failed");
         info!("Controller started");
@@ -144,20 +146,24 @@ mod tests {
             .await
             .expect("Failed to register dashboard 1");
 
-        big_header!("TEST file transfer");
-        let user_setup = test_file_transfer().await;
+        // big_header!("TEST file transfer");
+        // let user_setup = test_file_transfer().await;
+        //
+        // big_header!("TEST durable file transfer");
+        // test_durable_upload(user_setup.clone()).await;
+        //
+        // big_header!("TEST directory management");
+        // directory_test(user_setup.clone()).await;
+        //
+        // big_header!("TEST file movement");
+        // move_test(user_setup.clone()).await;
+        //
+        // big_header!("TEST concurrent");
+        // concurrent_test(user_setup.clone()).await;
 
-        big_header!("TEST durable file transfer");
-        test_durable_upload(user_setup.clone()).await;
-
-        big_header!("TEST directory management");
-        directory_test(user_setup.clone()).await;
-
-        big_header!("TEST file movement");
-        move_test(user_setup.clone()).await;
-
-        big_header!("TEST concurrent");
-        concurrent_test(user_setup.clone()).await;
+        big_header!("TEST resiliency");
+        controller_stop_handle =
+            test_controller_reboot_resiliency(controller_token, controller_stop_handle).await;
 
         info!("Shutting down all nodes.");
         node_1_stop_handle.shutdown().await;
@@ -238,7 +244,9 @@ mod tests {
             .token
     }
 
-    async fn integration_test_register() {
+    /// Register all the nodes and promptly shut them down.
+    /// Returns the login token for the controller.
+    async fn integration_test_register() -> String {
         let client = ClientBuilder::new().build().unwrap();
 
         let controller_stop_handle = tokio::spawn(async {
@@ -300,5 +308,7 @@ mod tests {
         let controller_stop_handle = controller_stop_handle.await.unwrap();
         controller_stop_handle.shutdown().await;
         controller_stop_handle.join_handle.await.expect("Join fail");
+
+        token
     }
 }

@@ -100,11 +100,11 @@ pub async fn perform_token_creation(
 
     if let Some(node) = authorized_node {
         let access_token = generate_access_token();
+        let old_token = node.access_token.clone();
+        node.access_token = Some(access_token.clone());
         update_service_access_token(node, &state.session, Utc::now())
             .map_err(|_| NodeError::InternalError)
             .await?;
-        let old_token = node.access_token.clone();
-        node.access_token = Some(access_token.clone());
 
         // Update quick lookup token map
         let mut node_tk_map = state.req_ctx.token_node.write().await;

@@ -50,6 +50,7 @@ pub async fn register_node(
         security_ctx,
         MicroserviceType::StorageNode,
         Default::default(),
+        config.heart_beat_interval_seconds,
         Uuid::new_v4(),
     );
 
@@ -74,7 +75,7 @@ pub fn initialize_heart(
     fragment_ledger: FragmentLedger,
 ) -> AbortHandle {
     tokio::spawn(async move {
-        let mut interval = time::interval(Duration::from_secs(60u64));
+        let mut interval = time::interval(Duration::from_secs(req_ctx.heart_beat_interval_seconds));
         loop {
             interval.tick().await;
             let res = req_ctx

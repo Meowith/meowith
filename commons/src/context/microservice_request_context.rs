@@ -5,6 +5,7 @@ use data::dto::controller::{
 };
 use data::model::microservice_node_model::MicroserviceType;
 use derive_more::AsRef;
+use log::trace;
 use openssl::x509::X509;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use reqwest::{Certificate, Client, ClientBuilder};
@@ -25,6 +26,7 @@ pub struct MicroserviceRequestContext {
     pub microservice_type: MicroserviceType,
     pub port_configuration: PortConfiguration,
     pub id: Uuid,
+    pub heart_beat_interval_seconds: u64,
     client: Arc<RwLock<Client>>,
 }
 
@@ -40,6 +42,13 @@ pub struct SecurityContext {
 pub enum AddressError {
     InvalidNodeId,
 }
+
+#[derive(Debug, Clone, derive_more::Display)]
+pub enum HeartBeatError {
+    BadRequest(String),
+}
+
+impl Error for HeartBeatError {}
 
 impl Error for AddressError {}
 
@@ -63,6 +72,7 @@ impl MicroserviceRequestContext {
         security_context: SecurityContext,
         microservice_type: MicroserviceType,
         port_configuration: PortConfiguration,
+        heart_beat_interval_seconds: u64,
         id: Uuid,
     ) -> Self {
         let client = Self::create_client(
@@ -73,6 +83,7 @@ impl MicroserviceRequestContext {
             controller_addr,
             node_addr: Arc::new(RwLock::new(node_addr)),
             security_context,
+            heart_beat_interval_seconds,
             microservice_type,
             port_configuration,
             id,
@@ -111,12 +122,20 @@ impl MicroserviceRequestContext {
     }
 
     pub async fn heartbeat(&self) -> Result<(), Box<dyn Error>> {
-        let _ = self
+        trace!("Performing a heartbeat");
+        let response = self
             .client()
             .await
             .post(self.controller("/api/internal/health/heartbeat"))
             .send()
             .await?;
+        if !response.status().is_success() {
+            return Err(Box::new(HeartBeatError::BadRequest(format!(
+                "Received a non 2xx response: [{:?}]: {:?}",
+                response.status(),
+                response.text().await
+            ))));
+        }
         Ok(())
     }
 
@@ -124,13 +143,21 @@ impl MicroserviceRequestContext {
         &self,
         req: UpdateStorageNodeProperties,
     ) -> Result<(), Box<dyn Error>> {
-        let _ = self
+        trace!("Performing a health storage update");
+        let response = self
             .client()
             .await
             .post(self.controller("/api/internal/health/storage"))
             .json(&req)
             .send()
             .await?;
+        if !response.status().is_success() {
+            return Err(Box::new(HeartBeatError::BadRequest(format!(
+                "Received a non 2xx response: [{:?}]: {:?}",
+                response.status(),
+                response.text().await
+            ))));
+        }
         Ok(())
     }
 

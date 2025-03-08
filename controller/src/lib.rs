@@ -12,7 +12,7 @@ use crate::health::routes::{
 };
 use crate::ioutils::read_file;
 use crate::mgpp::mgpp::{start_server, ControllerAuthenticator};
-use crate::middleware::node_internal::NodeVerify;
+use crate::middleware::node_internal_middleware::NodeVerify;
 use crate::middleware::user_middleware::UserMiddlewareRequestTransform;
 use crate::public::routes::auth::{login, own_user_info};
 use crate::public::routes::node_management::{

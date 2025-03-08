@@ -63,6 +63,7 @@ lazy_static! {
         db_username: "cassandra".to_string(),
         db_password: "cassandra".to_string(),
         keyspace: "meowith_test".to_string(),
+        heart_beat_interval_seconds: 1,
     };
     pub static ref TEST_NODE_2_CONFIG: NodeConfigInstance = NodeConfigInstance {
         cnc_addr: "127.0.0.1".to_string(),
@@ -83,6 +84,7 @@ lazy_static! {
         db_username: "cassandra".to_string(),
         db_password: "cassandra".to_string(),
         keyspace: "meowith_test".to_string(),
+        heart_beat_interval_seconds: 1,
     };
     pub static ref TEST_DASHBOARD_1_CONFIG: DashboardConfig = DashboardConfig {
         cnc_addr: "127.0.0.1".to_string(),
@@ -99,5 +101,6 @@ lazy_static! {
         db_username: "cassandra".to_string(),
         db_password: "cassandra".to_string(),
         keyspace: "meowith_test".to_string(),
+        heart_beat_interval_seconds: 1,
     };
 }

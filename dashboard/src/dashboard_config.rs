@@ -26,6 +26,8 @@ pub struct DashboardConfig {
     pub db_username: String,
     pub db_password: String,
     pub keyspace: String,
+
+    pub heart_beat_interval_seconds: u64,
 }
 
 impl DashboardConfig {
@@ -60,6 +62,7 @@ impl DashboardConfig {
             db_username: "cassandra".to_string(),
             db_password: "cassandra".to_string(),
             keyspace: "meowith".to_string(),
+            heart_beat_interval_seconds: 60,
         };
         let mut new_file = OpenOptions::new()
             .write(true)

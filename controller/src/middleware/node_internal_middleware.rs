@@ -9,6 +9,7 @@ use actix_web::{
 use commons::middleware_actions::remove_bearer_prefix;
 use data::model::microservice_node_model::MicroserviceNode;
 use futures_util::future::LocalBoxFuture;
+use log::trace;
 use std::future::{ready, Ready};
 use std::rc::Rc;
 
@@ -69,6 +70,7 @@ where
                 let tk_map = app_data.req_ctx.token_node.read().await;
                 node = tk_map.get(&clean_token).cloned();
             }
+            trace!("Authenticating: {:?}", node);
             if node.is_none() {
                 return Err(Error::from(NodeError::BadAuth));
             }
