@@ -162,14 +162,25 @@ mod tests {
         concurrent_test(user_setup.clone()).await;
 
         big_header!("TEST resiliency");
-        controller_stop_handle =
-            test_controller_reboot_resiliency(controller_token, controller_stop_handle).await;
+        let (
+            controller_stop_handle,
+            node_1_stop_handle,
+            node_2_stop_handle,
+            dashboard_1_stop_handle,
+        ) = test_controller_reboot_resiliency(
+            controller_token,
+            controller_stop_handle,
+            node_1_stop_handle,
+            node_2_stop_handle,
+            dashboard_1_stop_handle,
+        )
+        .await;
 
         info!("Shutting down all nodes.");
-        node_1_stop_handle.shutdown().await;
+        node_1_stop_handle.shutdown(true).await;
         node_1_stop_handle.join_handle.await.expect("Join fail");
         info!("Node 1 shutdown awaited");
-        node_2_stop_handle.shutdown().await;
+        node_2_stop_handle.shutdown(true).await;
         node_2_stop_handle.join_handle.await.expect("Join fail");
         info!("Node 2 shutdown awaited");
         dashboard_1_stop_handle.shutdown().await;
@@ -293,10 +304,10 @@ mod tests {
 
         sleep(Duration::from_secs(1)).await;
 
-        node_1_stop_handle.shutdown().await;
+        node_1_stop_handle.shutdown(false).await;
         node_1_stop_handle.join_handle.await.expect("Join fail");
         info!("Node 1 shutdown awaited");
-        node_2_stop_handle.shutdown().await;
+        node_2_stop_handle.shutdown(false).await;
         node_2_stop_handle.join_handle.await.expect("Join fail");
         info!("Node 2 shutdown awaited");
         dashboard_1_stop_handle.shutdown().await;

@@ -18,11 +18,13 @@ use actix_cors::Cors;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
 use actix_web::{web, App, HttpServer};
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use commons::access_token_service::AccessTokenJwtService;
 use commons::autoconfigure::general_conf::fetch_general_config;
 use commons::context::microservice_request_context::{MicroserviceRequestContext, NodeStorageMap};
 use commons::error::std_response::NodeClientError;
+use commons::pause_handle::ApplicationPauseHandle;
 use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
 use data::database_session::{build_session, CACHE_SIZE};
 use log::trace;
@@ -34,11 +36,9 @@ use protocol::mgpp::client::MGPPClient;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
-use async_trait::async_trait;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::{AbortHandle, JoinHandle};
 use uuid::Uuid;
-use commons::pause_handle::ApplicationPauseHandle;
 
 pub mod caching;
 pub mod config;
@@ -53,16 +53,16 @@ pub mod public;
 pub struct NodeHandle {
     external_handle: ServerHandle,
     mdsftp_server: MDSFTPServer,
-    mgpp_client: MGPPClient,
+    pub mgpp_client: MGPPClient,
     heart_handle: AbortHandle,
     req_ctx: Arc<MicroserviceRequestContext>,
     pub join_handle: JoinHandle<()>,
 }
 
 impl NodeHandle {
-    pub async fn shutdown(&self) {
+    pub async fn shutdown(&self, forceful: bool) {
         self.heart_handle.abort();
-        self.external_handle.stop(true).await;
+        self.external_handle.stop(!forceful).await;
         let _ = self.mgpp_client.shutdown().await;
         self.mdsftp_server.shutdown().await;
         self.req_ctx.shutdown().await;
@@ -244,9 +244,14 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         last_peer_refresh: Arc::new(Default::default()),
     });
     app_data.upload_manager.init_session(app_data.clone()).await;
-    
-    let node_pause_handle: Arc<Box<dyn ApplicationPauseHandle>> = Arc::new(Box::new(NodePauseHandle { state: app_data.clone() }));
-    mgpp_client.set_up_auto_reconnect(node_pause_handle.clone()).await;
+
+    let node_pause_handle: Arc<Box<dyn ApplicationPauseHandle>> =
+        Arc::new(Box::new(NodePauseHandle {
+            state: app_data.clone(),
+        }));
+    mgpp_client
+        .set_up_auto_reconnect(node_pause_handle.clone())
+        .await;
 
     let external_server = HttpServer::new(move || {
         let cors = Cors::permissive();

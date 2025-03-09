@@ -11,6 +11,7 @@ use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
 use rustls::{ClientConfig, RootCertStore};
 use std::error::Error;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
@@ -20,9 +21,14 @@ use tokio::time::sleep;
 use tokio_rustls::{TlsConnector, TlsStream};
 use uuid::Uuid;
 
+struct ConnectionHolder {
+    pub connection: ProtocolConnection<MGPPPacket>,
+    pub reconnects: AtomicUsize,
+}
+
 #[derive(Clone)]
 pub struct MGPPClient {
-    connection: Arc<Mutex<ProtocolConnection<MGPPPacket>>>,
+    connection: Arc<Mutex<ConnectionHolder>>,
     mgpp_connection_config: Arc<MGPPConnectionConfig>,
     handlers: Arc<MGPPHandlers>,
 }
@@ -49,38 +55,39 @@ impl MGPPClient {
             microservice_id,
             token,
         });
-        let connection = Arc::new(Mutex::new(
-            MGPPClient::create_connection(mgpp_config.clone(), handlers.clone()).await?,
-        ));
+        let connection = Arc::new(Mutex::new(ConnectionHolder {
+            connection: MGPPClient::create_connection(mgpp_config.clone(), handlers.clone())
+                .await?,
+            reconnects: AtomicUsize::new(0),
+        }));
         Ok(Self {
             connection,
             mgpp_connection_config: mgpp_config,
             handlers,
         })
     }
-    
+
     #[allow(dead_code)]
-    pub async fn set_up_auto_reconnect(
-        &self,
-        pause_handle: Arc<Box<dyn ApplicationPauseHandle>>
-    ) {
+    pub async fn set_up_auto_reconnect(&self, pause_handle: Arc<Box<dyn ApplicationPauseHandle>>) {
         let connection = self.connection.clone();
         let mgpp_config = self.mgpp_connection_config.clone();
         let handlers = self.handlers.clone();
-        
+
         tokio::spawn(async move {
             let connection = connection.clone();
-            
+
             loop {
                 let shutdown_receiver = {
                     let connection_guard = connection.lock().await;
-                    connection_guard.shutdown_receiver.clone()
+                    connection_guard.connection.shutdown_receiver.clone()
                 };
 
                 if shutdown_receiver.lock().await.recv().await.is_some() {
                     loop {
                         pause_handle.pause().await;
-                        info!("Restarting the mgpp connection due tu unexpected closure in 3 seconds");
+                        info!(
+                            "Restarting the mgpp connection due tu unexpected closure in 3 seconds"
+                        );
                         sleep(Duration::from_secs(3)).await;
 
                         if Arc::strong_count(&connection) <= 1 {
@@ -88,7 +95,8 @@ impl MGPPClient {
                         }
 
                         let new_connection =
-                            MGPPClient::create_connection(mgpp_config.clone(), handlers.clone()).await;
+                            MGPPClient::create_connection(mgpp_config.clone(), handlers.clone())
+                                .await;
 
                         if let Ok(new_connection) = new_connection {
                             if Arc::strong_count(&connection) <= 1 {
@@ -97,10 +105,11 @@ impl MGPPClient {
 
                             info!("MGGP reconnected");
                             let mut conn = connection.lock().await;
-                            *conn = new_connection;
+                            conn.connection = new_connection;
+                            conn.reconnects.fetch_add(1, Ordering::Relaxed);
                             pause_handle.resume().await;
 
-                            break
+                            break;
                         } else {
                             warn!("Reconnect attempt error: {:?}", new_connection.unwrap_err());
                         }
@@ -173,10 +182,28 @@ impl MGPPClient {
     }
 
     pub async fn write_packet(&self, packet: MGPPPacket) -> ProtocolResult<()> {
-        self.connection.lock().await.write_packet(packet).await
+        self.connection
+            .lock()
+            .await
+            .connection
+            .write_packet(packet)
+            .await
     }
 
     pub async fn shutdown(&self) -> ProtocolResult<()> {
-        self.connection.lock().await.shutdown(false).await
+        self.connection
+            .lock()
+            .await
+            .connection
+            .shutdown(false)
+            .await
+    }
+
+    pub async fn get_reconnects(&self) -> usize {
+        self.connection
+            .lock()
+            .await
+            .reconnects
+            .load(Ordering::Relaxed)
     }
 }
