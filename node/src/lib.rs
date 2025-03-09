@@ -34,9 +34,11 @@ use protocol::mgpp::client::MGPPClient;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
+use async_trait::async_trait;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::{AbortHandle, JoinHandle};
 use uuid::Uuid;
+use commons::pause_handle::ApplicationPauseHandle;
 
 pub mod caching;
 pub mod config;
@@ -135,6 +137,21 @@ impl AppState {
     }
 }
 
+struct NodePauseHandle {
+    state: Data<AppState>,
+}
+
+#[async_trait]
+impl ApplicationPauseHandle for NodePauseHandle {
+    async fn pause(&self) {
+        self.state.pause().await;
+    }
+
+    async fn resume(&self) {
+        self.state.resume().await;
+    }
+}
+
 pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandle> {
     let init_res = register_node(&config).await;
     let mut req_ctx = init_res.0;
@@ -227,6 +244,9 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         last_peer_refresh: Arc::new(Default::default()),
     });
     app_data.upload_manager.init_session(app_data.clone()).await;
+    
+    let node_pause_handle: Arc<Box<dyn ApplicationPauseHandle>> = Arc::new(Box::new(NodePauseHandle { state: app_data.clone() }));
+    mgpp_client.set_up_auto_reconnect(node_pause_handle.clone()).await;
 
     let external_server = HttpServer::new(move || {
         let cors = Cors::permissive();

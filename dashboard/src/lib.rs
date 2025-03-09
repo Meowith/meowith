@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use crate::auth::user_middleware::UserMiddlewareRequestTransform;
 use crate::dashboard_config::DashboardConfig;
 use crate::init_procedure::{initializer_heart, register_node};
@@ -36,7 +37,10 @@ use protocol::mgpp::client::MGPPClient;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
+use async_trait::async_trait;
+use tokio::sync::Mutex;
 use tokio::task::{AbortHandle, JoinHandle};
+use commons::pause_handle::ApplicationPauseHandle;
 
 pub mod auth;
 pub mod caching;
@@ -71,6 +75,21 @@ pub struct AppState {
     #[allow(unused)]
     req_ctx: Arc<MicroserviceRequestContext>,
     global_config: GeneralConfiguration,
+}
+
+struct DashboardPauseHandle {
+    pause_handle: Arc<Mutex<Option<ServerHandle>>>,
+}
+
+#[async_trait]
+impl ApplicationPauseHandle for DashboardPauseHandle {
+    async fn pause(&self) {
+        self.pause_handle.lock().await.as_mut().unwrap().pause().await;
+    }
+
+    async fn resume(&self) {
+        self.pause_handle.lock().await.as_mut().unwrap().resume().await;
+    }
 }
 
 pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<DashboardHandle> {
@@ -115,6 +134,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
         .expect("Invalid authentication methods");
     let has_basic = auth.contains_key(BASIC_TYPE_IDENTIFIER);
 
+    let pause_handle = Arc::new(Mutex::new(None));
     let app_data = Data::new(AppState {
         session,
         jwt_service: AccessTokenJwtService::new(&global_conf.access_token_configuration)
@@ -128,6 +148,9 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
         req_ctx,
         global_config: global_conf,
     });
+    
+    let node_pause_handle: Arc<Box<dyn ApplicationPauseHandle>> = Arc::new(Box::new(DashboardPauseHandle { pause_handle: pause_handle.clone() }));
+    mgpp_client.set_up_auto_reconnect(node_pause_handle.clone()).await;
 
     let external_server = HttpServer::new(move || {
         let cors = Cors::permissive();
@@ -204,6 +227,7 @@ pub async fn start_dashboard(config: DashboardConfig) -> std::io::Result<Dashboa
             .run()
     };
     let external_handle = external_server.handle();
+    pause_handle.lock().await.replace(external_server.handle());
 
     let join_handle = tokio::task::spawn(async {
         if let Err(err) = external_server.await {

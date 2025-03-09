@@ -5,7 +5,7 @@ use crate::mgpp::error::MGPPError;
 use crate::mgpp::handler::{MGPPHandlers, MGPPHandlersMapper};
 use crate::mgpp::packet::{MGPPPacket, MGPPPacketDispatcher, MGPPPacketSerializer};
 use commons::pause_handle::ApplicationPauseHandle;
-use log::info;
+use log::{info, warn};
 use openssl::x509::X509;
 use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
 use rustls::{ClientConfig, RootCertStore};
@@ -13,6 +13,7 @@ use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
@@ -40,7 +41,7 @@ impl MGPPClient {
         microservice_id: Uuid,
         token: Option<String>,
         handlers: MGPPHandlers,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let handlers = Arc::new(handlers);
         let mgpp_config = Arc::new(MGPPConnectionConfig {
             addr,
@@ -57,35 +58,62 @@ impl MGPPClient {
             handlers,
         })
     }
-
-    pub async fn setup_auto_reconnect(&self, pause_handle: Arc<Box<dyn ApplicationPauseHandle>>) {}
-
+    
     #[allow(dead_code)]
-    async fn create_watcher(
+    pub async fn set_up_auto_reconnect(
         &self,
-        mgpp_config: Arc<MGPPConnectionConfig>,
-        handlers: Arc<MGPPHandlers>,
-        connection: Arc<Mutex<ProtocolConnection<MGPPPacket>>>,
+        pause_handle: Arc<Box<dyn ApplicationPauseHandle>>
     ) {
+        let connection = self.connection.clone();
+        let mgpp_config = self.mgpp_connection_config.clone();
+        let handlers = self.handlers.clone();
+        
         tokio::spawn(async move {
-            let connection_guard = connection.lock().await;
-            let shutdown_receiver = connection_guard.shutdown_receiver.clone();
-            drop(connection_guard);
+            let connection = connection.clone();
+            
+            loop {
+                let shutdown_receiver = {
+                    let connection_guard = connection.lock().await;
+                    connection_guard.shutdown_receiver.clone()
+                };
 
-            if shutdown_receiver.lock().await.recv().await.is_some() {
-                info!("Restarting the mgpp connection due tu unexpected closure in 3 seconds");
-                sleep(Duration::from_secs(3)).await;
-                let _new_connection = MGPPClient::create_connection(mgpp_config, handlers).await;
-                // TODO
+                if shutdown_receiver.lock().await.recv().await.is_some() {
+                    loop {
+                        pause_handle.pause().await;
+                        info!("Restarting the mgpp connection due tu unexpected closure in 3 seconds");
+                        sleep(Duration::from_secs(3)).await;
+
+                        if Arc::strong_count(&connection) <= 1 {
+                            return; // only this task holds a ref, meaning the client has been dropped.
+                        }
+
+                        let new_connection =
+                            MGPPClient::create_connection(mgpp_config.clone(), handlers.clone()).await;
+
+                        if let Ok(new_connection) = new_connection {
+                            if Arc::strong_count(&connection) <= 1 {
+                                return;
+                            }
+
+                            info!("MGGP reconnected");
+                            let mut conn = connection.lock().await;
+                            *conn = new_connection;
+                            pause_handle.resume().await;
+
+                            break
+                        } else {
+                            warn!("Reconnect attempt error: {:?}", new_connection.unwrap_err());
+                        }
+                    }
+                } // else the connection has been closed willfully and shall not be reopened
             }
-            // else the connection has been closed willfully and shall not be reopened
         });
     }
 
     async fn create_connection(
         mgpp_config: Arc<MGPPConnectionConfig>,
         handlers: Arc<MGPPHandlers>,
-    ) -> Result<ProtocolConnection<MGPPPacket>, Box<dyn Error>> {
+    ) -> Result<ProtocolConnection<MGPPPacket>, Box<dyn Error + Send + Sync>> {
         let mut root_cert_store = RootCertStore::empty();
         root_cert_store
             .add(CertificateDer::from(
@@ -120,7 +148,15 @@ impl MGPPClient {
                 .map_err(|_| MGPPError::SSLError(None))?,
         );
 
-        let (read, write) = tokio::io::split(stream);
+        // Note: the authenticator should probably do this
+        let (read, mut write) = tokio::io::split(stream);
+        write
+            .write_all(mgpp_config.microservice_id.as_bytes())
+            .await?;
+        if let Some(token) = mgpp_config.token.clone() {
+            write.write_all(token.as_bytes()).await?;
+        }
+
         let writer = Arc::new(Mutex::new(PacketWriter::new(
             write,
             Arc::new(MGPPPacketSerializer),
@@ -132,13 +168,6 @@ impl MGPPClient {
         });
 
         let connection = ProtocolConnection::new(read, dispatcher, writer);
-
-        connection
-            .write(mgpp_config.microservice_id.as_bytes())
-            .await?;
-        if let Some(token) = mgpp_config.token.clone() {
-            connection.write(token.as_bytes()).await?;
-        }
 
         Ok(connection)
     }

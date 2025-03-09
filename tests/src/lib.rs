@@ -10,7 +10,6 @@ pub mod resiliency_test;
 
 #[cfg(test)]
 mod tests {
-
     use crate::concurrent_upload_test::concurrent_test;
     use crate::directory_test::directory_test;
     use crate::durable_file_transfer_test::test_durable_upload;
@@ -105,7 +104,7 @@ mod tests {
 
     // The tests need to be run in a specific order
     #[tokio::test]
-    #[ntest::timeout(100000)]
+    #[ntest::timeout(120000)]
     async fn integration_test_runner() {
         let default_panic = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
