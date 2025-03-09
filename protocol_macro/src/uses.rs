@@ -15,5 +15,6 @@ pub fn generate_uses() -> TokenStream {
         use tokio::net::TcpStream;
         use tokio_rustls::TlsStream;
         use tokio::io::AsyncReadExt;
+        use tokio_util::sync::CancellationToken;
     }
 }

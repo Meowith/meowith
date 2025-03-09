@@ -10,11 +10,12 @@ pub mod resiliency_test;
 
 #[cfg(test)]
 mod tests {
-    
-    
-    
-    
-    
+
+    use crate::concurrent_upload_test::concurrent_test;
+    use crate::directory_test::directory_test;
+    use crate::durable_file_transfer_test::test_durable_upload;
+    use crate::file_transfer_test::test_file_transfer;
+    use crate::move_test::move_test;
     use crate::resiliency_test::test_controller_reboot_resiliency;
     use crate::test_configs::{
         TEST_CONTROLLER_CONFIG, TEST_DASHBOARD_1_CONFIG, TEST_NODE_1_CONFIG, TEST_NODE_2_CONFIG,
@@ -146,20 +147,20 @@ mod tests {
             .await
             .expect("Failed to register dashboard 1");
 
-        // big_header!("TEST file transfer");
-        // let user_setup = test_file_transfer().await;
-        //
-        // big_header!("TEST durable file transfer");
-        // test_durable_upload(user_setup.clone()).await;
-        //
-        // big_header!("TEST directory management");
-        // directory_test(user_setup.clone()).await;
-        //
-        // big_header!("TEST file movement");
-        // move_test(user_setup.clone()).await;
-        //
-        // big_header!("TEST concurrent");
-        // concurrent_test(user_setup.clone()).await;
+        big_header!("TEST file transfer");
+        let user_setup = test_file_transfer().await;
+
+        big_header!("TEST durable file transfer");
+        test_durable_upload(user_setup.clone()).await;
+
+        big_header!("TEST directory management");
+        directory_test(user_setup.clone()).await;
+
+        big_header!("TEST file movement");
+        move_test(user_setup.clone()).await;
+
+        big_header!("TEST concurrent");
+        concurrent_test(user_setup.clone()).await;
 
         big_header!("TEST resiliency");
         controller_stop_handle =

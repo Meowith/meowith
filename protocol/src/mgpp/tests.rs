@@ -64,9 +64,9 @@ mod int_tests {
             let received = Arc::new(Mutex::new(AtomicBool::new(false)));
 
             let client = MGPPClient::connect(
-                &SocketAddr::new(IpAddr::from_str("127.0.0.1").unwrap(), 7810),
-                id,
+                SocketAddr::new(IpAddr::from_str("127.0.0.1").unwrap(), 7810),
                 ca.clone(),
+                id,
                 None,
                 MGPPHandlers::new(Box::new(TestCacheHandler {
                     received: received.clone(),

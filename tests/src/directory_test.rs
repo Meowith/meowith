@@ -1,4 +1,6 @@
-use crate::file_transfer_test::{assert_bucket_info, delete_file};
+use crate::assert_bucket_info;
+use crate::file_transfer_test::delete_file;
+use crate::file_transfer_test::fetch_bucket_info;
 use crate::utils::Logger;
 use data::dto::entity::{AppDto, BucketDto, EntityList, RenameEntityRequest};
 use data::dto::entity::{DeleteDirectoryRequest, Entity};
@@ -201,7 +203,7 @@ pub async fn directory_test(data: (AppDto, BucketDto, String, String)) {
     create_file("test_dir_1/test_dir_3/test1", &args).await;
     header!("created test_dir_1/test_dir_3/test1");
 
-    assert_bucket_info(&args, 4, 4 * FILE_SIZE as i64).await;
+    assert_bucket_info!(&args, 4, 4 * FILE_SIZE as i64);
 
     let list = list_folder("", &args).await;
     assert_contains!(
@@ -272,5 +274,5 @@ pub async fn directory_test(data: (AppDto, BucketDto, String, String)) {
     delete_file("test1", "127.0.0.2:4000", &args).await;
     delete_file("test_dir_2/test1", "127.0.0.2:4000", &args).await;
 
-    assert_bucket_info(&args, 0, 0).await;
+    assert_bucket_info!(&args, 0, 0);
 }

@@ -40,10 +40,7 @@ impl MGPPServer {
         let connections = self._internal.connections.lock().await;
 
         for connection in &*connections {
-            let writer = connection.0.obtain_writer();
-            writer
-                .lock()
-                .await
+            connection
                 .write_packet(packet.clone())
                 .await
                 .map_err(|_| MGPPError::ConnectionError)?;
@@ -167,11 +164,11 @@ impl InternalMGPPServer {
                         write,
                         Arc::new(MGPPPacketSerializer),
                     )));
-                    let handlers = MGPPHandlers {
+                    let handlers = Arc::new(MGPPHandlers {
                         invalidate_cache: Box::new(MGPPServerCacheInvalidateHandler {
                             connections: connections_clone,
                         }),
-                    };
+                    });
 
                     connections.lock().await.push(ProtocolConnection::new(
                         read,

@@ -7,10 +7,12 @@ use crate::framework::error::ProtocolError;
 use crate::framework::traits::{Packet, PacketDispatcher};
 use tokio::io::ReadHalf;
 use tokio::net::TcpStream;
+use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use tokio_rustls::TlsStream;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
 pub(crate) struct PacketReader<T: Packet + 'static + Send> {
@@ -18,6 +20,8 @@ pub(crate) struct PacketReader<T: Packet + 'static + Send> {
     running: Arc<AtomicBool>,
     dispatcher: Arc<dyn PacketDispatcher<T>>,
     last_read: Arc<Mutex<Instant>>,
+    read_cancellation_token: CancellationToken,
+    pub(crate) shutdown_notify: Option<Sender<()>>,
 }
 
 impl<T: Packet + 'static + Send> PacketReader<T> {
@@ -31,6 +35,8 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
             running: Arc::new(AtomicBool::new(false)),
             dispatcher,
             last_read: Arc::new(Mutex::new(Instant::now())),
+            read_cancellation_token: CancellationToken::new(),
+            shutdown_notify: None,
         }
     }
 
@@ -40,13 +46,17 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
         let running = self.running.clone();
         let parser = self.dispatcher.clone();
         let last_read = self.last_read.clone();
+        let read_cancellation_token = self.read_cancellation_token.clone();
 
         running.store(true, Ordering::SeqCst);
 
         tokio::spawn(async move {
             let mut stream = stream.lock().await;
             while running.load(Ordering::Relaxed) {
-                match parser.dispatch_packet(&mut stream).await {
+                match parser
+                    .parse_and_dispatch_packet(&mut stream, &read_cancellation_token)
+                    .await
+                {
                     Ok(_) => {
                         *last_read.lock().await = Instant::now();
                     }
@@ -64,7 +74,16 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
     }
 
     /// Stops the packet reader gracefully
-    pub(crate) fn close(&self) {
+    pub(crate) async fn close(&self, notify: bool) {
+        if !self.running.load(Ordering::Relaxed) {
+            return;
+        }
         self.running.store(false, Ordering::SeqCst);
+        self.read_cancellation_token.cancel();
+        if notify {
+            if let Some(sender) = self.shutdown_notify.as_ref() {
+                let _ = sender.send(()).await;
+            }
+        }
     }
 }

@@ -18,11 +18,14 @@ use actix_cors::Cors;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
 use actix_web::{web, App, HttpServer};
+use chrono::{DateTime, Utc};
 use commons::access_token_service::AccessTokenJwtService;
 use commons::autoconfigure::general_conf::fetch_general_config;
 use commons::context::microservice_request_context::{MicroserviceRequestContext, NodeStorageMap};
+use commons::error::std_response::NodeClientError;
 use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
 use data::database_session::{build_session, CACHE_SIZE};
+use log::trace;
 use mgpp::connect_mgpp;
 use openssl::ssl::SslAcceptorBuilder;
 use peer::peer_utils::fetch_peer_storage_info;
@@ -73,6 +76,7 @@ pub struct AppState {
     node_storage_map: NodeStorageMap,
     req_ctx: Arc<MicroserviceRequestContext>,
     pause_handle: Arc<Mutex<Option<ServerHandle>>>,
+    last_peer_refresh: Arc<Mutex<DateTime<Utc>>>,
 }
 
 impl AppState {
@@ -96,6 +100,38 @@ impl AppState {
             .resume()
             .await;
         self.fragment_ledger.resume();
+    }
+
+    /// Returns true if a refresh has been performed
+    pub async fn safe_refresh_peer_data(&self) -> Result<bool, NodeClientError> {
+        trace!("Attempting to safe refresh peer data");
+        let mut last = self.last_peer_refresh.lock().await;
+        let now = Utc::now();
+        if now.signed_duration_since(*last).num_seconds()
+            >= self.req_ctx.heart_beat_interval_seconds as i64
+        {
+            *last = now;
+            drop(last); // Avoid a deadlock
+            self.refresh_peer_data().await.map(|_| true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub async fn refresh_peer_data(&self) -> Result<(), NodeClientError> {
+        trace!("Refreshing peer data");
+        let peers = fetch_peer_storage_info(&self.req_ctx)
+            .await
+            .map_err(|_| NodeClientError::InternalError)?
+            .peers;
+        let mut map = self.node_storage_map.write().await;
+        let mut last = self.last_peer_refresh.lock().await;
+        for peer in peers {
+            map.insert(peer.0, peer.1.storage);
+        }
+        *last = Utc::now();
+        trace!("New peer data {:?}", map);
+        Ok(())
     }
 }
 
@@ -188,6 +224,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         node_storage_map,
         req_ctx,
         pause_handle: pause_handle.clone(),
+        last_peer_refresh: Arc::new(Default::default()),
     });
     app_data.upload_manager.init_session(app_data.clone()).await;
 

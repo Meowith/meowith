@@ -16,10 +16,7 @@ impl InvalidateCacheHandler for MGPPServerCacheInvalidateHandler {
         let connections = self.connections.lock().await;
 
         for connection in &*connections {
-            let writer = connection.0.obtain_writer();
-            let _ = writer
-                .lock()
-                .await
+            let _ = connection
                 .write_packet(MGPPPacket::InvalidateCache {
                     cache_id,
                     cache_key: cache.to_vec(),

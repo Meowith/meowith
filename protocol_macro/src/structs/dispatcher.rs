@@ -127,12 +127,20 @@ pub fn generate_dispatcher_struct(
 
         #[async_trait]
         impl PacketDispatcher<#name> for #dispatcher_name {
-            async fn dispatch_packet(
+            async fn parse_and_dispatch_packet(
                 &self,
                 stream: &mut ReadHalf<TlsStream<TcpStream>>,
+                read_cancellation: &CancellationToken
             ) -> ProtocolResult<()> {
                 let mut header = [0u8; 5];
-                stream.read_exact(&mut header).await?;
+                tokio::select! {
+                    result = stream.read_exact(&mut header) => {
+                        result?;
+                    }
+                    _ = read_cancellation.cancelled() => {
+                        return Err(ProtocolError::Custom("Read operation cancelled".into()));
+                    }
+                }
 
                 let packet_type = #name::try_from(header[0])?;
                 let payload_length = u32::from_be_bytes(header[1..5].try_into().unwrap());
@@ -141,7 +149,14 @@ pub fn generate_dispatcher_struct(
                 }
 
                 let mut payload = vec![0u8; payload_length as usize];
-                stream.read_exact(&mut payload).await?;
+                tokio::select! {
+                    result = stream.read_exact(&mut payload) => {
+                        result?;
+                    }
+                    _ = read_cancellation.cancelled() => {
+                        return Err(ProtocolError::Custom("Read operation cancelled".into()));
+                    }
+                }
 
                 if let Some(writer) = self.writer.upgrade() {
                     match packet_type {

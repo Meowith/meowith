@@ -24,16 +24,17 @@ impl MGPPHandlers {
 
 #[derive(Debug)]
 pub struct MGPPHandlersMapper {
-    handlers: MGPPHandlers,
+    handlers: Arc<MGPPHandlers>,
 }
 
 unsafe impl Sync for MGPPHandlersMapper {}
 
 impl MGPPHandlersMapper {
-    pub(crate) fn new(handlers: MGPPHandlers) -> MGPPHandlersMapper {
+    pub(crate) fn new(handlers: Arc<MGPPHandlers>) -> MGPPHandlersMapper {
         Self { handlers }
     }
 }
+
 #[async_trait]
 impl MGPPPacketHandler<MGPPPacket> for MGPPHandlersMapper {
     async fn handle_invalidate_cache(
