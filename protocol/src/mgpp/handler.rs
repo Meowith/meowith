@@ -1,7 +1,7 @@
-use crate::framework::error::ProtocolResult;
 use crate::framework::writer::PacketWriter;
 use crate::mgpp::packet::{MGPPPacket, MGPPPacketHandler};
 use async_trait::async_trait;
+use commons::error::protocol_error::ProtocolResult;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Mutex;

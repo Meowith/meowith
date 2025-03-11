@@ -1,5 +1,5 @@
-use crate::framework::error::ProtocolResult;
 use async_trait::async_trait;
+use commons::error::protocol_error::ProtocolResult;
 use openssl::x509::X509;
 use tokio::net::TcpStream;
 use tokio_rustls::TlsStream;

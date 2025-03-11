@@ -1,6 +1,5 @@
 pub mod auth;
 pub mod connection;
-pub mod error;
 pub mod reader;
 pub mod traits;
 pub mod writer;

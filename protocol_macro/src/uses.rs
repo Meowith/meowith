@@ -7,7 +7,7 @@ pub fn generate_uses() -> TokenStream {
         use async_trait::async_trait;
         use crate::framework::writer::PacketWriter;
         use crate::framework::PROTOCOL_HEADER_SIZE;
-        use crate::framework::error::{ProtocolResult, ProtocolError};
+        use commons::error::protocol_error::{ProtocolError, ProtocolResult};
         use crate::framework::traits::{Packet, PacketSerializer, PacketDispatcher};
         use std::sync::{Arc, Weak};
         use tokio::sync::Mutex;

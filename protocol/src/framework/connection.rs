@@ -1,10 +1,11 @@
-use crate::framework::error::{ProtocolError, ProtocolResult};
 use crate::framework::reader::PacketReader;
 use crate::framework::traits::{Packet, PacketDispatcher};
 use crate::framework::writer::PacketWriter;
+use commons::error::protocol_error::{ProtocolError, ProtocolResult};
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use log::trace;
 use tokio::io::ReadHalf;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{channel, Receiver};
@@ -68,6 +69,7 @@ impl<T: Packet + 'static + Send> InternalProtocolConnection<T> {
     }
 
     pub async fn write_packet(&self, packet: T) -> ProtocolResult<()> {
+        trace!("InternalConnection::write_packet({:?})", packet);
         match self.writer.lock().await.write_packet(packet).await {
             Ok(_) => Ok(()),
             Err(ProtocolError::WriteError(_)) => self.shutdown(true).await,

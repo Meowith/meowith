@@ -869,6 +869,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strum",
+ "thiserror 1.0.69",
  "tokio",
  "uuid",
 ]
@@ -2532,7 +2533,6 @@ dependencies = [
  "rand",
  "rustls",
  "socket2",
- "thiserror 1.0.69",
  "tokio",
  "tokio-rustls",
  "tokio-util",

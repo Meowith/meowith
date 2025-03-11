@@ -7,42 +7,42 @@ use tokio::net::TcpStream;
 use uuid::Uuid;
 
 use commons::context::microservice_request_context::MicroserviceRequestContext;
-use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
-use protocol::mdsftp::authenticator::MeowithConnectionAuthenticator;
+use commons::error::protocol_error::{ProtocolError, ProtocolResult};
+use protocol::framework::auth::ConnectionAuthenticator;
 
 pub struct MeowithMDSFTPConnectionAuthenticator {
     pub req_ctx: Arc<MicroserviceRequestContext>,
 }
 
 #[async_trait]
-impl MeowithConnectionAuthenticator for MeowithMDSFTPConnectionAuthenticator {
+impl ConnectionAuthenticator for MeowithMDSFTPConnectionAuthenticator {
     async fn authenticate_outgoing(
         &self,
         stream: &mut tokio_rustls::TlsStream<TcpStream>,
-    ) -> MDSFTPResult<()> {
+    ) -> ProtocolResult<()> {
         stream
             .write_all(self.req_ctx.security_context.access_token.as_bytes())
             .await
-            .map_err(|_| MDSFTPError::ConnectionAuthenticationError)
+            .map_err(|_| ProtocolError::AuthenticationFailed)
     }
 
     async fn authenticate_incoming(
         &self,
         stream: &mut tokio_rustls::TlsStream<TcpStream>,
         conn_id: Uuid,
-    ) -> MDSFTPResult<bool> {
+    ) -> ProtocolResult<bool> {
         let mut token_buffer = [0u8; 64];
         stream
             .read_exact(&mut token_buffer)
             .await
-            .map_err(|_| MDSFTPError::ConnectionAuthenticationError)?;
+            .map_err(|_| ProtocolError::AuthenticationFailed)?;
         let token_str = String::from_utf8_lossy(&token_buffer).to_string();
 
         let validation_response = self
             .req_ctx
             .validate_peer_token(token_str.clone(), conn_id)
             .await
-            .map_err(|_| MDSFTPError::ConnectionAuthenticationError);
+            .map_err(|_| ProtocolError::AuthenticationFailed);
 
         if validation_response.is_err() || !validation_response?.valid {
             debug!("authenticate_incoming failed from {conn_id:?}");

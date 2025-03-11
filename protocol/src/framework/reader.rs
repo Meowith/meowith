@@ -1,10 +1,10 @@
-use log::error;
+use log::{error, trace};
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use crate::framework::error::ProtocolError;
 use crate::framework::traits::{Packet, PacketDispatcher};
+use commons::error::protocol_error::ProtocolError;
 use tokio::io::ReadHalf;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Sender;
@@ -47,6 +47,7 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
         let parser = self.dispatcher.clone();
         let last_read = self.last_read.clone();
         let read_cancellation_token = self.read_cancellation_token.clone();
+        let shutdown_notify = self.shutdown_notify.clone();
 
         running.store(true, Ordering::SeqCst);
 
@@ -62,10 +63,18 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
                     }
                     Err(ProtocolError::ReadError(err)) => {
                         error!("Stream read error: {}", err);
+                        if let Some(sender) = shutdown_notify.as_ref() {
+                            trace!("Sending shutdown notification");
+                            let _ = sender.send(()).await;
+                        }
                         break;
                     }
                     Err(err) => {
                         error!("Packet parse error: {}", err);
+                        if let Some(sender) = shutdown_notify.as_ref() {
+                            trace!("Sending shutdown notification");
+                            let _ = sender.send(()).await;
+                        }
                         break;
                     }
                 }
@@ -82,6 +91,7 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
         self.read_cancellation_token.cancel();
         if notify {
             if let Some(sender) = self.shutdown_notify.as_ref() {
+                trace!("Sending shutdown notification");
                 let _ = sender.send(()).await;
             }
         }

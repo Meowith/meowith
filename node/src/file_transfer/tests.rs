@@ -20,7 +20,7 @@ mod fp63_tests {
     use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
     use commons::context::microservice_request_context::NodeAddrMap;
     use logging::initialize_test_logging;
-    use protocol::mdsftp::authenticator::ConnectionAuthContext;
+    use protocol::framework::auth::ConnectionAuthContext;
     use protocol::mdsftp::data::{CommitFlags, ReserveFlags};
     use protocol::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
     use protocol::mdsftp::server::MDSFTPServer;

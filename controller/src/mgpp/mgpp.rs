@@ -9,9 +9,9 @@ use tokio::net::TcpStream;
 use uuid::Uuid;
 
 use commons::context::controller_request_context::ControllerRequestContext;
-use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
+use commons::error::protocol_error::{ProtocolError, ProtocolResult};
 use logging::log_err;
-use protocol::mdsftp::authenticator::{ConnectionAuthContext, MeowithConnectionAuthenticator};
+use protocol::framework::auth::{ConnectionAuthContext, ConnectionAuthenticator};
 use protocol::mgpp::server::MGPPServer;
 
 pub async fn start_server(
@@ -48,11 +48,11 @@ impl ControllerAuthenticator {
 }
 
 #[async_trait]
-impl MeowithConnectionAuthenticator for ControllerAuthenticator {
+impl ConnectionAuthenticator for ControllerAuthenticator {
     async fn authenticate_outgoing(
         &self,
         _stream: &mut tokio_rustls::TlsStream<TcpStream>,
-    ) -> MDSFTPResult<()> {
+    ) -> ProtocolResult<()> {
         unreachable!()
     }
 
@@ -60,17 +60,17 @@ impl MeowithConnectionAuthenticator for ControllerAuthenticator {
         &self,
         stream: &mut tokio_rustls::TlsStream<TcpStream>,
         conn_id: Uuid,
-    ) -> MDSFTPResult<bool> {
+    ) -> ProtocolResult<bool> {
         let mut token_buffer = [0u8; 64];
         stream
             .read_exact(&mut token_buffer)
             .await
-            .map_err(|_| MDSFTPError::ConnectionAuthenticationError)?;
+            .map_err(|_| ProtocolError::AuthenticationFailed)?;
 
         let validation_response = self
             .validate_token(conn_id, String::from_utf8_lossy(&token_buffer).to_string())
             .await;
 
-        return Ok(validation_response);
+        Ok(validation_response)
     }
 }

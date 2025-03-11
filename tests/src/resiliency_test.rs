@@ -7,10 +7,10 @@ use data::dto::entity::{NodeStatus, NodeStatusResponse};
 use http::header::AUTHORIZATION;
 use log::{debug, info};
 use node_lib::NodeHandle;
+use protocol::mgpp::packet::MGPPPacket;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use std::time::Duration;
 use tokio::time::sleep;
-use protocol::mgpp::packet::MGPPPacket;
 
 async fn get_node_status(client: &ClientWithMiddleware, token: &str) -> Vec<NodeStatus> {
     client
@@ -41,7 +41,13 @@ pub async fn test_controller_reboot_resiliency(
 
     sleep(Duration::from_secs(5)).await;
     info!("Controller restarted");
-    let _ = node_1_handle.mgpp_client.write_packet(MGPPPacket::InvalidateCache { cache_id: 0, cache_key: vec![] }).await;
+    let _ = node_1_handle
+        .mgpp_client
+        .write_packet(MGPPPacket::InvalidateCache {
+            cache_id: 0,
+            cache_key: vec![],
+        })
+        .await;
 
     let controller_stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
         .await
@@ -66,5 +72,10 @@ pub async fn test_controller_reboot_resiliency(
         now.signed_duration_since(x.last_beat).num_seconds() < 30
     }));
 
-    (controller_stop_handle, node_1_handle, node_2_handle, dashboard_handle)
+    (
+        controller_stop_handle,
+        node_1_handle,
+        node_2_handle,
+        dashboard_handle,
+    )
 }

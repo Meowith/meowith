@@ -1,9 +1,9 @@
 use crate::framework::connection::ProtocolConnection;
-use crate::framework::error::ProtocolResult;
 use crate::framework::writer::PacketWriter;
 use crate::mgpp::error::MGPPError;
 use crate::mgpp::handler::{MGPPHandlers, MGPPHandlersMapper};
 use crate::mgpp::packet::{MGPPPacket, MGPPPacketDispatcher, MGPPPacketSerializer};
+use commons::error::protocol_error::ProtocolResult;
 use commons::pause_handle::ApplicationPauseHandle;
 use log::{info, warn};
 use openssl::x509::X509;
@@ -75,7 +75,9 @@ impl MGPPClient {
 
         tokio::spawn(async move {
             let connection = connection.clone();
-
+            
+            info!("Starting up mgpp watchdog");
+            
             loop {
                 let shutdown_receiver = {
                     let connection_guard = connection.lock().await;
@@ -86,14 +88,15 @@ impl MGPPClient {
                     loop {
                         pause_handle.pause().await;
                         info!(
-                            "Restarting the mgpp connection due tu unexpected closure in 3 seconds"
+                            "Restarting the mgpp connection due tu unexpected closure in 1 second"
                         );
-                        sleep(Duration::from_secs(3)).await;
+                        sleep(Duration::from_secs(1)).await;
 
                         if Arc::strong_count(&connection) <= 1 {
                             return; // only this task holds a ref, meaning the client has been dropped.
                         }
-
+                        
+                        info!("Attempting reconnect...");
                         let new_connection =
                             MGPPClient::create_connection(mgpp_config.clone(), handlers.clone())
                                 .await;

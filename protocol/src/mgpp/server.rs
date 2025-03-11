@@ -2,10 +2,10 @@ use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-
+use log::trace;
+use crate::framework::auth::ConnectionAuthContext;
 use crate::framework::connection::ProtocolConnection;
 use crate::framework::writer::PacketWriter;
-use crate::mdsftp::authenticator::ConnectionAuthContext;
 use crate::mdsftp::server::ZERO_UUID;
 use crate::mgpp::error::MGPPError;
 use crate::mgpp::handler::{MGPPHandlers, MGPPHandlersMapper};
@@ -170,27 +170,34 @@ impl InternalMGPPServer {
                         }),
                     });
 
-                    connections.lock().await.push(ProtocolConnection::new(
-                        read,
-                        Arc::new(MGPPPacketDispatcher {
-                            handler: Box::new(MGPPHandlersMapper::new(handlers)),
-                            writer: Arc::downgrade(&writer),
-                        }),
-                        writer,
+                    connections.lock().await.push(ProtocolConnection::new( // TODO, remove dead ones...
+                                                                           read,
+                                                                           Arc::new(MGPPPacketDispatcher {
+                                                                               handler: Box::new(MGPPHandlersMapper::new(handlers)),
+                                                                               writer: Arc::downgrade(&writer),
+                                                                           }),
+                                                                           writer,
                     ));
 
                     Ok(())
                 }
-                .await;
+                    .await;
 
                 match res {
                     Ok(_) => {}
                     Err(MGPPError::ShuttingDown) => {
+                        let mut conns = connections.lock().await;
+                        trace!("MGPP shutting down {} connections", conns.len());
+                        for conn in &*conns {
+                            let _ = conn.shutdown(false).await;
+                        }
+                        conns.clear();
                         break;
                     }
                     Err(_) => {}
                 }
             }
+            trace!("MGPP server exit");
         });
 
         let _ = startup_rx.await;
@@ -198,6 +205,7 @@ impl InternalMGPPServer {
     }
 
     pub async fn shutdown(&self) {
+        trace!("Shutting MGPP server down");
         let sender = self.shutdown_sender.clone();
         let mut lock = sender.lock().await;
         if let Some(sender) = lock.as_mut() {

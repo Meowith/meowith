@@ -127,7 +127,7 @@ mod tests {
         big_header!("TEST node register");
         let controller_token = integration_test_register().await;
 
-        let mut controller_stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
+        let controller_stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
             .await
             .expect("Controller boot failed");
         info!("Controller started");
