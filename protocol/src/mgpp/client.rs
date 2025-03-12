@@ -5,7 +5,7 @@ use crate::mgpp::handler::{MGPPHandlers, MGPPHandlersMapper};
 use crate::mgpp::packet::{MGPPPacket, MGPPPacketDispatcher, MGPPPacketSerializer};
 use commons::error::protocol_error::ProtocolResult;
 use commons::pause_handle::ApplicationPauseHandle;
-use log::{info, warn};
+use log::{info, trace, warn};
 use openssl::x509::X509;
 use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
 use rustls::{ClientConfig, RootCertStore};
@@ -75,9 +75,9 @@ impl MGPPClient {
 
         tokio::spawn(async move {
             let connection = connection.clone();
-            
+
             info!("Starting up mgpp watchdog");
-            
+
             loop {
                 let shutdown_receiver = {
                     let connection_guard = connection.lock().await;
@@ -95,7 +95,7 @@ impl MGPPClient {
                         if Arc::strong_count(&connection) <= 1 {
                             return; // only this task holds a ref, meaning the client has been dropped.
                         }
-                        
+
                         info!("Attempting reconnect...");
                         let new_connection =
                             MGPPClient::create_connection(mgpp_config.clone(), handlers.clone())
@@ -141,6 +141,10 @@ impl MGPPClient {
         let connector = TlsConnector::from(Arc::new(config));
         let server_name = ServerName::IpAddress(IpAddr::from(mgpp_config.addr.ip()));
 
+        trace!(
+            "MGGP connection starting with server_name: {:?}",
+            server_name
+        );
         let stream = TcpStream::connect(&mgpp_config.addr)
             .await
             .map_err(|e| MGPPError::SSLError(Some(e.into())))?;
@@ -153,6 +157,7 @@ impl MGPPClient {
 
         sock_ref.set_tcp_keepalive(&ka)?;
 
+        trace!("MGPP connecting tls");
         let stream = TlsStream::from(
             connector
                 .connect(server_name, stream)
@@ -160,6 +165,7 @@ impl MGPPClient {
                 .map_err(|_| MGPPError::SSLError(None))?,
         );
 
+        trace!("MGPP authenticating");
         // Note: the authenticator should probably do this
         let (read, mut write) = tokio::io::split(stream);
         write
@@ -181,6 +187,7 @@ impl MGPPClient {
 
         let connection = ProtocolConnection::new(read, dispatcher, writer);
 
+        trace!("MGPP connect OK");
         Ok(connection)
     }
 

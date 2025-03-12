@@ -1,4 +1,5 @@
 use crate::auth::user_middleware::UserMiddlewareRequestTransform;
+use crate::caching::clear_caches;
 use crate::dashboard_config::DashboardConfig;
 use crate::init_procedure::{initializer_heart, register_node};
 use crate::public::auth::auth_routes::{get_methods, login, own_user_info, register};
@@ -90,9 +91,13 @@ impl ApplicationPauseHandle for DashboardPauseHandle {
             .unwrap()
             .pause()
             .await;
+        // Clear after pausing to avoid stale data being loaded into the cache after pause.
+        clear_caches().await;
     }
 
     async fn resume(&self) {
+        // Clear before serving requests to ensure no request gets stale data.
+        clear_caches().await;
         self.pause_handle
             .lock()
             .await

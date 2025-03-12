@@ -2,10 +2,10 @@ use crate::framework::reader::PacketReader;
 use crate::framework::traits::{Packet, PacketDispatcher};
 use crate::framework::writer::PacketWriter;
 use commons::error::protocol_error::{ProtocolError, ProtocolResult};
+use log::trace;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use log::trace;
 use tokio::io::ReadHalf;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{channel, Receiver};
@@ -43,7 +43,7 @@ impl<T: Packet + 'static + Send> ProtocolConnection<T> {
 pub struct InternalProtocolConnection<T: Packet + 'static + Send> {
     writer: Arc<Mutex<PacketWriter<T>>>,
     reader: PacketReader<T>,
-    is_closing: AtomicBool,
+    is_closing: Arc<AtomicBool>,
     #[allow(unused)]
     pub shutdown_receiver: Arc<Mutex<Receiver<()>>>,
 }
@@ -56,28 +56,38 @@ impl<T: Packet + 'static + Send> InternalProtocolConnection<T> {
     ) -> Self {
         let (sender, receiver) = channel(1);
 
-        let mut reader = PacketReader::new(reader_stream, dispatcher);
+        let is_closing = Arc::new(AtomicBool::new(false));
+        let mut reader = PacketReader::new(reader_stream, dispatcher, is_closing.clone());
         reader.shutdown_notify = Some(sender);
         reader.start();
 
         Self {
             writer,
             reader,
-            is_closing: AtomicBool::new(false),
+            is_closing,
             shutdown_receiver: Arc::new(Mutex::new(receiver)),
         }
     }
 
     pub async fn write_packet(&self, packet: T) -> ProtocolResult<()> {
         trace!("InternalConnection::write_packet({:?})", packet);
+        if self.is_closing.load(Ordering::Relaxed) {
+            return Err(ProtocolError::ShuttingDown);
+        }
         match self.writer.lock().await.write_packet(packet).await {
             Ok(_) => Ok(()),
-            Err(ProtocolError::WriteError(_)) => self.shutdown(true).await,
+            Err(ProtocolError::WriteError(_)) => {
+                trace!("InternalConnection::write_packet failed");
+                self.shutdown(true).await
+            }
             Err(e) => Err(e),
         }
     }
 
     pub async fn write(&self, payload: &[u8]) -> ProtocolResult<()> {
+        if self.is_closing.load(Ordering::Relaxed) {
+            return Err(ProtocolError::ShuttingDown);
+        }
         match self.writer.lock().await.write(payload).await {
             Ok(_) => Ok(()),
             Err(_) => self.shutdown(true).await,
@@ -97,6 +107,10 @@ impl<T: Packet + 'static + Send> InternalProtocolConnection<T> {
             .await
             .map_err(|_| ProtocolError::ShuttingDown)?;
         Ok(())
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.is_closing.load(Ordering::Relaxed)
     }
 }
 

@@ -7,7 +7,6 @@ use data::dto::entity::{NodeStatus, NodeStatusResponse};
 use http::header::AUTHORIZATION;
 use log::{debug, info};
 use node_lib::NodeHandle;
-use protocol::mgpp::packet::MGPPPacket;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -40,15 +39,8 @@ pub async fn test_controller_reboot_resiliency(
     og_handle.shutdown().await;
 
     sleep(Duration::from_secs(5)).await;
-    info!("Controller restarted");
-    let _ = node_1_handle
-        .mgpp_client
-        .write_packet(MGPPPacket::InvalidateCache {
-            cache_id: 0,
-            cache_key: vec![],
-        })
-        .await;
 
+    info!("Controller restarted");
     let controller_stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
         .await
         .expect("Controller boot failed");

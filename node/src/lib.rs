@@ -2,6 +2,7 @@ use crate::config::node_config::NodeConfigInstance;
 use crate::init_procedure::{initialize_heart, initialize_io, register_node};
 use std::collections::HashMap;
 
+use crate::caching::clear_caches;
 use crate::io::fragment_ledger::FragmentLedger;
 use crate::public::middleware::user_middleware::UserAuthenticate;
 use crate::public::routes::entity_action::{
@@ -91,9 +92,11 @@ impl AppState {
             .pause()
             .await;
         self.fragment_ledger.pause();
+        clear_caches().await;
     }
 
     pub async fn resume(&self) {
+        clear_caches().await;
         self.pause_handle
             .lock()
             .await

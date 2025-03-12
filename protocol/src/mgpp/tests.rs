@@ -94,12 +94,16 @@ mod int_tests {
         )
         .await;
         assert!(client.is_ok());
+
         let client = client.unwrap();
+        let pause_count = Arc::new(Mutex::new(AtomicUsize::new(0)));
+        let resume_count = Arc::new(Mutex::new(AtomicUsize::new(0)));
         let dummy_pause_handle: Arc<Box<dyn ApplicationPauseHandle>> =
             Arc::new(Box::new(DummyPauseHandle {
-                pause_count: Default::default(),
-                resume_count: Default::default(),
+                pause_count: pause_count.clone(),
+                resume_count: resume_count.clone(),
             }));
+
         client
             .set_up_auto_reconnect(dummy_pause_handle.clone())
             .await;
@@ -124,8 +128,8 @@ mod int_tests {
         drop(server);
         sleep(Duration::from_millis(500)).await;
 
-        // let server = MGPPServer::new(connection_auth_context.clone());
-        // assert!(server.start_server(7810, (cert, key)).await.is_ok());
+        let server = MGPPServer::new(connection_auth_context.clone());
+        assert!(server.start_server(7810, (cert, key)).await.is_ok());
 
         sleep(Duration::from_millis(2000)).await;
 
@@ -136,5 +140,8 @@ mod int_tests {
             })
             .await
             .is_ok());
+
+        assert_eq!(pause_count.lock().await.load(Ordering::SeqCst), 1);
+        assert_eq!(resume_count.lock().await.load(Ordering::SeqCst), 1);
     }
 }

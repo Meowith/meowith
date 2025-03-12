@@ -1,8 +1,3 @@
-use std::net::{IpAddr, SocketAddr};
-use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use log::trace;
 use crate::framework::auth::ConnectionAuthContext;
 use crate::framework::connection::ProtocolConnection;
 use crate::framework::writer::PacketWriter;
@@ -12,9 +7,15 @@ use crate::mgpp::handler::{MGPPHandlers, MGPPHandlersMapper};
 use crate::mgpp::packet::{MGPPPacket, MGPPPacketDispatcher, MGPPPacketSerializer};
 use crate::mgpp::server_handlers::MGPPServerCacheInvalidateHandler;
 use crate::mgpp::MGPPConnection;
+use log::trace;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use std::net::{IpAddr, SocketAddr};
+use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -88,11 +89,13 @@ impl InternalMGPPServer {
         let auth_ctx = self.connection_auth_context.clone();
         self.running.store(true, Ordering::SeqCst);
         let running = self.running.clone();
+        let running2 = self.running.clone();
 
         let (tx, _rx) = broadcast::channel(1);
         *self.shutdown_sender.lock().await = Some(tx);
         let shutdown_sender = self.shutdown_sender.clone();
         let connections = self.connections.clone();
+        let connections2 = self.connections.clone();
 
         let (startup_tx, startup_rx) = oneshot::channel();
 
@@ -170,34 +173,52 @@ impl InternalMGPPServer {
                         }),
                     });
 
-                    connections.lock().await.push(ProtocolConnection::new( // TODO, remove dead ones...
-                                                                           read,
-                                                                           Arc::new(MGPPPacketDispatcher {
-                                                                               handler: Box::new(MGPPHandlersMapper::new(handlers)),
-                                                                               writer: Arc::downgrade(&writer),
-                                                                           }),
-                                                                           writer,
+                    connections.lock().await.push(ProtocolConnection::new(
+                        read,
+                        Arc::new(MGPPPacketDispatcher {
+                            handler: Box::new(MGPPHandlersMapper::new(handlers)),
+                            writer: Arc::downgrade(&writer),
+                        }),
+                        writer,
                     ));
 
                     Ok(())
                 }
-                    .await;
+                .await;
 
                 match res {
                     Ok(_) => {}
                     Err(MGPPError::ShuttingDown) => {
+                        running.store(false, Ordering::SeqCst);
                         let mut conns = connections.lock().await;
                         trace!("MGPP shutting down {} connections", conns.len());
                         for conn in &*conns {
                             let _ = conn.shutdown(false).await;
                         }
                         conns.clear();
+                        trace!("MGPP Connections shut down {} connections", conns.len());
                         break;
                     }
                     Err(_) => {}
                 }
             }
             trace!("MGPP server exit");
+        });
+
+        // Occasionally check for dead connections and remove them.
+        // This avoids having a separate close watcher per connection.
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(1));
+            while running2.load(Ordering::Relaxed) {
+                interval.tick().await;
+
+                if Arc::strong_count(&connections2) <= 1 {
+                    break; // Only this task holds the ref, others are dead, it shall join them.
+                }
+
+                let mut conns = connections2.lock().await;
+                conns.retain(|conn| !conn.is_closed());
+            }
         });
 
         let _ = startup_rx.await;

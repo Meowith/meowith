@@ -155,7 +155,7 @@ pub async fn test_durable_upload(data: (AppDto, BucketDto, String, String)) {
 
     assert_bucket_info!(&args, 1, size as i64);
 
-    // TODO: this test fails as with the increased heartbeat interval,
+    // Note: this test fails as with the increased heartbeat interval,
     // Meowith gets the news that the nodes are technically full (node_storage_map)
     // And while the reservation mechanism does take into account overwriting other chunks,
     // the target resolver,
