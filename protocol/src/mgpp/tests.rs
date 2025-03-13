@@ -8,7 +8,6 @@ mod int_tests {
 
     use async_trait::async_trait;
     use openssl::x509::X509VerifyResult;
-    use tokio::sync::Mutex;
     use tokio::time::sleep;
     use uuid::Uuid;
 
@@ -28,32 +27,29 @@ mod int_tests {
     impl InvalidateCacheHandler for TestCacheHandler {
         async fn handle_invalidate(&self, cache_id: u32, cache: &[u8]) {
             if CACHE_ID == cache_id as usize && cache[0] == FIRST_BYTE {
-                self.received.lock().await.store(true, Ordering::SeqCst);
+                self.received.store(true, Ordering::SeqCst);
             }
         }
     }
 
     #[derive(Debug)]
     struct TestCacheHandler {
-        pub received: Arc<Mutex<AtomicBool>>,
+        pub received: Arc<AtomicBool>,
     }
 
     struct DummyPauseHandle {
-        pub pause_count: Arc<Mutex<AtomicUsize>>,
-        pub resume_count: Arc<Mutex<AtomicUsize>>,
+        pub pause_count: Arc<AtomicUsize>,
+        pub resume_count: Arc<AtomicUsize>,
     }
 
     #[async_trait]
     impl ApplicationPauseHandle for DummyPauseHandle {
         async fn pause(&self) {
-            self.pause_count.lock().await.fetch_add(1, Ordering::SeqCst);
+            self.pause_count.fetch_add(1, Ordering::SeqCst);
         }
 
         async fn resume(&self) {
-            self.resume_count
-                .lock()
-                .await
-                .fetch_add(1, Ordering::SeqCst);
+            self.resume_count.fetch_add(1, Ordering::SeqCst);
         }
     }
 
@@ -81,7 +77,7 @@ mod int_tests {
             .is_ok());
 
         let id = Uuid::new_v4();
-        let received = Arc::new(Mutex::new(AtomicBool::new(false)));
+        let received = Arc::new(AtomicBool::new(false));
 
         let client = MGPPClient::connect(
             SocketAddr::new(IpAddr::from_str("127.0.0.1").unwrap(), 7810),
@@ -96,8 +92,8 @@ mod int_tests {
         assert!(client.is_ok());
 
         let client = client.unwrap();
-        let pause_count = Arc::new(Mutex::new(AtomicUsize::new(0)));
-        let resume_count = Arc::new(Mutex::new(AtomicUsize::new(0)));
+        let pause_count = Arc::new(AtomicUsize::new(0));
+        let resume_count = Arc::new(AtomicUsize::new(0));
         let dummy_pause_handle: Arc<Box<dyn ApplicationPauseHandle>> =
             Arc::new(Box::new(DummyPauseHandle {
                 pause_count: pause_count.clone(),
@@ -118,11 +114,8 @@ mod int_tests {
 
         sleep(Duration::from_millis(100)).await;
 
-        {
-            let handler = received.lock().await;
-            assert!(handler.load(Ordering::SeqCst));
-            handler.store(false, Ordering::SeqCst);
-        }
+        assert!(received.load(Ordering::SeqCst));
+        received.store(false, Ordering::SeqCst);
 
         server.shutdown().await;
         drop(server);
@@ -141,7 +134,10 @@ mod int_tests {
             .await
             .is_ok());
 
-        assert_eq!(pause_count.lock().await.load(Ordering::SeqCst), 1);
-        assert_eq!(resume_count.lock().await.load(Ordering::SeqCst), 1);
+        sleep(Duration::from_millis(100)).await;
+
+        assert_eq!(pause_count.load(Ordering::SeqCst), 1);
+        assert_eq!(resume_count.load(Ordering::SeqCst), 1);
+        assert!(received.load(Ordering::SeqCst));
     }
 }
