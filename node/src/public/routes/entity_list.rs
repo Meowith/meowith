@@ -1,5 +1,5 @@
+use crate::public::extractors::entry_path::EntryPath;
 use crate::public::middleware::user_middleware::BucketAccessor;
-use crate::public::routes::EntryPath;
 use crate::public::service::file_list_service::{
     do_fetch_bucket_info, do_list_bucket_directories, do_list_bucket_files, do_list_dir,
     do_stat_file, PaginationInfo,
@@ -36,23 +36,23 @@ pub async fn list_bucket_directories(
 
 #[get("/list/{app_id}/{bucket_id}/{path:.*}")]
 pub async fn list_directory(
-    path: web::Path<EntryPath>,
+    path: EntryPath,
     accessor: BucketAccessor,
     app_data: web::Data<AppState>,
     paginate: web::Query<PaginationInfo>,
 ) -> NodeClientResponse<web::Json<EntityList>> {
-    do_list_dir(path.into_inner(), accessor, app_data, paginate.0)
+    do_list_dir(path, accessor, app_data, paginate.0)
         .await
         .map(web::Json)
 }
 
 #[get("/stat/{app_id}/{bucket_id}/{path:.*}")]
 pub async fn stat_entity(
-    path: web::Path<EntryPath>,
+    path: EntryPath,
     accessor: BucketAccessor,
     app_data: web::Data<AppState>,
 ) -> NodeClientResponse<web::Json<Entity>> {
-    do_stat_file(path.into_inner(), accessor, app_data).await
+    do_stat_file(path, accessor, app_data).await
 }
 
 #[get("/info/{app_id}/{bucket_id}")]

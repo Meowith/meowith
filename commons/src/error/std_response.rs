@@ -19,6 +19,7 @@ pub type NodeClientResponse<T> = Result<T, NodeClientError>;
 pub enum NodeClientError {
     InternalError,
     BadRequest,
+    BadResourcePath,
     NotFound,
     EntityExists,
     NoSuchSession,
@@ -36,6 +37,7 @@ impl error::ResponseError for NodeClientError {
         match *self {
             NodeClientError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             NodeClientError::BadRequest => StatusCode::BAD_REQUEST,
+            NodeClientError::BadResourcePath => StatusCode::BAD_REQUEST,
             NodeClientError::BadAuth => StatusCode::UNAUTHORIZED,
             NodeClientError::InsufficientStorage { .. } => StatusCode::IM_A_TEAPOT,
             NodeClientError::NotFound => StatusCode::NOT_FOUND,

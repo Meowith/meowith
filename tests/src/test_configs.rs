@@ -1,5 +1,7 @@
 use controller_lib::config::controller_config::ControllerConfig;
-use data::dto::config::{AccessTokenConfiguration, GeneralConfiguration, PortConfiguration};
+use data::dto::config::{
+    AccessTokenConfiguration, FsLimitConfiguration, GeneralConfiguration, PortConfiguration,
+};
 use lazy_static::lazy_static;
 
 use auth_framework::adapter::r#impl::basic_authenticator::BASIC_TYPE_IDENTIFIER;
@@ -42,6 +44,10 @@ lazy_static! {
             default_user_quota: 15 * 1024 * 1024 * 1024,
             login_methods: vec![BASIC_TYPE_IDENTIFIER.to_string()],
             cat_id_config: None,
+            fs_limits: FsLimitConfiguration {
+                max_path_length: 256,
+                max_directory_depth: 10,
+            }
         },
     };
     pub static ref TEST_NODE_1_CONFIG: NodeConfigInstance = NodeConfigInstance {

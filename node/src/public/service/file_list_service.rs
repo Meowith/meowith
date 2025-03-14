@@ -1,5 +1,5 @@
+use crate::public::extractors::entry_path::EntryPath;
 use crate::public::middleware::user_middleware::BucketAccessor;
-use crate::public::routes::EntryPath;
 use crate::public::service::{
     DOWNLOAD_ALLOWANCE, FETCH_BUCKET_INFO_ALLOWANCE, LIST_BUCKET_ALLOWANCE, LIST_DIR_ALLOWANCE,
 };
@@ -121,7 +121,7 @@ pub async fn do_list_bucket_directories(
 }
 
 pub async fn do_list_dir(
-    mut e_path: EntryPath,
+    e_path: EntryPath,
     accessor: BucketAccessor,
     app_data: web::Data<AppState>,
     pagination_info: PaginationInfo,
@@ -213,7 +213,7 @@ async fn collect_files(
 }
 
 pub async fn do_stat_file(
-    mut e_path: EntryPath,
+    e_path: EntryPath,
     accessor: BucketAccessor,
     app_data: web::Data<AppState>,
 ) -> NodeClientResponse<web::Json<Entity>> {

@@ -10,11 +10,7 @@ pub mod resiliency_test;
 
 #[cfg(test)]
 mod tests {
-    
-    
-    
-    
-    
+
     use crate::resiliency_test::test_controller_reboot_resiliency;
     use crate::test_configs::{
         TEST_CONTROLLER_CONFIG, TEST_DASHBOARD_1_CONFIG, TEST_NODE_1_CONFIG, TEST_NODE_2_CONFIG,

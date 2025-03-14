@@ -103,6 +103,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
     let init_res = register_node(&config).await;
     let mut req_ctx = init_res.0;
     let global_conf = fetch_general_config(&req_ctx).await.unwrap();
+    let fs_limit_configuration = web::Data::new(global_conf.fs_limits.clone());
     req_ctx.port_configuration = global_conf.port_configuration.clone();
     let (internal_cert, internal_key) = (init_res.1.internal_cert, init_res.1.internal_key);
     let req_ctx = Arc::new(req_ctx);
@@ -194,6 +195,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
     let external_server = HttpServer::new(move || {
         let cors = Cors::permissive();
         let external_app_data = app_data.clone();
+        let fs_limit_configuration = fs_limit_configuration.clone();
 
         let file_scope = web::scope("/api/file")
             .service(upload_oneshot)
@@ -221,6 +223,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
 
         App::new()
             .app_data(external_app_data)
+            .app_data(fs_limit_configuration)
             .wrap(cors)
             .service(file_scope)
             .service(directory_scope)

@@ -1,6 +1,6 @@
+use crate::public::extractors::entry_path::EntryPath;
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::routes::entity_action::RenameEntityRequest;
-use crate::public::routes::EntryPath;
 use crate::public::service::DELETE_ALLOWANCE;
 use crate::AppState;
 use actix_web::web::Data;
@@ -14,7 +14,7 @@ use logging::log_err;
 use tokio::try_join;
 
 pub async fn delete_file_srv(
-    mut path: EntryPath,
+    path: EntryPath,
     bucket_accessor: BucketAccessor,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {
@@ -58,8 +58,8 @@ pub async fn do_delete_file(
 }
 
 pub async fn rename_file_srv(
-    mut path: EntryPath,
-    mut req: RenameEntityRequest,
+    path: EntryPath,
+    req: RenameEntityRequest,
     bucket_accessor: BucketAccessor,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {

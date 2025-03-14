@@ -25,8 +25,8 @@ use data::model::file_model::{
 use protocol::mdsftp::data::{ChunkRange, CommitFlags, ReserveFlags};
 use protocol::mdsftp::handler::{AbstractReadStream, AbstractWriteStream};
 
+use crate::public::extractors::entry_path::EntryPath;
 use crate::public::middleware::user_middleware::BucketAccessor;
-use crate::public::routes::EntryPath;
 use crate::public::service::chunk_service::{commit_chunk, query_chunk, ChunkInfo};
 use crate::public::service::durable_transfer_session_manager::DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS;
 use crate::public::service::file_action_service::do_delete_file;
@@ -47,7 +47,7 @@ pub struct DlInfo {
 }
 
 pub async fn handle_upload_oneshot(
-    mut path: EntryPath,
+    path: EntryPath,
     size: u64,
     app_state: Data<AppState>,
     accessor: BucketAccessor,
@@ -194,7 +194,7 @@ pub async fn handle_upload_oneshot(
 }
 
 pub async fn start_upload_session(
-    mut e_path: EntryPath,
+    e_path: EntryPath,
     accessor: BucketAccessor,
     req: UploadSessionRequest,
     app_state: Data<AppState>,
@@ -600,7 +600,7 @@ pub fn create_commit_notifier(
 }
 
 pub async fn handle_download(
-    mut e_path: EntryPath,
+    e_path: EntryPath,
     accessor: BucketAccessor,
     writer: AbstractWriteStream,
     app_state: Data<AppState>,

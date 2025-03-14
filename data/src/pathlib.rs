@@ -1,3 +1,4 @@
+use crate::dto::config::FsLimitConfiguration;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::path::Path;
@@ -56,4 +57,39 @@ pub fn normalize(path: &str) -> String {
         .replace_all(path, "/")
         .trim_matches('/')
         .to_string()
+}
+
+/// Prepare the provided path to be used by meowith.
+/// Normalize the path and validate it.
+/// If all is good return Some(path), else None.
+///
+/// # Examples
+///
+/// ```
+/// use data::dto::config::FsLimitConfiguration;
+/// use data::pathlib::prepare_path;
+///
+/// let config = FsLimitConfiguration {
+///     max_path_length: 50,
+///     max_directory_depth: 3,
+/// };
+///
+/// assert_eq!(prepare_path("/valid/path", &config), Some("valid/path".to_string()));
+/// assert_eq!(prepare_path("too/deep/path/structure", &config), None);
+/// assert_eq!(prepare_path(&"a".repeat(51), &config), None);
+/// ```
+pub fn prepare_path(path: &str, fs_limit_configuration: &FsLimitConfiguration) -> Option<String> {
+    if path.len() as u32 > fs_limit_configuration.auto_reject_path_length() {
+        return None;
+    }
+    let normalized = normalize(path);
+    let nest_level = normalized.chars().filter(|&c| c == '/').count() as u32 + 1;
+
+    if nest_level > fs_limit_configuration.max_directory_depth
+        || normalized.len() as u32 > fs_limit_configuration.max_path_length
+    {
+        return None;
+    }
+
+    Some(normalized)
 }
