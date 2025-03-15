@@ -109,7 +109,6 @@ impl AppState {
 
     /// Returns true if a refresh has been performed
     pub async fn safe_refresh_peer_data(&self) -> Result<bool, NodeClientError> {
-        trace!("Attempting to safe refresh peer data");
         let mut last = self.last_peer_refresh.lock().await;
         let now = Utc::now();
         if now.signed_duration_since(*last).num_seconds()
@@ -124,7 +123,6 @@ impl AppState {
     }
 
     pub async fn refresh_peer_data(&self) -> Result<(), NodeClientError> {
-        trace!("Refreshing peer data");
         let peers = fetch_peer_storage_info(&self.req_ctx)
             .await
             .map_err(|_| NodeClientError::InternalError)?

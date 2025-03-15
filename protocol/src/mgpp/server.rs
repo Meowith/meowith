@@ -89,13 +89,13 @@ impl InternalMGPPServer {
         let auth_ctx = self.connection_auth_context.clone();
         self.running.store(true, Ordering::SeqCst);
         let running = self.running.clone();
-        let running2 = self.running.clone();
+        let running_clone = self.running.clone();
 
         let (tx, _rx) = broadcast::channel(1);
         *self.shutdown_sender.lock().await = Some(tx);
         let shutdown_sender = self.shutdown_sender.clone();
         let connections = self.connections.clone();
-        let connections2 = self.connections.clone();
+        let connections_clone = self.connections.clone();
 
         let (startup_tx, startup_rx) = oneshot::channel();
 
@@ -190,13 +190,14 @@ impl InternalMGPPServer {
                     Ok(_) => {}
                     Err(MGPPError::ShuttingDown) => {
                         running.store(false, Ordering::SeqCst);
-                        let mut conns = connections.lock().await;
-                        trace!("MGPP shutting down {} connections", conns.len());
-                        for conn in &*conns {
+                        let mut connections_guard = connections.lock().await;
+                        let num_connections = connections_guard.len();
+                        trace!("MGPP shutting down {num_connections} connections");
+                        for conn in &*connections_guard {
                             let _ = conn.shutdown(false).await;
                         }
-                        conns.clear();
-                        trace!("MGPP Connections shut down {} connections", conns.len());
+                        trace!("MGPP shut down {num_connections} connections");
+                        connections_guard.clear();
                         break;
                     }
                     Err(_) => {}
@@ -209,14 +210,14 @@ impl InternalMGPPServer {
         // This avoids having a separate close watcher per connection.
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(1));
-            while running2.load(Ordering::Relaxed) {
+            while running_clone.load(Ordering::Relaxed) {
                 interval.tick().await;
 
-                if Arc::strong_count(&connections2) <= 1 {
+                if Arc::strong_count(&connections_clone) <= 1 {
                     break; // Only this task holds the ref, others are dead, it shall join them.
                 }
 
-                let mut conns = connections2.lock().await;
+                let mut conns = connections_clone.lock().await;
                 conns.retain(|conn| !conn.is_closed());
             }
         });

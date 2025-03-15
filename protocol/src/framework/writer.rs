@@ -37,14 +37,14 @@ impl<T: Packet + 'static + Send> PacketWriter<T> {
     pub async fn write_packet(&mut self, packet: T) -> ProtocolResult<()> {
         let packet = self.serializer.serialize_packet(packet);
 
-        trace!("Sending packet to writer: {:?}", packet);
+        trace!("[writer] Sending packet: {:?}", packet);
 
         let res = self
             .write(packet.as_slice())
             .await
             .map_err(ProtocolError::WriteError);
 
-        trace!("Sending packet to writer: {:?}", res);
+        trace!("[writer] Sent packet: {:?}", res);
         res
     }
 

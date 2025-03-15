@@ -44,7 +44,6 @@ pub struct InternalProtocolConnection<T: Packet + 'static + Send> {
     writer: Arc<Mutex<PacketWriter<T>>>,
     reader: PacketReader<T>,
     is_closing: Arc<AtomicBool>,
-    #[allow(unused)]
     pub shutdown_receiver: Arc<Mutex<Receiver<()>>>,
 }
 

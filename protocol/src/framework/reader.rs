@@ -1,4 +1,4 @@
-use log::{error, trace};
+use log::error;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -66,7 +66,6 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
                     Err(ProtocolError::ReadError(err)) => {
                         error!("Stream read error: {}", err);
                         if let Some(sender) = shutdown_notify.as_ref() {
-                            trace!("Sending shutdown notification");
                             shutting_down.store(true, Ordering::SeqCst);
                             let _ = sender.send(()).await;
                         }
@@ -75,7 +74,6 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
                     Err(err) => {
                         error!("Packet parse error: {}", err);
                         if let Some(sender) = shutdown_notify.as_ref() {
-                            trace!("Sending shutdown notification");
                             shutting_down.store(true, Ordering::SeqCst);
                             let _ = sender.send(()).await;
                         }
@@ -95,7 +93,6 @@ impl<T: Packet + 'static + Send> PacketReader<T> {
         self.read_cancellation_token.cancel();
         if notify {
             if let Some(sender) = self.shutdown_notify.as_ref() {
-                trace!("Sending shutdown notification");
                 let _ = sender.send(()).await;
             }
         }
