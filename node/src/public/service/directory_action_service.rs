@@ -1,6 +1,6 @@
+use crate::public::extractors::entry_path::EntryPath;
 use crate::public::middleware::user_middleware::BucketAccessor;
 use crate::public::routes::entity_action::RenameEntityRequest;
-use crate::public::routes::EntryPath;
 use crate::public::service::file_access_service::try_mkdir;
 use crate::public::service::{
     CREATE_DIRECTORY_ALLOWANCE, DELETE_ALLOWANCE, RENAME_DIRECTORY_ALLOWANCE,
@@ -19,7 +19,7 @@ use futures::pin_mut;
 use futures_util::StreamExt;
 
 pub async fn do_create_directory(
-    mut path: EntryPath,
+    path: EntryPath,
     bucket_accessor: BucketAccessor,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {
@@ -29,7 +29,7 @@ pub async fn do_create_directory(
 }
 
 pub async fn do_delete_directory(
-    mut e_path: EntryPath,
+    e_path: EntryPath,
     req: DeleteDirectoryRequest,
     bucket_accessor: BucketAccessor,
     app_state: Data<AppState>,
@@ -100,8 +100,8 @@ async fn dir_empty(
 }
 
 pub async fn do_rename_directory(
-    mut e_path: EntryPath,
-    mut req: RenameEntityRequest,
+    e_path: EntryPath,
+    req: RenameEntityRequest,
     bucket_accessor: BucketAccessor,
     app_state: Data<AppState>,
 ) -> NodeClientResponse<()> {

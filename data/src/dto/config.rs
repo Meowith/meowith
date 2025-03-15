@@ -8,6 +8,36 @@ pub struct GeneralConfiguration {
     pub default_user_quota: u64,
     pub login_methods: Vec<String>,
     pub cat_id_config: Option<CatIdAppConfiguration>,
+    pub fs_limits: FsLimitConfiguration,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct FsLimitConfiguration {
+    pub max_path_length: u32,
+    pub max_directory_depth: u32,
+}
+
+impl FsLimitConfiguration {
+    pub fn new() -> Self {
+        Self {
+            max_path_length: 4096,
+            max_directory_depth: 256,
+        }
+    }
+
+    /// Calculate the path length above which no attempt at normalization will be made.
+    /// Note: this can be higher than the path length limit, as we are optimistically
+    /// assuming that during the normalization process any unnecessary path separators are going
+    /// to be removed, resulting in a shorter and potentially valid path.
+    pub fn auto_reject_path_length(&self) -> u32 {
+        self.max_path_length + 32
+    }
+}
+
+impl Default for FsLimitConfiguration {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -69,6 +99,7 @@ impl GeneralConfiguration {
             default_user_quota: 15 * 1024 * 1024 * 1024,
             login_methods: vec!["BASIC".to_string()],
             cat_id_config: None,
+            fs_limits: Default::default(),
         }
     }
 }
