@@ -22,6 +22,7 @@ use crate::locking::file_lock_table::FileLockTable;
 use crate::public::service::durable_transfer_session_manager::DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS;
 use commons::error::io_error::{MeowithIoError, MeowithIoResult};
 use data::dto::controller::UpdateStorageNodeProperties;
+use crate::io::fragment_metadata_store::ExtFragmentMetaStore;
 
 pub type LockTable = FileLockTable<Uuid>;
 
@@ -46,7 +47,7 @@ const AVAILABLE_BUFFER: u64 = 65535;
 // TODO: verify the fragments should exist with database.
 
 impl FragmentLedger {
-    pub fn new(root_path: String, max_space: u64, file_lock_table: LockTable) -> Self {
+    pub fn new(root_path: String, max_space: u64, file_lock_table: LockTable, ext_metadata_store: Box<dyn ExtFragmentMetaStore>) -> Self {
         let internal = InternalLedger {
             root_path: PathBuf::from(root_path),
             file_lock_table,
@@ -56,6 +57,7 @@ impl FragmentLedger {
             disk_content_size: Default::default(),
             reservation_map: Default::default(),
             uncommited_map: Default::default(),
+            ext_metadata_store,
             housekeeper_handle: std::sync::Mutex::new(None),
             disk_reserved_size: Default::default(),
             paused: AtomicBool::new(false),
@@ -513,6 +515,7 @@ struct InternalLedger {
     chunk_set: RwLock<HashMap<Uuid, FragmentMeta>>,
     reservation_map: RwLock<HashMap<Uuid, Reservation>>,
     uncommited_map: RwLock<HashMap<Uuid, CommitInfo>>,
+    ext_metadata_store: Box<dyn ExtFragmentMetaStore>,
 
     housekeeper_handle: std::sync::Mutex<Option<JoinHandle<()>>>,
 

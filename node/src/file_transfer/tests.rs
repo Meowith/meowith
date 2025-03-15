@@ -27,6 +27,7 @@ mod fp63_tests {
 
     use crate::file_transfer::channel_handler::MeowithMDSFTPChannelPacketHandler;
     use crate::file_transfer::packet_handler::MeowithMDSFTPPacketHandler;
+    use crate::io::embedded_fragment_metadata_store::EmbeddedFragmentMetaStore;
     use crate::io::fragment_ledger::FragmentLedger;
     use crate::locking::file_lock_table::FileLockTable;
 
@@ -112,10 +113,12 @@ mod fp63_tests {
             own_id: Uuid::new_v4(),
         });
 
+        let dir_one = node_dir_one.to_str().unwrap().to_string();
         let server_ledger = FragmentLedger::new(
-            node_dir_one.to_str().unwrap().to_string(),
+            dir_one.clone(),
             16 * 1024 * 1024 * 1024,
             FileLockTable::new(5),
+            Box::new(EmbeddedFragmentMetaStore::new(&dir_one))
         );
         server_ledger
             .initialize()
@@ -137,10 +140,12 @@ mod fp63_tests {
             .await
             .is_ok());
 
+        let dir_two = node_dir_two.to_str().unwrap().to_string();
         let client_ledger = FragmentLedger::new(
-            node_dir_two.to_str().unwrap().to_string(),
+            dir_two.clone(),
             16 * 1024 * 1024 * 1024,
             FileLockTable::new(5),
+            Box::new(EmbeddedFragmentMetaStore::new(&dir_two))
         );
         client_ledger
             .initialize()

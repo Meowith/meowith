@@ -23,6 +23,7 @@ use protocol::mdsftp::server::MDSFTPServer;
 use crate::config::node_config::NodeConfigInstance;
 use crate::file_transfer::connection_authenticator::MeowithMDSFTPConnectionAuthenticator;
 use crate::file_transfer::packet_handler::MeowithMDSFTPPacketHandler;
+use crate::io::embedded_fragment_metadata_store::EmbeddedFragmentMetaStore;
 use crate::io::fragment_ledger::{FragmentLedger, LockTable};
 use crate::locking::file_lock_table::FileLockTable;
 
@@ -106,7 +107,12 @@ pub async fn initialize_io(
     });
 
     let lock_table: LockTable = FileLockTable::new(global_config.max_readers);
-    let ledger = FragmentLedger::new(config.data_save_path.clone(), config.max_space, lock_table);
+    let ledger = FragmentLedger::new(
+        config.data_save_path.clone(),
+        config.max_space,
+        lock_table,
+        Box::new(EmbeddedFragmentMetaStore::new(&config.data_save_path)),
+    );
     let handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
         MeowithMDSFTPPacketHandler::new(ledger.clone(), config.net_fragment_size),
     )));

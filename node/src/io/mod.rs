@@ -5,6 +5,8 @@ use heim::disk::usage;
 use commons::error::io_error::{MeowithIoError, MeowithIoResult};
 
 pub mod fragment_ledger;
+pub mod fragment_metadata_store;
+pub mod embedded_fragment_metadata_store;
 
 #[derive(PartialOrd, PartialEq, Debug)]
 pub struct SpaceUsage {

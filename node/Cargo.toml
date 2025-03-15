@@ -41,6 +41,9 @@ lazy_static = "1.5.0"
 mime_guess = "2.0.5"
 chrono = "0.4.38"
 serde_cbor = "0.11.2"
+bincode = "2.0.1"
+sled = "0.34.7"
+serial_test = "3.2.0"
 
 [dev-dependencies]
 ntest = "*"

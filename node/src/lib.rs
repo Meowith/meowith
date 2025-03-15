@@ -1,3 +1,5 @@
+extern crate core;
+
 use crate::config::node_config::NodeConfigInstance;
 use crate::init_procedure::{initialize_heart, initialize_io, register_node};
 use std::collections::HashMap;
