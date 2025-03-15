@@ -16,7 +16,7 @@ use commons::context::microservice_request_context::{MicroserviceRequestContext,
 use data::dto::config::GeneralConfiguration;
 use data::model::microservice_node_model::MicroserviceType;
 use logging::log_err;
-use protocol::mdsftp::authenticator::ConnectionAuthContext;
+use protocol::framework::auth::ConnectionAuthContext;
 use protocol::mdsftp::pool::{MDSFTPPoolConfigHolder, PacketHandlerRef};
 use protocol::mdsftp::server::MDSFTPServer;
 

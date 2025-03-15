@@ -1,4 +1,4 @@
-use crate::mdsftp::authenticator::ConnectionAuthContext;
+use crate::framework::auth::ConnectionAuthContext;
 use crate::mdsftp::channel::{InternalMDSFTPChannel, MDSFTPChannel};
 use crate::mdsftp::net::packet_reader::{GlobalHandler, PacketReader};
 use crate::mdsftp::net::packet_type::MDSFTPPacketType;

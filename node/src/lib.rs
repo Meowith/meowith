@@ -2,6 +2,7 @@ use crate::config::node_config::NodeConfigInstance;
 use crate::init_procedure::{initialize_heart, initialize_io, register_node};
 use std::collections::HashMap;
 
+use crate::caching::clear_caches;
 use crate::io::fragment_ledger::FragmentLedger;
 use crate::public::middleware::user_middleware::UserAuthenticate;
 use crate::public::routes::entity_action::{
@@ -18,11 +19,16 @@ use actix_cors::Cors;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
 use actix_web::{web, App, HttpServer};
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use commons::access_token_service::AccessTokenJwtService;
 use commons::autoconfigure::general_conf::fetch_general_config;
 use commons::context::microservice_request_context::{MicroserviceRequestContext, NodeStorageMap};
+use commons::error::std_response::NodeClientError;
+use commons::pause_handle::ApplicationPauseHandle;
 use commons::ssl_acceptor::build_provided_ssl_acceptor_builder;
 use data::database_session::{build_session, CACHE_SIZE};
+use log::trace;
 use mgpp::connect_mgpp;
 use openssl::ssl::SslAcceptorBuilder;
 use peer::peer_utils::fetch_peer_storage_info;
@@ -48,16 +54,16 @@ pub mod public;
 pub struct NodeHandle {
     external_handle: ServerHandle,
     mdsftp_server: MDSFTPServer,
-    mgpp_client: MGPPClient,
+    pub mgpp_client: MGPPClient,
     heart_handle: AbortHandle,
     req_ctx: Arc<MicroserviceRequestContext>,
     pub join_handle: JoinHandle<()>,
 }
 
 impl NodeHandle {
-    pub async fn shutdown(&self) {
+    pub async fn shutdown(&self, forceful: bool) {
         self.heart_handle.abort();
-        self.external_handle.stop(true).await;
+        self.external_handle.stop(!forceful).await;
         let _ = self.mgpp_client.shutdown().await;
         self.mdsftp_server.shutdown().await;
         self.req_ctx.shutdown().await;
@@ -73,6 +79,7 @@ pub struct AppState {
     node_storage_map: NodeStorageMap,
     req_ctx: Arc<MicroserviceRequestContext>,
     pause_handle: Arc<Mutex<Option<ServerHandle>>>,
+    last_peer_refresh: Arc<Mutex<DateTime<Utc>>>,
 }
 
 impl AppState {
@@ -85,9 +92,11 @@ impl AppState {
             .pause()
             .await;
         self.fragment_ledger.pause();
+        clear_caches().await;
     }
 
     pub async fn resume(&self) {
+        clear_caches().await;
         self.pause_handle
             .lock()
             .await
@@ -96,6 +105,51 @@ impl AppState {
             .resume()
             .await;
         self.fragment_ledger.resume();
+    }
+
+    /// Returns true if a refresh has been performed
+    pub async fn safe_refresh_peer_data(&self) -> Result<bool, NodeClientError> {
+        let mut last = self.last_peer_refresh.lock().await;
+        let now = Utc::now();
+        if now.signed_duration_since(*last).num_seconds()
+            >= self.req_ctx.heart_beat_interval_seconds as i64
+        {
+            *last = now;
+            drop(last); // Avoid a deadlock
+            self.refresh_peer_data().await.map(|_| true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub async fn refresh_peer_data(&self) -> Result<(), NodeClientError> {
+        let peers = fetch_peer_storage_info(&self.req_ctx)
+            .await
+            .map_err(|_| NodeClientError::InternalError)?
+            .peers;
+        let mut map = self.node_storage_map.write().await;
+        let mut last = self.last_peer_refresh.lock().await;
+        for peer in peers {
+            map.insert(peer.0, peer.1.storage);
+        }
+        *last = Utc::now();
+        trace!("New peer data {:?}", map);
+        Ok(())
+    }
+}
+
+struct NodePauseHandle {
+    state: Data<AppState>,
+}
+
+#[async_trait]
+impl ApplicationPauseHandle for NodePauseHandle {
+    async fn pause(&self) {
+        self.state.pause().await;
+    }
+
+    async fn resume(&self) {
+        self.state.resume().await;
     }
 }
 
@@ -189,8 +243,17 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         node_storage_map,
         req_ctx,
         pause_handle: pause_handle.clone(),
+        last_peer_refresh: Arc::new(Default::default()),
     });
     app_data.upload_manager.init_session(app_data.clone()).await;
+
+    let node_pause_handle: Arc<Box<dyn ApplicationPauseHandle>> =
+        Arc::new(Box::new(NodePauseHandle {
+            state: app_data.clone(),
+        }));
+    mgpp_client
+        .set_up_auto_reconnect(node_pause_handle.clone())
+        .await;
 
     let external_server = HttpServer::new(move || {
         let cors = Cors::permissive();

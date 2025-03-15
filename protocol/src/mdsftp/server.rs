@@ -17,7 +17,7 @@ use uuid::{Bytes, Uuid};
 
 use commons::context::microservice_request_context::NodeAddrMap;
 
-use crate::mdsftp::authenticator::ConnectionAuthContext;
+use crate::framework::auth::ConnectionAuthContext;
 use crate::mdsftp::pool::{MDSFTPPool, MDSFTPPoolConfigHolder, PacketHandlerRef};
 use commons::error::mdsftp_error::MDSFTPError;
 

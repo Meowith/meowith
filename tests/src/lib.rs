@@ -10,7 +10,11 @@ pub mod resiliency_test;
 
 #[cfg(test)]
 mod tests {
-
+    use crate::concurrent_upload_test::concurrent_test;
+    use crate::directory_test::directory_test;
+    use crate::durable_file_transfer_test::test_durable_upload;
+    use crate::file_transfer_test::test_file_transfer;
+    use crate::move_test::move_test;
     use crate::resiliency_test::test_controller_reboot_resiliency;
     use crate::test_configs::{
         TEST_CONTROLLER_CONFIG, TEST_DASHBOARD_1_CONFIG, TEST_NODE_1_CONFIG, TEST_NODE_2_CONFIG,
@@ -100,7 +104,7 @@ mod tests {
 
     // The tests need to be run in a specific order
     #[tokio::test]
-    #[ntest::timeout(100000)]
+    #[ntest::timeout(120000)]
     async fn integration_test_runner() {
         let default_panic = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
@@ -123,7 +127,7 @@ mod tests {
         big_header!("TEST node register");
         let controller_token = integration_test_register().await;
 
-        let mut controller_stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
+        let controller_stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
             .await
             .expect("Controller boot failed");
         info!("Controller started");
@@ -142,30 +146,41 @@ mod tests {
             .await
             .expect("Failed to register dashboard 1");
 
-        // big_header!("TEST file transfer");
-        // let user_setup = test_file_transfer().await;
-        //
-        // big_header!("TEST durable file transfer");
-        // test_durable_upload(user_setup.clone()).await;
-        //
-        // big_header!("TEST directory management");
-        // directory_test(user_setup.clone()).await;
-        //
-        // big_header!("TEST file movement");
-        // move_test(user_setup.clone()).await;
-        //
-        // big_header!("TEST concurrent");
-        // concurrent_test(user_setup.clone()).await;
+        big_header!("TEST file transfer");
+        let user_setup = test_file_transfer().await;
+
+        big_header!("TEST durable file transfer");
+        test_durable_upload(user_setup.clone()).await;
+
+        big_header!("TEST directory management");
+        directory_test(user_setup.clone()).await;
+
+        big_header!("TEST file movement");
+        move_test(user_setup.clone()).await;
+
+        big_header!("TEST concurrent");
+        concurrent_test(user_setup.clone()).await;
 
         big_header!("TEST resiliency");
-        controller_stop_handle =
-            test_controller_reboot_resiliency(controller_token, controller_stop_handle).await;
+        let (
+            controller_stop_handle,
+            node_1_stop_handle,
+            node_2_stop_handle,
+            dashboard_1_stop_handle,
+        ) = test_controller_reboot_resiliency(
+            controller_token,
+            controller_stop_handle,
+            node_1_stop_handle,
+            node_2_stop_handle,
+            dashboard_1_stop_handle,
+        )
+        .await;
 
         info!("Shutting down all nodes.");
-        node_1_stop_handle.shutdown().await;
+        node_1_stop_handle.shutdown(true).await;
         node_1_stop_handle.join_handle.await.expect("Join fail");
         info!("Node 1 shutdown awaited");
-        node_2_stop_handle.shutdown().await;
+        node_2_stop_handle.shutdown(true).await;
         node_2_stop_handle.join_handle.await.expect("Join fail");
         info!("Node 2 shutdown awaited");
         dashboard_1_stop_handle.shutdown().await;
@@ -289,10 +304,10 @@ mod tests {
 
         sleep(Duration::from_secs(1)).await;
 
-        node_1_stop_handle.shutdown().await;
+        node_1_stop_handle.shutdown(false).await;
         node_1_stop_handle.join_handle.await.expect("Join fail");
         info!("Node 1 shutdown awaited");
-        node_2_stop_handle.shutdown().await;
+        node_2_stop_handle.shutdown(false).await;
         node_2_stop_handle.join_handle.await.expect("Join fail");
         info!("Node 2 shutdown awaited");
         dashboard_1_stop_handle.shutdown().await;

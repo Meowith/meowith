@@ -10,6 +10,7 @@ use protocol::mdsftp::data::ReserveFlags;
 use std::collections::HashSet;
 use uuid::Uuid;
 
+#[derive(Copy, Clone)]
 pub enum ReservationMode {
     PreferSelfThenMostFree,
     PreferMostFree,
@@ -40,14 +41,11 @@ pub fn reserve_info_to_file_chunks(reserve_info: &ReserveInfo) -> HashSet<FileCh
         .collect()
 }
 
-pub async fn reserve_chunks(
-    size: u64,
-    flags: ReserveFlags,
-    associated_bucket_id: Uuid,
-    associated_file_id: Uuid,
-    mode: ReservationMode,
+async fn resolve_targets(
     state: &Data<AppState>,
-) -> NodeClientResponse<ReserveInfo> {
+    size: u64,
+    mode: ReservationMode,
+) -> (Vec<(Uuid, u64)>, u64) {
     let mut target_list: Vec<(Uuid, u64)> = vec![];
     let self_free = state.fragment_ledger.get_available_space();
     let rem: u64;
@@ -68,11 +66,35 @@ pub async fn reserve_chunks(
             rem = push_most_used(&state.node_storage_map, &mut target_list, size).await;
         }
     }
+    (target_list, rem)
+}
+
+pub async fn reserve_chunks(
+    size: u64,
+    flags: ReserveFlags,
+    associated_bucket_id: Uuid,
+    associated_file_id: Uuid,
+    mode: ReservationMode,
+    state: &Data<AppState>,
+) -> NodeClientResponse<ReserveInfo> {
+    let (mut target_list, mut rem) = resolve_targets(state, size, mode).await;
 
     if rem > 0 {
-        return Err(NodeClientError::InsufficientStorage {
-            message: format!("Failed to reserve space, rem={rem}"),
-        });
+        // In case we have stale data, try to refresh our list of other nodes and retry
+        if !state.safe_refresh_peer_data().await? {
+            // If no refresh has been performed, return an error.
+            return Err(NodeClientError::InsufficientStorage {
+                message: format!("Failed to reserve space, rem={rem}"),
+            });
+        }
+
+        (target_list, rem) = resolve_targets(state, size, mode).await;
+
+        if rem > 0 {
+            return Err(NodeClientError::InsufficientStorage {
+                message: format!("Failed to reserve space, rem={rem}"),
+            });
+        }
     }
 
     // Try reserve

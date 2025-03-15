@@ -1,4 +1,3 @@
-pub mod authenticator;
 pub mod channel;
 pub mod channel_handle;
 pub mod connection;

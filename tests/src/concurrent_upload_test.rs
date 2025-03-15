@@ -1,7 +1,10 @@
+use crate::assert_bucket_info;
 use crate::directory_test::NodeArgs;
-use crate::file_transfer_test::{assert_bucket_info, upload_file, TEST_3_SIZE};
+use crate::file_transfer_test::fetch_bucket_info;
+use crate::file_transfer_test::{upload_file, TEST_3_SIZE};
 use crate::utils::Logger;
 use data::dto::entity::{AppDto, BucketDto};
+use log::info;
 use reqwest_middleware::ClientBuilder;
 
 pub async fn concurrent_test(data: (AppDto, BucketDto, String, String)) {
@@ -52,5 +55,5 @@ pub async fn concurrent_test(data: (AppDto, BucketDto, String, String)) {
         client: &client,
     };
 
-    assert_bucket_info(&args, 10, (10 * TEST_3_SIZE) as i64).await;
+    assert_bucket_info!(&args, 10, (10 * TEST_3_SIZE) as i64);
 }

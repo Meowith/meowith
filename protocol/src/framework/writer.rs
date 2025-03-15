@@ -1,5 +1,6 @@
-use crate::framework::error::{ProtocolError, ProtocolResult};
 use crate::framework::traits::{Packet, PacketSerializer};
+use commons::error::protocol_error::{ProtocolError, ProtocolResult};
+use log::trace;
 use std::sync::Arc;
 use tokio::io::{AsyncWriteExt, WriteHalf};
 use tokio::net::TcpStream;
@@ -27,6 +28,7 @@ impl<T: Packet + 'static + Send> PacketWriter<T> {
 
     pub async fn write(&mut self, slice: &[u8]) -> std::io::Result<()> {
         self.stream.write_all(slice).await?;
+        self.stream.flush().await?;
         self.last_write = Instant::now();
 
         Ok(())
@@ -35,11 +37,15 @@ impl<T: Packet + 'static + Send> PacketWriter<T> {
     pub async fn write_packet(&mut self, packet: T) -> ProtocolResult<()> {
         let packet = self.serializer.serialize_packet(packet);
 
-        self.write(packet.as_slice())
-            .await
-            .map_err(ProtocolError::WriteError)?;
+        trace!("[writer] Sending packet: {:?}", packet);
 
-        Ok(())
+        let res = self
+            .write(packet.as_slice())
+            .await
+            .map_err(ProtocolError::WriteError);
+
+        trace!("[writer] Sent packet: {:?}", res);
+        res
     }
 
     #[allow(unused)]
@@ -48,6 +54,7 @@ impl<T: Packet + 'static + Send> PacketWriter<T> {
     }
 
     pub(crate) async fn close(&mut self) -> std::io::Result<()> {
+        trace!("Protocol writer closing");
         self.stream.shutdown().await?;
 
         Ok(())

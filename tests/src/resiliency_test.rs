@@ -2,9 +2,11 @@ use crate::test_configs::TEST_CONTROLLER_CONFIG;
 use crate::utils::Logger;
 use chrono::Utc;
 use controller_lib::{start_controller, ControllerHandle};
+use dashboard_lib::DashboardHandle;
 use data::dto::entity::{NodeStatus, NodeStatusResponse};
 use http::header::AUTHORIZATION;
 use log::{debug, info};
+use node_lib::NodeHandle;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -26,15 +28,22 @@ async fn get_node_status(client: &ClientWithMiddleware, token: &str) -> Vec<Node
 pub async fn test_controller_reboot_resiliency(
     controller_token: String,
     og_handle: ControllerHandle,
-) -> ControllerHandle {
+    node_1_handle: NodeHandle,
+    node_2_handle: NodeHandle,
+    dashboard_handle: DashboardHandle,
+) -> (ControllerHandle, NodeHandle, NodeHandle, DashboardHandle) {
     let reqwest_client = reqwest::Client::builder().build().unwrap();
     let client = ClientBuilder::new(reqwest_client).with(Logger).build();
 
+    header!("Shutting down the controller");
     og_handle.shutdown().await;
+
+    sleep(Duration::from_secs(5)).await;
+
+    info!("Controller restarted");
     let controller_stop_handle = start_controller(TEST_CONTROLLER_CONFIG.clone())
         .await
         .expect("Controller boot failed");
-    info!("Controller restarted");
 
     // Wait for the nodes to re-connect
     sleep(Duration::from_secs(5)).await;
@@ -55,5 +64,10 @@ pub async fn test_controller_reboot_resiliency(
         now.signed_duration_since(x.last_beat).num_seconds() < 30
     }));
 
-    controller_stop_handle
+    (
+        controller_stop_handle,
+        node_1_handle,
+        node_2_handle,
+        dashboard_handle,
+    )
 }

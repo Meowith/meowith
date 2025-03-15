@@ -1,3 +1,4 @@
+use crate::error::protocol_error::ProtocolError;
 use openssl::error::ErrorStack;
 use std::array::TryFromSliceError;
 use std::error::Error;
@@ -48,3 +49,20 @@ impl From<TryFromSliceError> for MDSFTPError {
 }
 
 impl Error for MDSFTPError {}
+
+impl From<ProtocolError> for MDSFTPError {
+    fn from(value: ProtocolError) -> Self {
+        match value {
+            ProtocolError::ShuttingDown => MDSFTPError::ShuttingDown,
+            ProtocolError::ConnectionError => MDSFTPError::ConnectionError,
+            ProtocolError::AuthenticationFailed => MDSFTPError::ConnectionAuthenticationError,
+            ProtocolError::WriteError(_) => MDSFTPError::ConnectionError,
+            ProtocolError::InvalidFormat => MDSFTPError::ConnectionError,
+            ProtocolError::SizeMismatch => MDSFTPError::ConnectionError,
+            ProtocolError::ReadError(_) => MDSFTPError::ConnectionError,
+            ProtocolError::Uuid(_) => MDSFTPError::ConnectionError,
+            ProtocolError::Ambiguous(_) => MDSFTPError::ConnectionError,
+            ProtocolError::Custom(_) => MDSFTPError::ConnectionError,
+        }
+    }
+}

@@ -1,7 +1,7 @@
-use crate::framework::error::ProtocolResult;
 use crate::framework::writer::PacketWriter;
 use crate::mgpp::packet::{MGPPPacket, MGPPPacketHandler};
 use async_trait::async_trait;
+use commons::error::protocol_error::ProtocolResult;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -24,16 +24,17 @@ impl MGPPHandlers {
 
 #[derive(Debug)]
 pub struct MGPPHandlersMapper {
-    handlers: MGPPHandlers,
+    handlers: Arc<MGPPHandlers>,
 }
 
 unsafe impl Sync for MGPPHandlersMapper {}
 
 impl MGPPHandlersMapper {
-    pub(crate) fn new(handlers: MGPPHandlers) -> MGPPHandlersMapper {
+    pub(crate) fn new(handlers: Arc<MGPPHandlers>) -> MGPPHandlersMapper {
         Self { handlers }
     }
 }
+
 #[async_trait]
 impl MGPPPacketHandler<MGPPPacket> for MGPPHandlersMapper {
     async fn handle_invalidate_cache(

@@ -13,7 +13,7 @@ use tokio::time;
 use tokio_rustls::TlsStream;
 use uuid::Uuid;
 
-use crate::mdsftp::authenticator::ConnectionAuthContext;
+use crate::framework::auth::ConnectionAuthContext;
 use crate::mdsftp::channel::MDSFTPChannel;
 use crate::mdsftp::connection::MDSFTPConnection;
 use crate::mdsftp::handler::PacketHandler;

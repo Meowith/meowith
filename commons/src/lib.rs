@@ -4,5 +4,6 @@ pub mod cache;
 pub mod context;
 pub mod error;
 pub mod middleware_actions;
+pub mod pause_handle;
 pub mod permission;
 pub mod ssl_acceptor;

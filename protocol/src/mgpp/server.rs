@@ -1,20 +1,21 @@
-use std::net::{IpAddr, SocketAddr};
-use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-
+use crate::framework::auth::ConnectionAuthContext;
 use crate::framework::connection::ProtocolConnection;
 use crate::framework::writer::PacketWriter;
-use crate::mdsftp::authenticator::ConnectionAuthContext;
 use crate::mdsftp::server::ZERO_UUID;
 use crate::mgpp::error::MGPPError;
 use crate::mgpp::handler::{MGPPHandlers, MGPPHandlersMapper};
 use crate::mgpp::packet::{MGPPPacket, MGPPPacketDispatcher, MGPPPacketSerializer};
 use crate::mgpp::server_handlers::MGPPServerCacheInvalidateHandler;
 use crate::mgpp::MGPPConnection;
+use log::trace;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use std::net::{IpAddr, SocketAddr};
+use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -40,10 +41,7 @@ impl MGPPServer {
         let connections = self._internal.connections.lock().await;
 
         for connection in &*connections {
-            let writer = connection.0.obtain_writer();
-            writer
-                .lock()
-                .await
+            connection
                 .write_packet(packet.clone())
                 .await
                 .map_err(|_| MGPPError::ConnectionError)?;
@@ -91,11 +89,13 @@ impl InternalMGPPServer {
         let auth_ctx = self.connection_auth_context.clone();
         self.running.store(true, Ordering::SeqCst);
         let running = self.running.clone();
+        let running_clone = self.running.clone();
 
         let (tx, _rx) = broadcast::channel(1);
         *self.shutdown_sender.lock().await = Some(tx);
         let shutdown_sender = self.shutdown_sender.clone();
         let connections = self.connections.clone();
+        let connections_clone = self.connections.clone();
 
         let (startup_tx, startup_rx) = oneshot::channel();
 
@@ -167,11 +167,11 @@ impl InternalMGPPServer {
                         write,
                         Arc::new(MGPPPacketSerializer),
                     )));
-                    let handlers = MGPPHandlers {
+                    let handlers = Arc::new(MGPPHandlers {
                         invalidate_cache: Box::new(MGPPServerCacheInvalidateHandler {
                             connections: connections_clone,
                         }),
-                    };
+                    });
 
                     connections.lock().await.push(ProtocolConnection::new(
                         read,
@@ -189,10 +189,36 @@ impl InternalMGPPServer {
                 match res {
                     Ok(_) => {}
                     Err(MGPPError::ShuttingDown) => {
+                        running.store(false, Ordering::SeqCst);
+                        let mut connections_guard = connections.lock().await;
+                        let num_connections = connections_guard.len();
+                        trace!("MGPP shutting down {num_connections} connections");
+                        for conn in &*connections_guard {
+                            let _ = conn.shutdown(false).await;
+                        }
+                        trace!("MGPP shut down {num_connections} connections");
+                        connections_guard.clear();
                         break;
                     }
                     Err(_) => {}
                 }
+            }
+            trace!("MGPP server exit");
+        });
+
+        // Occasionally check for dead connections and remove them.
+        // This avoids having a separate close watcher per connection.
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(1));
+            while running_clone.load(Ordering::Relaxed) {
+                interval.tick().await;
+
+                if Arc::strong_count(&connections_clone) <= 1 {
+                    break; // Only this task holds the ref, others are dead, it shall join them.
+                }
+
+                let mut conns = connections_clone.lock().await;
+                conns.retain(|conn| !conn.is_closed());
             }
         });
 
@@ -201,6 +227,7 @@ impl InternalMGPPServer {
     }
 
     pub async fn shutdown(&self) {
+        trace!("Shutting MGPP server down");
         let sender = self.shutdown_sender.clone();
         let mut lock = sender.lock().await;
         if let Some(sender) = lock.as_mut() {

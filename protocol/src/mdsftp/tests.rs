@@ -14,12 +14,7 @@ mod int_tests {
     use tokio::time::sleep;
     use uuid::Uuid;
 
-    use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
-    use commons::context::microservice_request_context::NodeAddrMap;
-    use commons::error::mdsftp_error::MDSFTPResult;
-    use logging::initialize_test_logging;
-
-    use crate::mdsftp::authenticator::ConnectionAuthContext;
+    use crate::framework::auth::ConnectionAuthContext;
     use crate::mdsftp::channel::MDSFTPChannel;
     use crate::mdsftp::data::{
         ChunkRange, CommitFlags, LockAcquireResult, LockKind, PutFlags, ReserveFlags,
@@ -27,6 +22,10 @@ mod int_tests {
     use crate::mdsftp::handler::{Channel, ChannelPacketHandler, PacketHandler};
     use crate::mdsftp::pool::{MDSFTPPool, PacketHandlerRef};
     use crate::mdsftp::server::MDSFTPServer;
+    use commons::autoconfigure::ssl_conf::{gen_test_ca, gen_test_certs};
+    use commons::context::microservice_request_context::NodeAddrMap;
+    use commons::error::mdsftp_error::MDSFTPResult;
+    use logging::initialize_test_logging;
 
     struct HandlerStats {
         pub channels_opened: u32,

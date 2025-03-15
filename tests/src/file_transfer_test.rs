@@ -148,13 +148,20 @@ pub(crate) async fn assert_bucket_session_count(args: &NodeArgs<'_>, count: usiz
     assert_eq!(sessions.sessions.len(), count);
 }
 
-pub(crate) async fn assert_bucket_info(args: &NodeArgs<'_>, files: i64, space_taken: i64) {
-    let fetched_bucket_dto: BucketDto =
-        fetch_bucket_info(args.token, args.app_id, args.bucket_id, args.client).await;
-    info!("Info assert. Expected f={files} s={space_taken}, got {fetched_bucket_dto:?}");
-    assert_eq!(fetched_bucket_dto.space_taken, space_taken);
-    assert_eq!(fetched_bucket_dto.file_count, files);
-    header!("Bucket fetch");
+#[macro_export]
+macro_rules! assert_bucket_info {
+    ($args:expr, $files:expr, $space_taken:expr) => {{
+        let fetched_bucket_dto =
+            fetch_bucket_info($args.token, $args.app_id, $args.bucket_id, $args.client).await;
+        info!(
+            "Info assert. Expected f={} s={}, got {:?}",
+            $files, $space_taken, fetched_bucket_dto
+        );
+
+        assert_eq!(fetched_bucket_dto.space_taken, $space_taken);
+        assert_eq!(fetched_bucket_dto.file_count, $files);
+        header!("Bucket fetch");
+    }};
 }
 
 async fn issue_token(
@@ -357,7 +364,7 @@ pub async fn test_file_transfer() -> (AppDto, BucketDto, String, String) {
         client: &client,
     };
 
-    assert_bucket_info(&args, 0, 0).await;
+    assert_bucket_info!(&args, 0, 0);
 
     upload_file("test_data/test1.txt", "test1", "127.0.0.2:4000", &args).await;
     header!("Small File uploaded");
@@ -403,19 +410,19 @@ pub async fn test_file_transfer() -> (AppDto, BucketDto, String, String) {
     )
     .await;
 
-    assert_bucket_info(&args, 2, 10_000 + 1700 * 1024).await;
+    assert_bucket_info!(&args, 2, 10_000 + 1700 * 1024);
 
     upload_file("test_data/test1.txt", "test1", "127.0.0.2:4000", &args).await;
     header!("Small File uploaded");
 
-    assert_bucket_info(&args, 2, 10_000 + 1700 * 1024).await;
+    assert_bucket_info!(&args, 2, 10_000 + 1700 * 1024);
 
     delete_file("test1", "127.0.0.3:4001", &args).await;
     delete_file("test2", "127.0.0.2:4000", &args).await;
 
     header!("Files deleted");
 
-    assert_bucket_info(&args, 0, 0).await;
+    assert_bucket_info!(&args, 0, 0);
 
     upload_file_ranged(
         "test_data/test2.txt",
@@ -426,7 +433,7 @@ pub async fn test_file_transfer() -> (AppDto, BucketDto, String, String) {
         true,
     )
     .await;
-    assert_bucket_info(&args, 0, 0).await;
+    assert_bucket_info!(&args, 0, 0);
 
     header!("Testing incomplete uploads");
     assert_bucket_session_count(&args, 0).await;
@@ -442,7 +449,7 @@ pub async fn test_file_transfer() -> (AppDto, BucketDto, String, String) {
 
     sleep(Duration::from_secs(2)).await;
 
-    assert_bucket_info(&args, 0, 0).await;
+    assert_bucket_info!(&args, 0, 0);
     assert_bucket_session_count(&args, 0).await;
 
     (app_dto, bucket_dto, token, user_token)

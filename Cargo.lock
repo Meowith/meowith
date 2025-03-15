@@ -380,9 +380,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.85"
+version = "0.1.87"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f934833b4b7233644e5848f235df3f57ed8c80f1528a26c3dfa13d2147fa056"
+checksum = "d556ec1359574147ec0c4fc5eb525f3f23263a592b1a9c07e0a75b427de55c97"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -854,6 +854,7 @@ name = "commons"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "async-trait",
  "bcrypt",
  "chrono",
  "data",
@@ -868,6 +869,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strum",
+ "thiserror 1.0.69",
  "tokio",
  "uuid",
 ]
@@ -2530,9 +2532,10 @@ dependencies = [
  "protocol_macro",
  "rand",
  "rustls",
- "thiserror 1.0.69",
+ "socket2",
  "tokio",
  "tokio-rustls",
+ "tokio-util",
  "uuid",
 ]
 
@@ -3238,6 +3241,7 @@ dependencies = [
  "logging",
  "node",
  "ntest",
+ "protocol",
  "rand",
  "reqwest",
  "reqwest-middleware",
