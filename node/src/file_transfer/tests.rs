@@ -118,7 +118,7 @@ mod fp63_tests {
             dir_one.clone(),
             16 * 1024 * 1024 * 1024,
             FileLockTable::new(5),
-            Box::new(EmbeddedFragmentMetaStore::new(&dir_one))
+            Box::new(EmbeddedFragmentMetaStore::new(&dir_one)),
         );
         server_ledger
             .initialize()
@@ -145,7 +145,7 @@ mod fp63_tests {
             dir_two.clone(),
             16 * 1024 * 1024 * 1024,
             FileLockTable::new(5),
-            Box::new(EmbeddedFragmentMetaStore::new(&dir_two))
+            Box::new(EmbeddedFragmentMetaStore::new(&dir_two)),
         );
         client_ledger
             .initialize()
@@ -185,7 +185,7 @@ mod fp63_tests {
                 u16::MAX as u32,
             ));
             let meta = client_ledger
-                .fragment_meta(&file_a_id)
+                .existing_fragment_meta(&file_a_id)
                 .await
                 .expect("Meta read fail");
             debug!("Fragment {:?}", meta);
@@ -213,7 +213,7 @@ mod fp63_tests {
             debug!("Took {:?}", start.elapsed());
 
             let recv_meta = server_ledger
-                .fragment_meta(&reserve.chunk_id)
+                .existing_fragment_meta(&reserve.chunk_id)
                 .await
                 .unwrap();
             assert_eq!(recv_meta.disk_content_size, meta.disk_content_size);

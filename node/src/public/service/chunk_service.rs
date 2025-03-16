@@ -66,7 +66,7 @@ pub async fn query_chunk(
         if node_id == state.req_ctx.id {
             Ok(state
                 .fragment_ledger
-                .fragment_meta_ex(&chunk_id)
+                .existing_or_reserved_fragment_meta(&chunk_id)
                 .await
                 .map(|c| c.disk_content_size))
         } else {

@@ -39,6 +39,7 @@ use protocol::mgpp::client::MGPPClient;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
+use tokio::io::AsyncWriteExt;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::{AbortHandle, JoinHandle};
 use uuid::Uuid;
@@ -60,15 +61,17 @@ pub struct NodeHandle {
     heart_handle: AbortHandle,
     req_ctx: Arc<MicroserviceRequestContext>,
     pub join_handle: JoinHandle<()>,
+    fragment_ledger: FragmentLedger,
 }
 
 impl NodeHandle {
     pub async fn shutdown(&self, forceful: bool) {
-        self.heart_handle.abort();
         self.external_handle.stop(!forceful).await;
+        self.heart_handle.abort();
         let _ = self.mgpp_client.shutdown().await;
         self.mdsftp_server.shutdown().await;
         self.req_ctx.shutdown().await;
+        self.fragment_ledger.shutdown().await;
     }
 }
 
@@ -239,7 +242,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         session,
         mdsftp_server,
         upload_manager: DurableTransferSessionManager::new(),
-        fragment_ledger,
+        fragment_ledger: fragment_ledger.clone(),
         jwt_service: AccessTokenJwtService::new(&global_conf.access_token_configuration)
             .expect("JWT Service creation failed"),
         node_storage_map,
@@ -316,15 +319,17 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
     pause_handle.lock().await.replace(external_server.handle());
     let external_handle = external_server.handle();
 
-    let join_handle = tokio::task::spawn(async {
+    let join_handle = tokio::task::spawn(async move {
         if let Err(err) = external_server.await {
             log::error!("Node server mdsftp_error {err:?}");
         }
+        log::info!("Node server stopped.");
     });
 
     let heart_handle = initialize_heart(heart_req_ctx, heart_ledger);
 
     Ok(NodeHandle {
+        fragment_ledger,
         external_handle,
         mgpp_client,
         mdsftp_server: mdsftp_server_clone,

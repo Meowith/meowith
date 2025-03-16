@@ -21,7 +21,12 @@ pub async fn move_chunk(
 ) -> NodeClientResponse<Uuid> {
     let chunk_info = state
         .fragment_ledger
-        .fragment_meta(&id)
+        .existing_fragment_meta(&id)
+        .await
+        .ok_or(NodeClientError::NotFound)?;
+    let extended_fragment_meta = state
+        .fragment_ledger
+        .extended_fragment_meta(&id)
         .await
         .ok_or(NodeClientError::NotFound)?;
 
@@ -42,12 +47,12 @@ pub async fn move_chunk(
         temp: false,
         overwrite: false,
     };
-    // TODO: store bucket id's and file id's in the fragment ledger
+
     let space = try_reserve_chunk(
         target_node,
         chunk_info.disk_content_size,
-        Uuid::new_v4(),
-        Uuid::new_v4(),
+        Uuid::from_u128_le(extended_fragment_meta.bucket_id),
+        Uuid::from_u128_le(extended_fragment_meta.file_id),
         &flags,
         state,
     )

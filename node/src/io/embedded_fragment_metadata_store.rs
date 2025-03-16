@@ -18,8 +18,8 @@ impl EmbeddedFragmentMetaStore {
             .path(db_path)
             .mode(Mode::HighThroughput)
             .open()
-            .expect("Failed to open meta.db");
-        
+            .unwrap();
+
         let schema = db.open_tree("schema").unwrap();
         if let Some(ver) = schema.get("version").unwrap() {
             let ver = ver[0];
@@ -41,13 +41,13 @@ impl EmbeddedFragmentMetaStore {
 }
 
 impl ExtFragmentMetaStore for EmbeddedFragmentMetaStore {
-    fn insert(&self, chunk_id: Uuid, meta: &ExtFragmentMeta) -> MeowithIoResult<()> {
+    fn insert(&self, chunk_id: Uuid, meta: ExtFragmentMeta) -> MeowithIoResult<()> {
         let encoded: Vec<u8> = bincode::encode_to_vec(meta, self.encoder_config).unwrap();
         self.db.insert(chunk_id.as_bytes(), encoded)?;
         Ok(())
     }
 
-    fn get(&self, chunk_id: Uuid) -> MeowithIoResult<ExtFragmentMeta> {
+    fn get(&self, chunk_id: &Uuid) -> MeowithIoResult<ExtFragmentMeta> {
         let bytes = self
             .db
             .get(chunk_id.as_bytes())?
@@ -57,7 +57,7 @@ impl ExtFragmentMetaStore for EmbeddedFragmentMetaStore {
         Ok(obj.0)
     }
 
-    fn remove(&self, chunk_id: Uuid) -> MeowithIoResult<()> {
+    fn remove(&self, chunk_id: &Uuid) -> MeowithIoResult<()> {
         self.db.remove(chunk_id.as_bytes())?;
         Ok(())
     }
@@ -83,10 +83,10 @@ mod embedded_fragment_metadata_store_tests {
             file_id: 4567,
         };
 
-        assert!(store.insert(chunk_id, &meta).is_ok());
+        assert!(store.insert(chunk_id, meta).is_ok());
         drop(store);
         let store = create_store();
-        let retrieved = store.get(chunk_id).unwrap();
+        let retrieved = store.get(&chunk_id).unwrap();
         assert_eq!(retrieved.bucket_id, meta.bucket_id);
         assert_eq!(retrieved.file_id, meta.file_id);
     }
@@ -101,8 +101,8 @@ mod embedded_fragment_metadata_store_tests {
             file_id: 456,
         };
 
-        assert!(store.insert(chunk_id, &meta).is_ok());
-        let retrieved = store.get(chunk_id).unwrap();
+        assert!(store.insert(chunk_id, meta).is_ok());
+        let retrieved = store.get(&chunk_id).unwrap();
         assert_eq!(retrieved.bucket_id, meta.bucket_id);
         assert_eq!(retrieved.file_id, meta.file_id);
     }
@@ -112,7 +112,7 @@ mod embedded_fragment_metadata_store_tests {
     fn test_get_nonexistent() {
         let store = create_store();
         let chunk_id = Uuid::new_v4();
-        assert!(store.get(chunk_id).is_err());
+        assert!(store.get(&chunk_id).is_err());
     }
 
     #[test]
@@ -125,9 +125,9 @@ mod embedded_fragment_metadata_store_tests {
             file_id: 456,
         };
 
-        assert!(store.insert(chunk_id, &meta).is_ok());
-        assert!(store.remove(chunk_id).is_ok());
-        assert!(store.get(chunk_id).is_err());
+        assert!(store.insert(chunk_id, meta).is_ok());
+        assert!(store.remove(&chunk_id).is_ok());
+        assert!(store.get(&chunk_id).is_err());
     }
 
     #[test]
@@ -135,6 +135,6 @@ mod embedded_fragment_metadata_store_tests {
     fn test_remove_nonexistent() {
         let store = create_store();
         let chunk_id = Uuid::new_v4();
-        assert!(store.remove(chunk_id).is_ok());
+        assert!(store.remove(&chunk_id).is_ok());
     }
 }

@@ -217,7 +217,7 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
         range: Option<ChunkRange>,
     ) -> MDSFTPResult<()> {
         trace!("handle_retrieve {id} {chunk_buffer}");
-        let meta = self.fragment_ledger.fragment_meta(&id).await;
+        let meta = self.fragment_ledger.existing_fragment_meta(&id).await;
         if meta.is_none() {
             trace!("No such chunk id");
             return Err(MDSFTPError::NoSuchChunkId);
@@ -433,7 +433,11 @@ impl ChannelPacketHandler for MeowithMDSFTPChannelPacketHandler {
     }
 
     async fn handle_query(&mut self, channel: Channel, chunk_id: Uuid) -> MDSFTPResult<()> {
-        if let Some(data) = self.fragment_ledger.fragment_meta_ex(&chunk_id).await {
+        if let Some(data) = self
+            .fragment_ledger
+            .existing_or_reserved_fragment_meta(&chunk_id)
+            .await
+        {
             channel.respond_query(data.disk_content_size, true).await?
         } else {
             channel.respond_query(0, false).await?
