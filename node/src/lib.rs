@@ -39,7 +39,6 @@ use protocol::mgpp::client::MGPPClient;
 use scylla::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::io::AsyncWriteExt;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::{AbortHandle, JoinHandle};
 use uuid::Uuid;
@@ -221,7 +220,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
 
     let node_storage_map = Arc::new(RwLock::new(storage_map));
     req_ctx
-        .update_storage(fragment_ledger.update_req().await)
+        .update_storage(fragment_ledger.get_storage_info().await)
         .await
         .expect("Update storage failed");
 

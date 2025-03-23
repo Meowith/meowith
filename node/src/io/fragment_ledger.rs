@@ -1,7 +1,9 @@
 use filesize::PathExt;
+use futures_util::{StreamExt, TryStreamExt};
 use log::{error, info, trace, warn};
+use scylla::CachingSession;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -22,6 +24,7 @@ use crate::io::get_space;
 use crate::locking::file_lock_table::FileLockTable;
 use crate::public::service::durable_transfer_session_manager::DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS;
 use commons::error::io_error::{MeowithIoError, MeowithIoResult};
+use data::access::file_access::{get_all_files, maybe_get_file_by_id};
 use data::dto::controller::UpdateStorageNodeProperties;
 
 pub type LockTable = FileLockTable<Uuid>;
@@ -139,6 +142,7 @@ impl FragmentLedger {
         let mut last_notify = Instant::now();
         let ext_metadata_store_guard = self._internal.ext_metadata_store.read().await;
         let ext_metadata_store = ext_metadata_store_guard.as_ref().unwrap();
+        let mut chunks_with_missing_meta = HashSet::new();
 
         for entry in dir_scan {
             let entry = entry.map_err(MeowithIoError::from)?;
@@ -172,6 +176,7 @@ impl FragmentLedger {
                             }
                             Err(MeowithIoError::NotFound) => {
                                 warn!("No associated extra file metadata found for {}", id);
+                                chunks_with_missing_meta.insert(id);
                                 chunk_map.insert(id, discovered_chunk);
                             }
                             Err(err) => {
@@ -198,7 +203,90 @@ impl FragmentLedger {
         Ok(())
     }
 
-    pub async fn update_req(&self) -> UpdateStorageNodeProperties {
+    pub async fn remove_orphaned_fragments(&self, session: &CachingSession) -> MeowithIoResult<()> {
+        info!("Scanning for orphaned fragments...");
+        let chunk_map = self._internal.chunk_set.read().await;
+        let ext_meta = self._internal.ext_metadata_store.read().await;
+        let ext_metadata_store = ext_meta.as_ref().unwrap();
+
+        let mut mark = vec![];
+
+        for id in (*chunk_map).keys() {
+            let assoc_meta = ext_metadata_store.get(id);
+            match assoc_meta {
+                Ok(assoc) => {
+                    let file = maybe_get_file_by_id(assoc.bucket_id(), assoc.file_id(), session)
+                        .await
+                        .map_err(|e| MeowithIoError::Internal(Some(Box::new(e))))?;
+
+                    if file.is_none() {
+                        warn!("No associated file found for {}", id);
+                        mark.push(*id);
+                    }
+                }
+                Err(MeowithIoError::NotFound) => {
+                    warn!("No associated metadata for {}", id);
+                }
+                Err(err) => return Err(err),
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Attempt to find metadata for fragments.
+    /// If no metadata is found, the fragment is assumed to be orphaned
+    /// and will be removed.
+    pub async fn scan_missing_fragment_metadata(
+        &self,
+        session: &CachingSession,
+        mut missing_ids: HashSet<Uuid>,
+    ) -> MeowithIoResult<()> {
+        info!(
+            "Scanning for missing fragment metadata, Missing: {}",
+            missing_ids.len()
+        );
+
+        let mut file_stream = get_all_files(session)
+            .await
+            .map_err(|e| MeowithIoError::Internal(Some(Box::new(e))))?
+            .into_stream();
+
+        while let Some(file) = file_stream.next().await {
+            let file = file.map_err(|e| MeowithIoError::Internal(Some(Box::new(e))))?;
+
+            if missing_ids.contains(&file.id) {
+                info!("Found missing fragment metadata for {}", file.id);
+                self._internal
+                    .ext_metadata_store
+                    .read()
+                    .await
+                    .as_ref()
+                    .map(|x| {
+                        x.insert(
+                            file.id,
+                            ExtFragmentMeta {
+                                bucket_id: file.bucket_id.to_u128_le(),
+                                file_id: file.id.to_u128_le(),
+                            },
+                        )
+                    });
+                missing_ids.remove(&file.id);
+            }
+        }
+
+        info!(
+            "Orphaned fragments after scan {}. Deleting.",
+            missing_ids.len()
+        );
+        for chunk_id in &missing_ids {
+            self.delete_chunk(chunk_id).await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn get_storage_info(&self) -> UpdateStorageNodeProperties {
         let max = self._internal.max_physical_size.load(ORDERING_MAX_LOAD);
         UpdateStorageNodeProperties {
             max_space: max,

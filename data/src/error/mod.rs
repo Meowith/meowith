@@ -42,6 +42,8 @@ pub enum MeowithDataError {
     UnknownFailure,
 }
 
+impl Error for MeowithDataError {}
+
 impl From<CharybdisError> for MeowithDataError {
     fn from(value: CharybdisError) -> Self {
         match value {

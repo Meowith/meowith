@@ -287,6 +287,17 @@ pub async fn get_all_files(
         .map_err(MeowithDataError::from)
 }
 
+pub async fn maybe_get_file_by_id(
+    bucket_id: Uuid,
+    file_id: Uuid,
+    session: &CachingSession,
+) -> Result<Option<File>, MeowithDataError> {
+    File::maybe_find_first_by_bucket_id_and_id(bucket_id, file_id)
+        .execute(session)
+        .await
+        .map_err(MeowithDataError::from)
+}
+
 pub async fn get_file(
     bucket_id: Uuid,
     directory: Option<Uuid>,

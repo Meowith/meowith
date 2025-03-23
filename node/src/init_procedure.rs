@@ -80,7 +80,7 @@ pub fn initialize_heart(
         loop {
             interval.tick().await;
             let res = req_ctx
-                .update_storage(fragment_ledger.update_req().await)
+                .update_storage(fragment_ledger.get_storage_info().await)
                 .await;
             log_err("Heartbeat err", res);
         }

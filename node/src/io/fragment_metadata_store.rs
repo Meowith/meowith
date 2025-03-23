@@ -8,6 +8,15 @@ pub struct ExtFragmentMeta {
     pub(crate) file_id: u128,
 }
 
+impl ExtFragmentMeta {
+    pub fn bucket_id(&self) -> Uuid {
+        Uuid::from_u128_le(self.bucket_id)
+    }
+    pub fn file_id(&self) -> Uuid {
+        Uuid::from_u128_le(self.file_id)
+    }
+}
+
 pub trait ExtFragmentMetaStore: Send + Sync {
     fn insert(&self, chunk_id: Uuid, meta: ExtFragmentMeta) -> MeowithIoResult<()>;
 
