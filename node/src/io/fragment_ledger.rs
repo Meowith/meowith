@@ -47,7 +47,6 @@ const HOUSEKEEPER_TASK_INTERVAL: usize = 5 * 60;
 #[allow(unused)]
 const AVAILABLE_BUFFER: u64 = 65535;
 
-
 impl FragmentLedger {
     pub fn new(
         root_path: String,
