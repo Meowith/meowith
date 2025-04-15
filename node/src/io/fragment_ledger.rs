@@ -114,7 +114,7 @@ impl FragmentLedger {
         self._internal.ext_metadata_store.write().await.take();
     }
 
-    pub async fn initialize(&self) -> MeowithIoResult<()> {
+    pub async fn initialize(&self, session: Option<&CachingSession>) -> MeowithIoResult<()> {
         let chunk_dir = Path::new(&self._internal.root_path);
         if !chunk_dir.exists() {
             info!("Creating the data directory {}", chunk_dir.display());
@@ -129,12 +129,22 @@ impl FragmentLedger {
         }
 
         self._internal.validate_max_space().await?;
-        self.scan_fragments().await?;
+        let chunks_with_missing_meta = self.scan_fragments().await?;
+        if !chunks_with_missing_meta.is_empty() {
+            warn!(
+                "{} chunks have missing metadata",
+                chunks_with_missing_meta.len()
+            );
+            if let Some(session) = session {
+                self.scan_missing_fragment_metadata(session, chunks_with_missing_meta)
+                    .await?;
+            }
+        }
 
         Ok(())
     }
 
-    async fn scan_fragments(&self) -> MeowithIoResult<()> {
+    async fn scan_fragments(&self) -> MeowithIoResult<HashSet<Uuid>> {
         info!("Scanning fragments...");
         let chunk_dir = Path::new(&self._internal.root_path);
         let dir_scan = fs::read_dir(chunk_dir).map_err(MeowithIoError::from)?;
@@ -200,9 +210,13 @@ impl FragmentLedger {
 
         info!("Found {} fragments.", chunk_map.len());
 
-        Ok(())
+        Ok(chunks_with_missing_meta)
     }
 
+    /// For now, this is handled by #scan_missing_fragment_metadata
+    /// during boot.
+    /// Might be worth wile calling this from time to time during runtime.
+    #[allow(dead_code)]
     pub async fn remove_orphaned_fragments(&self, session: &CachingSession) -> MeowithIoResult<()> {
         info!("Scanning for orphaned fragments...");
         let chunk_map = self._internal.chunk_set.read().await;

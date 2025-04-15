@@ -176,11 +176,6 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
     )
     .await;
 
-    fragment_ledger
-        .initialize()
-        .await
-        .expect("Ledger init failed");
-
     let mut external_ssl: Option<SslAcceptorBuilder> = None;
 
     if config.ssl_certificate.is_some() && config.ssl_private_key.is_some() {
@@ -199,6 +194,11 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
     )
     .await
     .expect("Unable to connect to database");
+
+    fragment_ledger
+        .initialize(Some(&session))
+        .await
+        .expect("Ledger initialization failed");
 
     let mdsftp_server_clone = mdsftp_server.clone();
 

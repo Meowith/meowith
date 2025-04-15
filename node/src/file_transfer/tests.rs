@@ -121,7 +121,7 @@ mod fp63_tests {
             Box::new(EmbeddedFragmentMetaStore::new(&dir_one)),
         );
         server_ledger
-            .initialize()
+            .initialize(None)
             .await
             .expect("Ledger init failed");
         let server_handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
@@ -148,7 +148,7 @@ mod fp63_tests {
             Box::new(EmbeddedFragmentMetaStore::new(&dir_two)),
         );
         client_ledger
-            .initialize()
+            .initialize(None)
             .await
             .expect("Ledger init failed");
         let client_handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
