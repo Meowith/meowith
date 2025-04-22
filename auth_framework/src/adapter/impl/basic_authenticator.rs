@@ -5,7 +5,7 @@ use crate::{AuthFacade, Authentication};
 use actix_web::HttpRequest;
 use async_trait::async_trait;
 use data::access::user_access::get_user_from_name;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 
 pub const PEPPER: &str = "x{2G-ki+*";
 

@@ -14,7 +14,8 @@ use data::dto::entity::{
 use data::model::permission_model::UserPermission;
 use http::header::{CONTENT_LENGTH, RANGE};
 use log::info;
-use rand::{distributions::Alphanumeric, Rng};
+use rand::distr::Alphanumeric;
+use rand::Rng;
 use reqwest::header::AUTHORIZATION;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use std::ops::Range;
@@ -34,7 +35,7 @@ async fn setup_test_files() -> tokio::io::Result<()> {
     ];
     for (file_name, size) in files {
         let mut file = File::create(file_name).await?;
-        let random_letters: String = rand::thread_rng()
+        let random_letters: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(size)
             .map(char::from)

@@ -15,7 +15,7 @@ use data::dto::entity::{AppDto, AppList, BucketList, MemberListDTO, MemberedApp}
 use data::error::MeowithDataError;
 use data::model::app_model::App;
 use data::model::user_model::User;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use uuid::Uuid;
 
 pub async fn do_create_app(

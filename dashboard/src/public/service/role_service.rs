@@ -16,7 +16,7 @@ use data::error::MeowithDataError;
 use data::model::app_model::UserRole;
 use data::model::user_model::User;
 use futures_util::StreamExt;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use std::collections::HashSet;
 use uuid::Uuid;
 

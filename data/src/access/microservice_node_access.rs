@@ -7,8 +7,10 @@ use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
 use charybdis::types::{BigInt, Text, Timestamp, TinyInt, Uuid};
 use chrono::Utc;
-use scylla::transport::iterator::TypedRowStream;
-use scylla::{CachingSession, QueryResult};
+use scylla::client::caching_session::CachingSession;
+use scylla::client::pager::TypedRowStream;
+use scylla::errors::PagerExecutionError;
+use scylla::response::query_result::QueryResult;
 
 static GET_ALL_NODES_QUERY: &str = "SELECT microservice_type, id, max_space, used_space, access_token, access_token_issued_at, renewal_token, address, created, register_code FROM microservice_nodes";
 static GET_ALL_CODES_QUERY: &str = "SELECT code, created, valid FROM service_register_codes";
@@ -35,7 +37,7 @@ pub async fn get_microservices(
     session
         .execute_iter(GET_ALL_NODES_QUERY, &[])
         .await
-        .map_err(<scylla::transport::errors::QueryError as Into<MeowithDataError>>::into)?
+        .map_err(<PagerExecutionError as Into<MeowithDataError>>::into)?
         .rows_stream()
         .map_err(<scylla::deserialize::TypeCheckError as Into<MeowithDataError>>::into)
 }
@@ -129,7 +131,7 @@ pub async fn get_service_register_codes(
     session
         .execute_iter(GET_ALL_CODES_QUERY, &[])
         .await
-        .map_err(<scylla::transport::errors::QueryError as Into<MeowithDataError>>::into)?
+        .map_err(<PagerExecutionError as Into<MeowithDataError>>::into)?
         .rows_stream()
         .map_err(<scylla::deserialize::TypeCheckError as Into<MeowithDataError>>::into)
 }

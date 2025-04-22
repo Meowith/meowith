@@ -8,7 +8,7 @@ use auth_framework::adapter::method_container::AuthMethodMap;
 use auth_framework::adapter::r#impl::basic_authenticator::BASIC_TYPE_IDENTIFIER;
 use log::info;
 use openssl::ssl::SslAcceptorBuilder;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use std::error::Error;
 use tokio::select;
 use tokio_util::sync::CancellationToken;

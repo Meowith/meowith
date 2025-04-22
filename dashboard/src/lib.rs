@@ -36,7 +36,7 @@ use log::error;
 use mgpp::connect_mgpp;
 use openssl::ssl::SslAcceptorBuilder;
 use protocol::mgpp::client::MGPPClient;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;

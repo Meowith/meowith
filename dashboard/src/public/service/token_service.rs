@@ -22,7 +22,7 @@ use data::model::app_model::AppToken;
 use data::model::user_model::User;
 use futures_util::StreamExt;
 use protocol::mgpp::packet::MGPPPacket;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use uuid::Uuid;
 
 pub async fn do_issue_app_token(

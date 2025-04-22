@@ -6,7 +6,8 @@ use charybdis::errors::CharybdisError;
 use charybdis::operations::{Delete, Insert, Update};
 use charybdis::stream::CharybdisModelStream;
 use log::info;
-use scylla::{CachingSession, QueryResult};
+use scylla::client::caching_session::CachingSession;
+use scylla::response::query_result::QueryResult;
 use std::collections::HashSet;
 use uuid::Uuid;
 

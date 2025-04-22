@@ -78,7 +78,7 @@ mod tests {
         env::set_current_dir(data_path.to_string_lossy().to_string()).expect("set env failed");
         let migration = MigrationBuilder::new()
             .verbose(true)
-            .project_root(path.to_str().unwrap().to_string())
+            .current_dir(path.to_str().unwrap().to_string())
             .build(&conn)
             .await;
 

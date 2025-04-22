@@ -6,9 +6,9 @@ use actix_web::{
 use charybdis::errors::CharybdisError;
 use derive_more::Display;
 use scylla::deserialize::{DeserializationError, TypeCheckError};
-use scylla::transport::errors::QueryError;
-use scylla::transport::iterator::NextRowError;
-use scylla::transport::query_result::{IntoRowsResultError, RowsError};
+use scylla::errors::{
+    ExecutionError, IntoRowsResultError, NextRowError, PagerExecutionError, RowsError,
+};
 use std::error::Error;
 
 #[derive(Debug, Display)]
@@ -32,10 +32,8 @@ impl ResponseError for DataResponseError {
 
 #[derive(Debug, Display)]
 pub enum MeowithDataError {
-    QueryError(QueryError),
+    QueryError(Box<dyn Error + Send + Sync>),
     InternalFailure(CharybdisError),
-    FromRowError(Box<dyn Error + Send + Sync>),
-    NextRowError(NextRowError),
     /// Used when a LWT couldn't update the record
     LockingError,
     NotFound,
@@ -55,36 +53,42 @@ impl From<CharybdisError> for MeowithDataError {
 
 impl From<TypeCheckError> for MeowithDataError {
     fn from(value: TypeCheckError) -> Self {
-        MeowithDataError::FromRowError(Box::new(value))
-    }
-}
-
-impl From<IntoRowsResultError> for MeowithDataError {
-    fn from(value: IntoRowsResultError) -> Self {
-        MeowithDataError::FromRowError(Box::new(value))
-    }
-}
-
-impl From<RowsError> for MeowithDataError {
-    fn from(value: RowsError) -> Self {
-        MeowithDataError::FromRowError(Box::new(value))
+        MeowithDataError::QueryError(Box::new(value))
     }
 }
 
 impl From<DeserializationError> for MeowithDataError {
     fn from(value: DeserializationError) -> Self {
-        MeowithDataError::FromRowError(Box::new(value))
+        MeowithDataError::QueryError(Box::new(value))
+    }
+}
+
+impl From<PagerExecutionError> for MeowithDataError {
+    fn from(value: PagerExecutionError) -> Self {
+        MeowithDataError::QueryError(Box::new(value))
+    }
+}
+
+impl From<ExecutionError> for MeowithDataError {
+    fn from(value: ExecutionError) -> Self {
+        MeowithDataError::QueryError(Box::new(value))
+    }
+}
+
+impl From<IntoRowsResultError> for MeowithDataError {
+    fn from(value: IntoRowsResultError) -> Self {
+        MeowithDataError::QueryError(Box::new(value))
+    }
+}
+
+impl From<RowsError> for MeowithDataError {
+    fn from(value: RowsError) -> Self {
+        MeowithDataError::QueryError(Box::new(value))
     }
 }
 
 impl From<NextRowError> for MeowithDataError {
     fn from(value: NextRowError) -> Self {
-        MeowithDataError::NextRowError(value)
-    }
-}
-
-impl From<QueryError> for MeowithDataError {
-    fn from(value: QueryError) -> Self {
-        MeowithDataError::QueryError(value)
+        MeowithDataError::QueryError(Box::new(value))
     }
 }

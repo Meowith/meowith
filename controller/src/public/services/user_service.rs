@@ -7,7 +7,7 @@ use data::error::MeowithDataError;
 use data::model::permission_model::GlobalRole;
 use data::model::user_model::User;
 use futures_util::TryStreamExt;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use uuid::Uuid;
 
 pub async fn do_get_all_users(

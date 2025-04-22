@@ -36,7 +36,7 @@ tokio-util = "0.7.11"
 futures-util = "0.3.30"
 futures = "0.3.30"
 cached = { version = "0.54.0", features = ["tokio", "async"] }
-scylla = "0.15.1"
+scylla = "1.1.0"
 lazy_static = "1.5.0"
 mime_guess = "2.0.5"
 chrono = "0.4.38"

@@ -8,7 +8,7 @@ use data::model::permission_model::{AppPermission, GlobalRole};
 use data::model::user_model::User;
 use futures::StreamExt;
 use lazy_static::lazy_static;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 

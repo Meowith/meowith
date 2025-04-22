@@ -40,7 +40,7 @@ use openssl::ssl::SslAcceptorBuilder;
 use openssl::x509::X509;
 use protocol::mgpp::server::MGPPServer;
 use reqwest::Certificate;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use tokio::task;
 use tokio::task::JoinHandle;
 

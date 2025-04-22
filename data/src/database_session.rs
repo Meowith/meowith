@@ -1,5 +1,7 @@
-use scylla::transport::errors::NewSessionError;
-use scylla::{CachingSession, Session, SessionBuilder};
+use scylla::client::caching_session::CachingSession;
+use scylla::client::session::Session;
+use scylla::client::session_builder::SessionBuilder;
+use scylla::errors::NewSessionError;
 
 pub static CACHE_SIZE: usize = 1024;
 

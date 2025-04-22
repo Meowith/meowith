@@ -36,7 +36,7 @@ use openssl::ssl::SslAcceptorBuilder;
 use peer::peer_utils::fetch_peer_storage_info;
 use protocol::mdsftp::server::MDSFTPServer;
 use protocol::mgpp::client::MGPPClient;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};

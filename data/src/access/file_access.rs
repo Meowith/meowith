@@ -9,8 +9,8 @@ use futures::stream::Skip;
 use futures::stream::Take;
 use futures::{try_join, Stream, StreamExt, TryFutureExt};
 use log::{error, trace};
-use scylla::query::Query;
-use scylla::{CachingSession, QueryResult};
+use scylla::client::caching_session::CachingSession;
+use scylla::response::query_result::QueryResult;
 use std::collections::VecDeque;
 use uuid::Uuid;
 
@@ -483,11 +483,9 @@ pub async fn update_bucket_space(
     );
 
     for _ in 0..QUERY_ATTEMPTS {
-        let query = Query::new(update_query);
-
         let result = session
             .execute_unpaged(
-                query,
+                update_query,
                 (
                     bucket.file_count + file_count_delta,
                     bucket.space_taken + space_taken_delta,
@@ -616,12 +614,11 @@ pub async fn try_update_upload_session(
     " IF last_access = ?",
     );
 
-    let query = Query::new(update_query);
     let last_access = upload_session.last_access;
     upload_session.last_access = Utc::now();
     let result = session
         .execute_unpaged(
-            query,
+            update_query,
             (
                 &upload_session.file_id,
                 &upload_session.path,

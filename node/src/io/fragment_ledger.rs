@@ -1,7 +1,7 @@
 use filesize::PathExt;
 use futures_util::{StreamExt, TryStreamExt};
 use log::{error, info, trace, warn};
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fs;
