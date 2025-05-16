@@ -213,7 +213,7 @@ impl FragmentLedger {
 
     /// For now, this is handled by #scan_missing_fragment_metadata
     /// during boot.
-    /// Might be worth wile calling this from time to time during runtime.
+    /// Might be worth-while calling this from time to time during runtime.
     #[allow(dead_code)]
     pub async fn remove_orphaned_fragments(&self, session: &CachingSession) -> MeowithIoResult<()> {
         info!("Scanning for orphaned fragments...");
@@ -241,6 +241,10 @@ impl FragmentLedger {
                 }
                 Err(err) => return Err(err),
             }
+        }
+
+        for sweep in mark {
+            self.delete_chunk(&sweep).await?;
         }
 
         Ok(())
