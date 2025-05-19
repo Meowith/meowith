@@ -3,11 +3,11 @@ use actix_web::dev::Payload;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use charybdis::macros::charybdis_model;
 use charybdis::types::{BigInt, Boolean, Inet, Text, Timestamp, TinyInt, Uuid};
-use scylla::transport::iterator::NextRowError;
+use scylla::errors::PagerExecutionError;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-pub type MicroserviceNodeItem = Result<MicroserviceNode, NextRowError>;
+pub type MicroserviceNodeItem = Result<MicroserviceNode, PagerExecutionError>;
 
 #[charybdis_model(
     table_name = microservice_nodes,

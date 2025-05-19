@@ -32,7 +32,7 @@ reqwest = { version = "0.12.5", features = ["__rustls"] }
 auth_framework = { path="../auth_framework", version = "0.1.0" }
 
 tokio-rustls = "0.26.0"
-scylla = "0.15.1"
+scylla = "1.1.0"
 uuid = { version = "1.8.0", features = ["v4"] }
 chrono = "0.4.38"
 futures-util = "0.3.30"

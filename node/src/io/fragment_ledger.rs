@@ -1,7 +1,9 @@
 use filesize::PathExt;
+use futures_util::{StreamExt, TryStreamExt};
 use log::{error, info, trace, warn};
+use scylla::client::caching_session::CachingSession;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -17,10 +19,12 @@ use uuid::Uuid;
 
 use protocol::mdsftp::handler::{AbstractFileStream, AbstractReadStream, AbstractWriteStream};
 
+use crate::io::fragment_metadata_store::{ExtFragmentMeta, ExtFragmentMetaStore};
 use crate::io::get_space;
 use crate::locking::file_lock_table::FileLockTable;
 use crate::public::service::durable_transfer_session_manager::DURABLE_UPLOAD_SESSION_VALIDITY_TIME_SECS;
 use commons::error::io_error::{MeowithIoError, MeowithIoResult};
+use data::access::file_access::{get_all_files, maybe_get_file_by_id};
 use data::dto::controller::UpdateStorageNodeProperties;
 
 pub type LockTable = FileLockTable<Uuid>;
@@ -43,10 +47,13 @@ const HOUSEKEEPER_TASK_INTERVAL: usize = 5 * 60;
 #[allow(unused)]
 const AVAILABLE_BUFFER: u64 = 65535;
 
-// TODO: verify the fragments should exist with database.
-
 impl FragmentLedger {
-    pub fn new(root_path: String, max_space: u64, file_lock_table: LockTable) -> Self {
+    pub fn new(
+        root_path: String,
+        max_space: u64,
+        file_lock_table: LockTable,
+        ext_metadata_store: Box<dyn ExtFragmentMetaStore>,
+    ) -> Self {
         let internal = InternalLedger {
             root_path: PathBuf::from(root_path),
             file_lock_table,
@@ -56,6 +63,7 @@ impl FragmentLedger {
             disk_content_size: Default::default(),
             reservation_map: Default::default(),
             uncommited_map: Default::default(),
+            ext_metadata_store: RwLock::new(Some(ext_metadata_store)),
             housekeeper_handle: std::sync::Mutex::new(None),
             disk_reserved_size: Default::default(),
             paused: AtomicBool::new(false),
@@ -94,7 +102,17 @@ impl FragmentLedger {
         self._internal.paused.store(false, Ordering::Release);
     }
 
-    pub async fn initialize(&self) -> MeowithIoResult<()> {
+    /// Pause reservations and shutdown internal components.
+    pub async fn shutdown(&self) {
+        self._internal.paused.store(true, Ordering::Release);
+        if let Some(h) = self._internal.housekeeper_handle.lock().unwrap().take() {
+            h.abort();
+        }
+        // Drop the store, release the lock on the on-disk db
+        self._internal.ext_metadata_store.write().await.take();
+    }
+
+    pub async fn initialize(&self, session: Option<&CachingSession>) -> MeowithIoResult<()> {
         let chunk_dir = Path::new(&self._internal.root_path);
         if !chunk_dir.exists() {
             info!("Creating the data directory {}", chunk_dir.display());
@@ -109,17 +127,30 @@ impl FragmentLedger {
         }
 
         self._internal.validate_max_space().await?;
-        self.scan_fragments().await?;
+        let chunks_with_missing_meta = self.scan_fragments().await?;
+        if !chunks_with_missing_meta.is_empty() {
+            warn!(
+                "{} chunks have missing metadata",
+                chunks_with_missing_meta.len()
+            );
+            if let Some(session) = session {
+                self.scan_missing_fragment_metadata(session, chunks_with_missing_meta)
+                    .await?;
+            }
+        }
 
         Ok(())
     }
 
-    async fn scan_fragments(&self) -> MeowithIoResult<()> {
+    async fn scan_fragments(&self) -> MeowithIoResult<HashSet<Uuid>> {
         info!("Scanning fragments...");
         let chunk_dir = Path::new(&self._internal.root_path);
         let dir_scan = fs::read_dir(chunk_dir).map_err(MeowithIoError::from)?;
         let mut chunk_map = self._internal.chunk_set.write().await;
         let mut last_notify = Instant::now();
+        let ext_metadata_store_guard = self._internal.ext_metadata_store.read().await;
+        let ext_metadata_store = ext_metadata_store_guard.as_ref().unwrap();
+        let mut chunks_with_missing_meta = HashSet::new();
 
         for entry in dir_scan {
             let entry = entry.map_err(MeowithIoError::from)?;
@@ -146,7 +177,21 @@ impl FragmentLedger {
                         self._internal
                             .disk_physical_size
                             .fetch_add(discovered_chunk.disk_physical_size, Ordering::SeqCst);
-                        chunk_map.insert(id, discovered_chunk);
+                        let associated_extra_metadata = ext_metadata_store.get(&id);
+                        match associated_extra_metadata {
+                            Ok(_) => {
+                                chunk_map.insert(id, discovered_chunk);
+                            }
+                            Err(MeowithIoError::NotFound) => {
+                                warn!("No associated extra file metadata found for {}", id);
+                                chunks_with_missing_meta.insert(id);
+                                chunk_map.insert(id, discovered_chunk);
+                            }
+                            Err(err) => {
+                                panic!("fragment ledger init error {}", err);
+                            }
+                        }
+
                         if last_notify.elapsed() > Duration::from_secs(5) {
                             info!("Scanned {} entries so far", chunk_map.len());
                             last_notify = Instant::now();
@@ -163,10 +208,101 @@ impl FragmentLedger {
 
         info!("Found {} fragments.", chunk_map.len());
 
+        Ok(chunks_with_missing_meta)
+    }
+
+    /// For now, this is handled by #scan_missing_fragment_metadata
+    /// during boot.
+    /// Might be worth-while calling this from time to time during runtime.
+    #[allow(dead_code)]
+    pub async fn remove_orphaned_fragments(&self, session: &CachingSession) -> MeowithIoResult<()> {
+        info!("Scanning for orphaned fragments...");
+        let chunk_map = self._internal.chunk_set.read().await;
+        let ext_meta = self._internal.ext_metadata_store.read().await;
+        let ext_metadata_store = ext_meta.as_ref().unwrap();
+
+        let mut mark = vec![];
+
+        for id in (*chunk_map).keys() {
+            let assoc_meta = ext_metadata_store.get(id);
+            match assoc_meta {
+                Ok(assoc) => {
+                    let file = maybe_get_file_by_id(assoc.bucket_id(), assoc.file_id(), session)
+                        .await
+                        .map_err(|e| MeowithIoError::Internal(Some(Box::new(e))))?;
+
+                    if file.is_none() {
+                        warn!("No associated file found for {}", id);
+                        mark.push(*id);
+                    }
+                }
+                Err(MeowithIoError::NotFound) => {
+                    warn!("No associated metadata for {}", id);
+                }
+                Err(err) => return Err(err),
+            }
+        }
+
+        for sweep in mark {
+            self.delete_chunk(&sweep).await?;
+        }
+
         Ok(())
     }
 
-    pub async fn update_req(&self) -> UpdateStorageNodeProperties {
+    /// Attempt to find metadata for fragments.
+    /// If no metadata is found, the fragment is assumed to be orphaned
+    /// and will be removed.
+    pub async fn scan_missing_fragment_metadata(
+        &self,
+        session: &CachingSession,
+        mut missing_ids: HashSet<Uuid>,
+    ) -> MeowithIoResult<()> {
+        info!(
+            "Scanning for missing fragment metadata, Missing: {}",
+            missing_ids.len()
+        );
+
+        let mut file_stream = get_all_files(session)
+            .await
+            .map_err(|e| MeowithIoError::Internal(Some(Box::new(e))))?
+            .into_stream();
+
+        while let Some(file) = file_stream.next().await {
+            let file = file.map_err(|e| MeowithIoError::Internal(Some(Box::new(e))))?;
+
+            if missing_ids.contains(&file.id) {
+                info!("Found missing fragment metadata for {}", file.id);
+                self._internal
+                    .ext_metadata_store
+                    .read()
+                    .await
+                    .as_ref()
+                    .map(|x| {
+                        x.insert(
+                            file.id,
+                            ExtFragmentMeta {
+                                bucket_id: file.bucket_id.to_u128_le(),
+                                file_id: file.id.to_u128_le(),
+                            },
+                        )
+                    });
+                missing_ids.remove(&file.id);
+            }
+        }
+
+        info!(
+            "Orphaned fragments after scan {}. Deleting.",
+            missing_ids.len()
+        );
+        for chunk_id in &missing_ids {
+            self.delete_chunk(chunk_id).await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn get_storage_info(&self) -> UpdateStorageNodeProperties {
         let max = self._internal.max_physical_size.load(ORDERING_MAX_LOAD);
         UpdateStorageNodeProperties {
             max_space: max,
@@ -194,7 +330,19 @@ impl FragmentLedger {
         self._internal.chunk_set.read().await.contains_key(chunk_id)
     }
 
-    pub async fn fragment_meta_ex(&self, chunk_id: &Uuid) -> Option<FragmentMeta> {
+    pub async fn extended_fragment_meta(&self, chunk_id: &Uuid) -> Option<ExtFragmentMeta> {
+        self._internal
+            .ext_metadata_store
+            .read()
+            .await
+            .as_ref()
+            .and_then(|x| x.get(chunk_id).ok())
+    }
+
+    pub async fn existing_or_reserved_fragment_meta(
+        &self,
+        chunk_id: &Uuid,
+    ) -> Option<FragmentMeta> {
         if let Some(reserved) = self._internal.reservation_map.read().await.get(chunk_id) {
             return Some(FragmentMeta {
                 disk_content_size: reserved.completed,
@@ -202,10 +350,10 @@ impl FragmentLedger {
             });
         }
 
-        self.fragment_meta(chunk_id).await
+        self.existing_fragment_meta(chunk_id).await
     }
 
-    pub async fn fragment_meta(&self, chunk_id: &Uuid) -> Option<FragmentMeta> {
+    pub async fn existing_fragment_meta(&self, chunk_id: &Uuid) -> Option<FragmentMeta> {
         self._internal.chunk_set.read().await.get(chunk_id).cloned()
     }
 
@@ -284,6 +432,13 @@ impl FragmentLedger {
             let mut uncommited = self._internal.uncommited_map.write().await;
             let uncommited = uncommited.remove(id);
             let path = &self.get_path(id, uncommited.is_some());
+            let _ = self
+                ._internal
+                .ext_metadata_store
+                .read()
+                .await
+                .as_ref()
+                .map(|x| x.remove(id));
             self._internal
                 .disk_reserved_size
                 .fetch_sub(reservation.file_space, ORDERING_DISK_STORE);
@@ -297,8 +452,8 @@ impl FragmentLedger {
     pub async fn try_reserve(
         &self,
         size: u64,
-        _associated_bucket_id: Uuid,
-        _associated_file_id: Uuid,
+        associated_bucket_id: Uuid,
+        associated_file_id: Uuid,
         durable: bool,
     ) -> MeowithIoResult<Uuid> {
         let paused = self._internal.paused.load(Ordering::Relaxed);
@@ -313,6 +468,22 @@ impl FragmentLedger {
         if available < size {
             return Err(MeowithIoError::InsufficientDiskSpace);
         }
+        let id = Uuid::new_v4();
+        self._internal
+            .ext_metadata_store
+            .read()
+            .await
+            .as_ref()
+            .map(|x| {
+                x.insert(
+                    id,
+                    ExtFragmentMeta {
+                        bucket_id: associated_bucket_id.to_u128_le(),
+                        file_id: associated_file_id.to_u128_le(),
+                    },
+                )
+            })
+            .ok_or(MeowithIoError::Internal(None))??;
 
         let reservation = Reservation {
             file_space: size,
@@ -320,8 +491,6 @@ impl FragmentLedger {
             durable,
             last_update: Instant::now(),
         };
-
-        let id = Uuid::new_v4();
 
         reservations.insert(id, reservation);
 
@@ -513,6 +682,7 @@ struct InternalLedger {
     chunk_set: RwLock<HashMap<Uuid, FragmentMeta>>,
     reservation_map: RwLock<HashMap<Uuid, Reservation>>,
     uncommited_map: RwLock<HashMap<Uuid, CommitInfo>>,
+    ext_metadata_store: RwLock<Option<Box<dyn ExtFragmentMetaStore>>>,
 
     housekeeper_handle: std::sync::Mutex<Option<JoinHandle<()>>>,
 
@@ -559,6 +729,12 @@ impl InternalLedger {
             let uncommited = uncommitted.remove(&sweep).is_some();
             let path = &self.get_path(&sweep, uncommited);
             let reservation = broken.remove(&sweep).unwrap();
+            let _ = self
+                .ext_metadata_store
+                .read()
+                .await
+                .as_ref()
+                .map(|x| x.remove(&sweep));
             tokio::fs::remove_file(path)
                 .await
                 .map_err(|_| MeowithIoError::Internal(None))?;
@@ -595,6 +771,12 @@ impl InternalLedger {
 
     pub async fn delete_chunk(&self, chunk_id: &Uuid) -> MeowithIoResult<()> {
         let mut uncommited = self.uncommited_map.write().await;
+        let _ = self
+            .ext_metadata_store
+            .read()
+            .await
+            .as_ref()
+            .map(|x| x.remove(chunk_id));
         let uncommited = uncommited.remove(chunk_id);
         let path = self.get_path(chunk_id, uncommited.is_some());
         tokio::fs::remove_file(path)
@@ -633,9 +815,23 @@ impl InternalLedger {
 
 impl Drop for InternalLedger {
     fn drop(&mut self) {
-        match &self.housekeeper_handle.get_mut().unwrap() {
+        trace!("Dropping the internal ledger");
+    }
+}
+
+impl Drop for FragmentLedger {
+    fn drop(&mut self) {
+        let refs = Arc::strong_count(&self._internal);
+        trace!("Dropping the fragment ledger refs={refs}");
+        if refs > 1 {
+            return;
+        }
+        let a = self._internal.housekeeper_handle.lock().unwrap();
+        match &*a {
             None => {}
-            Some(handle) => handle.abort(),
+            Some(handle) => {
+                handle.abort();
+            }
         }
     }
 }

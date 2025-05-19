@@ -11,7 +11,7 @@ use data::dto::entity::ServiceRegisterCodeDto;
 use data::error::MeowithDataError;
 use data::model::microservice_node_model::ServiceRegisterCode;
 use futures_util::TryStreamExt;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use uuid::Uuid;
 
 pub async fn do_create_register_code(

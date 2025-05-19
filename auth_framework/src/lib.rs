@@ -3,7 +3,7 @@ use crate::error::{AuthCredentialsError, AuthenticateError};
 use crate::token::DashboardClaims;
 use actix_web::HttpRequest;
 use async_trait::async_trait;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use std::fmt::Debug;
 
 pub mod adapter;

@@ -19,7 +19,7 @@ use data::error::MeowithDataError;
 use data::model::file_model::Bucket;
 use data::model::user_model::User;
 use futures::StreamExt;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use uuid::Uuid;
 
 pub async fn do_create_bucket(

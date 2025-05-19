@@ -27,6 +27,7 @@ mod fp63_tests {
 
     use crate::file_transfer::channel_handler::MeowithMDSFTPChannelPacketHandler;
     use crate::file_transfer::packet_handler::MeowithMDSFTPPacketHandler;
+    use crate::io::embedded_fragment_metadata_store::EmbeddedFragmentMetaStore;
     use crate::io::fragment_ledger::FragmentLedger;
     use crate::locking::file_lock_table::FileLockTable;
 
@@ -112,13 +113,15 @@ mod fp63_tests {
             own_id: Uuid::new_v4(),
         });
 
+        let dir_one = node_dir_one.to_str().unwrap().to_string();
         let server_ledger = FragmentLedger::new(
-            node_dir_one.to_str().unwrap().to_string(),
+            dir_one.clone(),
             16 * 1024 * 1024 * 1024,
             FileLockTable::new(5),
+            Box::new(EmbeddedFragmentMetaStore::new(&dir_one)),
         );
         server_ledger
-            .initialize()
+            .initialize(None)
             .await
             .expect("Ledger init failed");
         let server_handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
@@ -137,13 +140,15 @@ mod fp63_tests {
             .await
             .is_ok());
 
+        let dir_two = node_dir_two.to_str().unwrap().to_string();
         let client_ledger = FragmentLedger::new(
-            node_dir_two.to_str().unwrap().to_string(),
+            dir_two.clone(),
             16 * 1024 * 1024 * 1024,
             FileLockTable::new(5),
+            Box::new(EmbeddedFragmentMetaStore::new(&dir_two)),
         );
         client_ledger
-            .initialize()
+            .initialize(None)
             .await
             .expect("Ledger init failed");
         let client_handler: PacketHandlerRef = Arc::new(Mutex::new(Box::new(
@@ -180,7 +185,7 @@ mod fp63_tests {
                 u16::MAX as u32,
             ));
             let meta = client_ledger
-                .fragment_meta(&file_a_id)
+                .existing_fragment_meta(&file_a_id)
                 .await
                 .expect("Meta read fail");
             debug!("Fragment {:?}", meta);
@@ -208,7 +213,7 @@ mod fp63_tests {
             debug!("Took {:?}", start.elapsed());
 
             let recv_meta = server_ledger
-                .fragment_meta(&reserve.chunk_id)
+                .existing_fragment_meta(&reserve.chunk_id)
                 .await
                 .unwrap();
             assert_eq!(recv_meta.disk_content_size, meta.disk_content_size);

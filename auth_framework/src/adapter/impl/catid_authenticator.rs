@@ -10,7 +10,7 @@ use data::dto::config::{CatIdAppConfiguration, GeneralConfiguration};
 use data::model::permission_model::GlobalRole;
 use data::model::user_model::User;
 use reqwest::Client;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

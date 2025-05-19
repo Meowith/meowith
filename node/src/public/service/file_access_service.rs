@@ -9,7 +9,7 @@ use chrono::Utc;
 use futures_util::future::try_join_all;
 use log::{debug, error, trace, warn};
 use mime_guess::mime;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;

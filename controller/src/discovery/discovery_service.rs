@@ -6,7 +6,7 @@ use commons::autoconfigure::addr_header::deserialize_header;
 use futures_util::TryFutureExt;
 use log::{error, info, warn};
 use openssl::x509::X509Req;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use std::net::IpAddr;
 use std::str::FromStr;
 use uuid::Uuid;

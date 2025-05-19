@@ -1,3 +1,5 @@
+extern crate core;
+
 use crate::config::node_config::NodeConfigInstance;
 use crate::init_procedure::{initialize_heart, initialize_io, register_node};
 use std::collections::HashMap;
@@ -34,7 +36,7 @@ use openssl::ssl::SslAcceptorBuilder;
 use peer::peer_utils::fetch_peer_storage_info;
 use protocol::mdsftp::server::MDSFTPServer;
 use protocol::mgpp::client::MGPPClient;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
@@ -58,15 +60,17 @@ pub struct NodeHandle {
     heart_handle: AbortHandle,
     req_ctx: Arc<MicroserviceRequestContext>,
     pub join_handle: JoinHandle<()>,
+    fragment_ledger: FragmentLedger,
 }
 
 impl NodeHandle {
     pub async fn shutdown(&self, forceful: bool) {
-        self.heart_handle.abort();
         self.external_handle.stop(!forceful).await;
+        self.heart_handle.abort();
         let _ = self.mgpp_client.shutdown().await;
         self.mdsftp_server.shutdown().await;
         self.req_ctx.shutdown().await;
+        self.fragment_ledger.shutdown().await;
     }
 }
 
@@ -172,11 +176,6 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
     )
     .await;
 
-    fragment_ledger
-        .initialize()
-        .await
-        .expect("Ledger init failed");
-
     let mut external_ssl: Option<SslAcceptorBuilder> = None;
 
     if config.ssl_certificate.is_some() && config.ssl_private_key.is_some() {
@@ -195,6 +194,11 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
     )
     .await
     .expect("Unable to connect to database");
+
+    fragment_ledger
+        .initialize(Some(&session))
+        .await
+        .expect("Ledger initialization failed");
 
     let mdsftp_server_clone = mdsftp_server.clone();
 
@@ -216,7 +220,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
 
     let node_storage_map = Arc::new(RwLock::new(storage_map));
     req_ctx
-        .update_storage(fragment_ledger.update_req().await)
+        .update_storage(fragment_ledger.get_storage_info().await)
         .await
         .expect("Update storage failed");
 
@@ -237,7 +241,7 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
         session,
         mdsftp_server,
         upload_manager: DurableTransferSessionManager::new(),
-        fragment_ledger,
+        fragment_ledger: fragment_ledger.clone(),
         jwt_service: AccessTokenJwtService::new(&global_conf.access_token_configuration)
             .expect("JWT Service creation failed"),
         node_storage_map,
@@ -314,15 +318,17 @@ pub async fn start_node(config: NodeConfigInstance) -> std::io::Result<NodeHandl
     pause_handle.lock().await.replace(external_server.handle());
     let external_handle = external_server.handle();
 
-    let join_handle = tokio::task::spawn(async {
+    let join_handle = tokio::task::spawn(async move {
         if let Err(err) = external_server.await {
             log::error!("Node server mdsftp_error {err:?}");
         }
+        log::info!("Node server stopped.");
     });
 
     let heart_handle = initialize_heart(heart_req_ctx, heart_ledger);
 
     Ok(NodeHandle {
+        fragment_ledger,
         external_handle,
         mgpp_client,
         mdsftp_server: mdsftp_server_clone,

@@ -5,7 +5,7 @@ use cached::{Cached, TimedCache};
 use commons::access_token_service::ClaimKey;
 use commons::permission::AppTokenData;
 use data::access::app_access::get_app_token;
-use scylla::CachingSession;
+use scylla::client::caching_session::CachingSession;
 
 #[cached(
     ty = "TimedCache<ClaimKey, bool>",
