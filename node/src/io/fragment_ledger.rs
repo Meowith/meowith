@@ -93,11 +93,13 @@ impl FragmentLedger {
 
     /// Pause accepting incoming reservation requests
     /// Does not interrupt ongoing transfers
+    #[inline(always)]
     pub fn pause(&self) {
         self._internal.paused.store(true, Ordering::Release);
     }
 
     /// Resume accepting reservation requests
+    #[inline(always)]
     pub fn resume(&self) {
         self._internal.paused.store(false, Ordering::Release);
     }
@@ -314,6 +316,7 @@ impl FragmentLedger {
         }
     }
 
+    #[inline(always)]
     pub fn lock_table(&self) -> LockTable {
         self._internal.file_lock_table.clone()
     }
@@ -326,6 +329,7 @@ impl FragmentLedger {
         Ok(file.metadata().await?.len())
     }
 
+    #[inline(always)]
     pub async fn fragment_exists(&self, chunk_id: &Uuid) -> bool {
         self._internal.chunk_set.read().await.contains_key(chunk_id)
     }
@@ -353,14 +357,17 @@ impl FragmentLedger {
         self.existing_fragment_meta(chunk_id).await
     }
 
+    #[inline(always)]
     pub async fn existing_fragment_meta(&self, chunk_id: &Uuid) -> Option<FragmentMeta> {
         self._internal.chunk_set.read().await.get(chunk_id).cloned()
     }
 
+    #[inline(always)]
     fn get_path(&self, chunk_id: &Uuid, uncommited: bool) -> PathBuf {
         self._internal.get_path(chunk_id, uncommited)
     }
 
+    #[inline(always)]
     pub async fn delete_chunk(&self, chunk_id: &Uuid) -> MeowithIoResult<()> {
         self._internal.delete_chunk(chunk_id).await
     }

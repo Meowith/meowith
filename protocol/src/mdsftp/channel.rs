@@ -26,6 +26,7 @@ pub struct MDSFTPChannel {
 }
 
 impl MDSFTPChannel {
+    #[inline(always)]
     pub async fn request_lock(
         &self,
         kind: LockKind,
@@ -34,6 +35,7 @@ impl MDSFTPChannel {
         self._internal_channel.request_lock(kind, chunk_id).await
     }
 
+    #[inline(always)]
     pub async fn try_reserve(
         &self,
         desired: u64,
@@ -46,16 +48,19 @@ impl MDSFTPChannel {
             .await
     }
 
+    #[inline(always)]
     pub async fn cancel_reserve(&self, chunk_id: Uuid) -> MDSFTPResult<()> {
         self._internal_channel.cancel_reserve(chunk_id).await
     }
 
+    #[inline(always)]
     pub async fn send_chunk(&self, is_last: bool, id: u32, content: &[u8]) -> MDSFTPResult<()> {
         self._internal_channel
             .send_chunk(is_last, id, content)
             .await
     }
 
+    #[inline(always)]
     pub async fn send_content(
         &self,
         reader: AbstractReadStream,
@@ -70,6 +75,7 @@ impl MDSFTPChannel {
             .await
     }
 
+    #[inline(always)]
     pub async fn retrieve_req(
         &self,
         chunk_id: Uuid,
@@ -81,6 +87,7 @@ impl MDSFTPChannel {
             .await
     }
 
+    #[inline(always)]
     pub async fn retrieve_content(
         &self,
         writer: AbstractWriteStream,
@@ -94,18 +101,22 @@ impl MDSFTPChannel {
             .await
     }
 
+    #[inline(always)]
     pub async fn query_chunk(&self, id: Uuid) -> MDSFTPResult<QueryResult> {
         self._internal_channel.query_chunk(id).await
     }
 
+    #[inline(always)]
     pub async fn delete_chunk(&self, id: Uuid) -> MDSFTPResult<()> {
         self._internal_channel.delete_chunk(id).await
     }
 
+    #[inline(always)]
     pub async fn commit(&self, id: Uuid, flags: CommitFlags) -> MDSFTPResult<CommitResult> {
         self._internal_channel.commit(flags, id).await
     }
 
+    #[inline(always)]
     pub async fn request_put(
         &self,
         flags: PutFlags,
@@ -115,6 +126,7 @@ impl MDSFTPChannel {
         self._internal_channel.request_put(flags, id, size).await
     }
 
+    #[inline(always)]
     pub async fn set_incoming_handler(
         &self,
         handler: Box<dyn ChannelPacketHandler>,

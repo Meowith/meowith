@@ -95,14 +95,17 @@ impl MDSFTPConnection {
         Ok(stream)
     }
 
+    #[inline(always)]
     pub fn local_id(&self) -> Uuid {
         self._internal_connection.local_id
     }
 
+    #[inline(always)]
     pub async fn create_channel(&self) -> MDSFTPResult<MDSFTPChannel> {
         self._internal_connection.create_channel().await
     }
 
+    #[inline(always)]
     pub fn channel_count(&self) -> usize {
         self._internal_connection.channel_count()
     }
@@ -111,10 +114,12 @@ impl MDSFTPConnection {
         self.channel_count() == 0
     }
 
+    #[inline(always)]
     pub async fn last_read(&self) -> Instant {
         self._internal_connection.last_read().await
     }
 
+    #[inline(always)]
     pub async fn last_write(&self) -> Instant {
         self._internal_connection.last_write().await
     }
@@ -126,6 +131,7 @@ impl MDSFTPConnection {
         max(last_read, last_write)
     }
 
+    #[inline(always)]
     pub async fn close(&self) {
         self._internal_connection.close().await
     }
