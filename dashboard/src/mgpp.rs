@@ -5,8 +5,6 @@ use log::error;
 use openssl::x509::X509;
 use protocol::mgpp::client::MGPPClient;
 use protocol::mgpp::handler::MGPPHandlers;
-use std::net::{IpAddr, SocketAddr};
-use std::str::FromStr;
 use uuid::Uuid;
 
 pub async fn connect_mgpp(
@@ -17,10 +15,8 @@ pub async fn connect_mgpp(
     token: String,
 ) -> Result<MGPPClient, NodeClientError> {
     MGPPClient::connect(
-        SocketAddr::new(
-            IpAddr::from_str(controller_addr).unwrap(),
-            general_configuration.port_configuration.mgpp_server_port,
-        ),
+        controller_addr.to_string(),
+        general_configuration.port_configuration.mgpp_server_port,
         certificate,
         microservice_id,
         Some(token),

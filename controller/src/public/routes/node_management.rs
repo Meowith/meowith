@@ -58,7 +58,7 @@ pub async fn status(
         let mut status = NodeStatus {
             microservice_type: node.microservice_type,
             id: node.id,
-            address: node.address,
+            address: node.address.clone(),
             info: None,
             created: node.created,
             last_beat: Default::default(),

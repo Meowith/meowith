@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod int_tests {
-    use std::net::{IpAddr, SocketAddr};
-    use std::str::FromStr;
+
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::time::Duration;
@@ -80,7 +79,8 @@ mod int_tests {
         let received = Arc::new(AtomicBool::new(false));
 
         let client = MGPPClient::connect(
-            SocketAddr::new(IpAddr::from_str("127.0.0.1").unwrap(), 7810),
+            "127.0.0.1".to_string(),
+            7810,
             ca.clone(),
             id,
             None,

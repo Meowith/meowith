@@ -4,14 +4,14 @@ use crate::mdsftp::net::packet_reader::{GlobalHandler, PacketReader};
 use crate::mdsftp::net::packet_type::MDSFTPPacketType;
 use crate::mdsftp::net::packet_writer::PacketWriter;
 use crate::mdsftp::net::wire::MDSFTPRawPacket;
+use commons::autoconfigure::ssl_conf::resolve_server_name;
 use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
 use log::trace;
 use rand::prelude::StdRng;
 use rand::{Rng, SeedableRng};
-use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
+use rustls::pki_types::CertificateDer;
 use rustls::{ClientConfig, RootCertStore};
 use std::cmp::max;
-use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
@@ -28,12 +28,13 @@ pub struct MDSFTPConnection {
 
 impl MDSFTPConnection {
     pub async fn new(
-        node_address: SocketAddr,
+        node_address: String,
+        node_port: u16,
         connection_auth_context: &ConnectionAuthContext,
         id: Uuid,
         handler: GlobalHandler,
     ) -> MDSFTPResult<Self> {
-        let conn = Self::create_conn(connection_auth_context, &node_address).await?;
+        let conn = Self::create_conn(connection_auth_context, node_address, node_port).await?;
 
         Ok(MDSFTPConnection {
             _internal_connection: Arc::new(
@@ -56,7 +57,8 @@ impl MDSFTPConnection {
 
     async fn create_conn(
         connection_auth_context: &ConnectionAuthContext,
-        addr: &SocketAddr,
+        addr: String,
+        port: u16,
     ) -> MDSFTPResult<TlsStream<TcpStream>> {
         let mut root_cert_store = RootCertStore::empty();
         root_cert_store
@@ -71,9 +73,10 @@ impl MDSFTPConnection {
             .with_root_certificates(root_cert_store)
             .with_no_client_auth();
         let connector = TlsConnector::from(Arc::new(config));
-        let server_name = ServerName::IpAddress(IpAddr::from(addr.ip()));
+        let server_name =
+            resolve_server_name(addr.clone()).map_err(|e| MDSFTPError::SSLError(Some(e)))?;
 
-        let stream = TcpStream::connect(&addr)
+        let stream = TcpStream::connect(&format!("{addr}:{port}"))
             .await
             .map_err(|_| MDSFTPError::ConnectionError)?;
         let mut stream = TlsStream::from(

@@ -31,7 +31,7 @@ pub async fn fetch_free_storage(
                 node.id,
                 PeerStorage {
                     storage: 0,
-                    addr: node.address,
+                    addr: node.address.clone(),
                 },
             );
         }

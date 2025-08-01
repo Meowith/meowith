@@ -25,8 +25,7 @@ impl EmbeddedFragmentMetaStore {
             let ver = ver[0];
             if ver != SCHEMA_VERSION {
                 panic!(
-                    "Metadata store schema version mismatch, expected version {} but got {}",
-                    SCHEMA_VERSION, ver
+                    "Metadata store schema version mismatch, expected version {SCHEMA_VERSION} but got {ver}"
                 );
             }
         } else {

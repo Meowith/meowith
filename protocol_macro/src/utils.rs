@@ -46,7 +46,7 @@ pub fn extract_type_name(path: &TypePath) -> String {
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
-                result = format!("{}<{}>", result, args_str);
+                result = format!("{result}<{args_str}>");
             }
             result
         })

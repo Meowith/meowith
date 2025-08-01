@@ -1,6 +1,5 @@
 use crate::model::microservice_node_model::MicroserviceType;
 use std::collections::HashMap;
-use std::net::IpAddr;
 use uuid::Uuid;
 
 pub static X_ADDR_HEADER: &str = "X-Custom-Addr";
@@ -41,7 +40,7 @@ pub struct ValidatePeerResponse {
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct PeerStorage {
     pub storage: u64,
-    pub addr: IpAddr,
+    pub addr: String,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]

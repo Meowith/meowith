@@ -51,6 +51,7 @@ pub struct PortConfiguration {
 pub struct CatIdAppConfiguration {
     pub app_id: String,
     pub secret: String,
+    pub catid_url: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]

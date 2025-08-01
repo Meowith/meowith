@@ -21,6 +21,7 @@ pub struct ControllerConfig {
     pub ca_private_key_password: Option<String>,
     pub autogen_ssl_validity: u32,
     pub internal_ip_addrs: Vec<IpAddr>,
+    pub internal_domains: Vec<String>,
 
     pub database_nodes: Vec<String>,
     pub db_username: String,
@@ -63,6 +64,7 @@ impl ControllerConfig {
             autogen_ssl_validity: 30,
             internal_ip_addrs: vec![IpAddr::from_str("127.0.0.1").unwrap()],
 
+            internal_domains: vec![],
             database_nodes: vec!["127.0.0.1".to_string()],
             db_username: "cassandra".to_string(),
             db_password: "cassandra".to_string(),

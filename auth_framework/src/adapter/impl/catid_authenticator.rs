@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub const CATID_TYPE_IDENTIFIER: &str = "CATID";
-pub const CATID_API_URL: &str = "https://idapi.michal.cat/api/app/user";
-pub const CATID_TOKEN_URL: &str = "https://idapi.michal.cat/api/app/token";
+pub const CATID_API_URL: &str = "api/app/user";
+pub const CATID_TOKEN_URL: &str = "api/app/token";
 
 #[derive(Debug)]
 pub struct CatIdAuthenticator {
@@ -77,9 +77,12 @@ impl Authentication for CatIdAuthenticator {
     ) -> Result<DashboardClaims, AuthenticateError> {
         let credentials = credentials;
 
+        let token_url = format!("{}{}", self.config.catid_url, CATID_TOKEN_URL);
+        let api_url = format!("{}{}", self.config.catid_url, CATID_API_URL);
+
         let token = self
             .client
-            .post(CATID_TOKEN_URL)
+            .post(token_url)
             .body(
                 serde_json::to_string(&AccessTokenRequest {
                     app_id: self.config.app_id.clone(),
@@ -99,7 +102,7 @@ impl Authentication for CatIdAuthenticator {
 
         let cat_user = self
             .client
-            .get(CATID_API_URL)
+            .get(api_url)
             .header("Authorization", token)
             .send()
             .await

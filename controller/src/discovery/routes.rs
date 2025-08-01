@@ -27,8 +27,8 @@ pub async fn security_csr(
 ) -> Result<Bytes, NodeError> {
     let renewal_token = http_request.headers().get("Sec-Authorization");
     let csr = X509Req::from_der(body.as_ref()).map_err(|_| NodeError::BadRequest)?;
-    let ip_addrs = get_addresses(&http_request).map_err(|_| NodeError::BadRequest)?;
-    sign_node_csr(renewal_token, node, csr, ip_addrs, state).await
+    let (ip_addrs, domains) = get_addresses(&http_request).map_err(|_| NodeError::BadRequest)?;
+    sign_node_csr(renewal_token, node, csr, ip_addrs, domains, state).await
 }
 
 #[post("/register")]

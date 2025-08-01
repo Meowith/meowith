@@ -38,8 +38,9 @@ pub struct RegistrationResult {
 /// If an mdsftp_error occurs, a panic is issued.
 pub async fn register_procedure(
     ctx: &mut MicroserviceRequestContext,
-    self_addr: IpAddr,
+    self_addr: String,
     addrs: Vec<IpAddr>,
+    domains: Vec<String>,
     token_path: Option<String>,
 ) -> RegistrationResult {
     let token = read_renewal_token(token_path.clone());
@@ -60,7 +61,7 @@ pub async fn register_procedure(
     ctx.id = reg_resp.id;
     ctx.update_client();
     info!("Fetching certificates...");
-    let certificate_pair = perform_certificate_request(ctx, addrs)
+    let certificate_pair = perform_certificate_request(ctx, addrs, domains)
         .await
         .expect("Certificate request failed!");
 
@@ -107,7 +108,7 @@ pub async fn fetch_access_token(
 
 pub async fn perform_registration(
     ctx: &MicroserviceRequestContext,
-    addr: IpAddr,
+    addr: String,
 ) -> Result<String, Box<dyn Error>> {
     let register_code =
         env::var("REGISTER_CODE").expect("No env var REGISTER_CODE provided. Unable to register!");

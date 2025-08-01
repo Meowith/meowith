@@ -7,7 +7,6 @@ use charybdis::types::{BigInt, Boolean, Text, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::net::IpAddr;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -330,7 +329,7 @@ pub struct NodeStatusResponse {
 pub struct NodeStatus {
     pub microservice_type: i8,
     pub id: Uuid,
-    pub address: IpAddr,
+    pub address: String,
     pub info: Option<UpdateStorageNodeProperties>,
     pub created: DateTime<Utc>,
     pub last_beat: DateTime<Utc>,

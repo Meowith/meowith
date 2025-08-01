@@ -26,6 +26,7 @@ lazy_static! {
         ca_private_key_password: Some("admin".to_string()),
         autogen_ssl_validity: 1000,
         internal_ip_addrs: vec![IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))],
+        internal_domains: vec!["test.com".parse().unwrap()],
         database_nodes: vec!["127.0.0.1:9042".to_string()],
         db_username: "cassandra".to_string(),
         db_password: "cassandra".to_string(),
@@ -58,7 +59,7 @@ lazy_static! {
         external_server_bind_address: "127.0.0.2".to_string(),
         external_server_port: 4000,
         internal_server_bind_address: IpAddr::from_str("127.0.0.2").unwrap(),
-        broadcast_address: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)),
+        broadcast_address: Ipv4Addr::new(127, 0, 0, 2).to_string(),
         cert_addresses: vec![IpAddr::from([127, 0, 0, 2])],
         ssl_certificate: None,
         ssl_private_key: None,
@@ -70,6 +71,7 @@ lazy_static! {
         db_password: "cassandra".to_string(),
         keyspace: "meowith_test".to_string(),
         heart_beat_interval_seconds: 1,
+        cert_domains: vec!["test.com".parse().unwrap()],
     };
     pub static ref TEST_NODE_2_CONFIG: NodeConfigInstance = NodeConfigInstance {
         cnc_addr: "127.0.0.1".to_string(),
@@ -79,7 +81,7 @@ lazy_static! {
         external_server_bind_address: "127.0.0.3".to_string(),
         external_server_port: 4001,
         internal_server_bind_address: IpAddr::from_str("127.0.0.3").unwrap(),
-        broadcast_address: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 3)),
+        broadcast_address: Ipv4Addr::new(127, 0, 0, 3).to_string(),
         cert_addresses: vec![IpAddr::from([127, 0, 0, 3])],
         ssl_certificate: None,
         ssl_private_key: None,
@@ -91,6 +93,7 @@ lazy_static! {
         db_password: "cassandra".to_string(),
         keyspace: "meowith_test".to_string(),
         heart_beat_interval_seconds: 1,
+        cert_domains: vec!["test.com".parse().unwrap()],
     };
     pub static ref TEST_DASHBOARD_1_CONFIG: DashboardConfig = DashboardConfig {
         cnc_addr: "127.0.0.1".to_string(),
@@ -108,5 +111,6 @@ lazy_static! {
         db_password: "cassandra".to_string(),
         keyspace: "meowith_test".to_string(),
         heart_beat_interval_seconds: 1,
+        cert_domains: vec!["test.com".parse().unwrap()],
     };
 }

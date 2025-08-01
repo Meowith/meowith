@@ -75,7 +75,7 @@ async fn create_application(
     client
         .post("http://127.0.0.4:4002/api/app/create")
         .json(&req)
-        .header(AUTHORIZATION, format!("Bearer {}", user_token))
+        .header(AUTHORIZATION, format!("Bearer {user_token}"))
         .send()
         .await
         .expect("")
@@ -100,7 +100,7 @@ async fn create_bucket(
     client
         .post("http://127.0.0.4:4002/api/bucket/create")
         .json(&req)
-        .header(AUTHORIZATION, format!("Bearer {}", user_token))
+        .header(AUTHORIZATION, format!("Bearer {user_token}"))
         .send()
         .await
         .expect("")
@@ -119,7 +119,7 @@ pub(crate) async fn fetch_bucket_info(
         .get(format!(
             "http://127.0.0.3:4001/api/bucket/info/{app_id}/{bucket_id}"
         ))
-        .header(AUTHORIZATION, format!("Bearer {}", user_token))
+        .header(AUTHORIZATION, format!("Bearer {user_token}"))
         .send()
         .await
         .expect("")
@@ -194,7 +194,7 @@ async fn issue_token(
     client
         .post("http://127.0.0.4:4002/api/app/token/issue")
         .json(&req)
-        .header(AUTHORIZATION, format!("Bearer {}", user_token))
+        .header(AUTHORIZATION, format!("Bearer {user_token}"))
         .send()
         .await
         .expect("")

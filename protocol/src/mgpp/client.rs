@@ -3,14 +3,14 @@ use crate::framework::writer::PacketWriter;
 use crate::mgpp::error::MGPPError;
 use crate::mgpp::handler::{MGPPHandlers, MGPPHandlersMapper};
 use crate::mgpp::packet::{MGPPPacket, MGPPPacketDispatcher, MGPPPacketSerializer};
+use commons::autoconfigure::ssl_conf::resolve_server_name;
 use commons::error::protocol_error::ProtocolResult;
 use commons::pause_handle::ApplicationPauseHandle;
 use log::{info, trace, warn};
 use openssl::x509::X509;
-use rustls::pki_types::{CertificateDer, IpAddr, ServerName};
+use rustls::pki_types::CertificateDer;
 use rustls::{ClientConfig, RootCertStore};
 use std::error::Error;
-use std::net::SocketAddr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -34,7 +34,8 @@ pub struct MGPPClient {
 }
 
 struct MGPPConnectionConfig {
-    addr: SocketAddr,
+    addr: String,
+    port: u16,
     root_certificate: X509,
     microservice_id: Uuid,
     token: Option<String>,
@@ -42,7 +43,8 @@ struct MGPPConnectionConfig {
 
 impl MGPPClient {
     pub async fn connect(
-        addr: SocketAddr,
+        addr: String,
+        port: u16,
         root_certificate: X509,
         microservice_id: Uuid,
         token: Option<String>,
@@ -51,6 +53,7 @@ impl MGPPClient {
         let handlers = Arc::new(handlers);
         let mgpp_config = Arc::new(MGPPConnectionConfig {
             addr,
+            port,
             root_certificate,
             microservice_id,
             token,
@@ -132,20 +135,20 @@ impl MGPPClient {
                 mgpp_config
                     .root_certificate
                     .to_der()
-                    .map_err(|_| MGPPError::SSLError(None))?,
+                    .map_err(|e| MGPPError::SSLError(Some(Box::new(e))))?,
             ))
-            .map_err(|_| MGPPError::SSLError(None))?;
+            .map_err(|e| MGPPError::SSLError(Some(Box::new(e))))?;
         let config = ClientConfig::builder()
             .with_root_certificates(root_cert_store)
             .with_no_client_auth();
         let connector = TlsConnector::from(Arc::new(config));
-        let server_name = ServerName::IpAddress(IpAddr::from(mgpp_config.addr.ip()));
+        let server_name = resolve_server_name(mgpp_config.addr.clone())?;
 
         trace!(
             "MGGP connection starting with server_name: {:?}",
             server_name
         );
-        let stream = TcpStream::connect(&mgpp_config.addr)
+        let stream = TcpStream::connect(format!("{}:{}", mgpp_config.addr, mgpp_config.port))
             .await
             .map_err(|e| MGPPError::SSLError(Some(e.into())))?;
 
@@ -162,7 +165,7 @@ impl MGPPClient {
             connector
                 .connect(server_name, stream)
                 .await
-                .map_err(|_| MGPPError::SSLError(None))?,
+                .map_err(|e| MGPPError::SSLError(Some(Box::new(e))))?,
         );
 
         trace!("MGPP authenticating");

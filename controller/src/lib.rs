@@ -330,6 +330,7 @@ fn create_internal_certs(
         &state.1,
         &SigningData {
             ip_addrs: config.internal_ip_addrs.clone(),
+            dns_names: config.internal_domains.clone(),
             validity_days: 3560, // Note: consider auto-renewal
         },
     )

@@ -10,14 +10,11 @@ pub fn build_provided_ssl_acceptor_builder(
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
         .set_private_key_file(private_key_path, SslFiletype::PEM)
-        .unwrap_or_else(|_| panic!("Private key {:?} could not be accessed", private_key_path));
+        .unwrap_or_else(|_| panic!("Private key {private_key_path:?} could not be accessed"));
     builder
         .set_certificate_chain_file(public_key_path)
         .unwrap_or_else(|_| {
-            panic!(
-                "Ssl certificate key {:?} could not be accessed",
-                public_key_path
-            )
+            panic!("Ssl certificate key {public_key_path:?} could not be accessed")
         });
 
     builder

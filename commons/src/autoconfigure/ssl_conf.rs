@@ -14,12 +14,16 @@ use openssl::x509::extension::{
     AuthorityKeyIdentifier, KeyUsage, SubjectAlternativeName, SubjectKeyIdentifier,
 };
 use openssl::x509::{X509NameBuilder, X509Req, X509ReqBuilder, X509};
+use rustls::pki_types::ServerName;
 use std::error::Error;
 use std::net::IpAddr;
+use std::str::FromStr;
+use tokio::net::lookup_host;
 
 #[derive(Debug)]
 pub struct SigningData {
     pub ip_addrs: Vec<IpAddr>,
+    pub dns_names: Vec<String>,
     pub validity_days: u32,
 }
 
@@ -67,6 +71,9 @@ pub fn sign_csr(
     for ip_addr in &req_data.ip_addrs {
         san_extension.ip(&ip_addr.to_string());
     }
+    for dns_name in &req_data.dns_names {
+        san_extension.dns(dns_name);
+    }
     let san_extension = san_extension.build(&cert_builder.x509v3_context(None, None))?;
     cert_builder.append_extension(san_extension)?;
 
@@ -97,6 +104,7 @@ pub fn sign_csr(
 pub async fn perform_certificate_request(
     ctx: &MicroserviceRequestContext,
     addrs: Vec<IpAddr>,
+    domains: Vec<String>,
 ) -> Result<(PKey<Private>, X509), Box<dyn Error>> {
     let pkey = generate_private_key()?;
     let csr = generate_csr(&pkey)?;
@@ -109,7 +117,7 @@ pub async fn perform_certificate_request(
             "Sec-Authorization",
             ctx.security_context.renewal_token.clone(),
         )
-        .header(X_ADDR_HEADER, serialize_header(addrs))
+        .header(X_ADDR_HEADER, serialize_header(addrs, domains))
         .body(csr.to_der()?)
         .send()
         .await?;
@@ -197,12 +205,35 @@ pub fn gen_test_certs(ca: &X509, ca_key: &PKey<Private>) -> (X509, PKey<Private>
         ca_key,
         &SigningData {
             ip_addrs: vec![IpAddr::from_str("127.0.0.1").unwrap()],
+            dns_names: vec![],
             validity_days: 100,
         },
     )
     .expect("CRS sign failed");
 
     (cert, key)
+}
+
+#[allow(unused)]
+pub async fn resolve_addr_or_domain(controller_addr: &str) -> Result<IpAddr, Box<dyn Error>> {
+    if let Ok(ip) = IpAddr::from_str(controller_addr) {
+        Ok(ip)
+    } else {
+        let mut addrs = lookup_host((controller_addr, 0)).await?;
+        Ok(addrs.next().ok_or("Could not resolve domain")?.ip())
+    }
+}
+
+pub fn resolve_server_name(
+    the_address: String,
+) -> Result<ServerName<'static>, Box<dyn Error + Send + Sync>> {
+    if let Ok(ip) = IpAddr::from_str(&the_address) {
+        Ok(ServerName::IpAddress(ip.into()))
+    } else {
+        Ok(ServerName::DnsName(
+            the_address.try_into().map_err(Box::new)?,
+        ))
+    }
 }
 
 #[cfg(test)]

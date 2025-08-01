@@ -57,8 +57,9 @@ pub async fn register_node(
 
     let reg_res = register_procedure(
         &mut ctx,
-        config.broadcast_address,
+        config.broadcast_address.clone(),
         config.cert_addresses.clone(),
+        config.cert_domains.clone(),
         config.renewal_token_path.clone(),
     )
     .await;

@@ -28,6 +28,7 @@ pub struct NodeConfig {
     pub renewal_token_path: Option<String>,
     pub broadcast_address: String,
     pub cert_addresses: Vec<String>,
+    pub cert_domains: Vec<String>,
 
     // external certificates config
     pub ssl_certificate: Option<String>,
@@ -52,8 +53,9 @@ pub struct NodeConfigInstance {
     pub external_server_bind_address: String,
     pub external_server_port: u16,
     pub internal_server_bind_address: IpAddr,
-    pub broadcast_address: IpAddr,
+    pub broadcast_address: String,
     pub cert_addresses: Vec<IpAddr>,
+    pub cert_domains: Vec<String>,
     pub ssl_certificate: Option<String>,
     pub ssl_private_key: Option<String>,
     pub renewal_token_path: Option<String>,
@@ -94,6 +96,7 @@ impl NodeConfig {
             renewal_token_path: None,
             broadcast_address: "127.0.0.1".to_string(),
             cert_addresses: vec!["127.0.0.1".to_string()],
+            cert_domains: vec![],
             ssl_certificate: None,
             ssl_private_key: None,
             data_save_path: "/var/meowith/data/".to_string(),
@@ -119,10 +122,6 @@ impl NodeConfig {
     }
 
     pub async fn validate_config(self) -> Result<NodeConfigInstance, ConfigError> {
-        if self.cnc_addr.parse::<IpAddr>().is_err() {
-            return Err(ConfigError::InvalidIpAddress);
-        }
-
         if self.cnc_port == 0 {
             return Err(ConfigError::InvalidPort);
         }
@@ -132,10 +131,6 @@ impl NodeConfig {
         }
 
         if self.internal_server_bind_address.parse::<IpAddr>().is_err() {
-            return Err(ConfigError::InvalidIpAddress);
-        }
-
-        if self.broadcast_address.parse::<IpAddr>().is_err() {
             return Err(ConfigError::InvalidIpAddress);
         }
 
@@ -169,12 +164,13 @@ impl NodeConfig {
             external_server_port: self.external_server_port,
             internal_server_bind_address: IpAddr::from_str(&self.internal_server_bind_address)
                 .unwrap(),
-            broadcast_address: IpAddr::from_str(&self.broadcast_address).unwrap(),
+            broadcast_address: self.broadcast_address,
             cert_addresses: self
                 .cert_addresses
                 .iter()
                 .map(|addr| IpAddr::from_str(addr.as_str()).unwrap())
                 .collect(),
+            cert_domains: self.cert_domains,
             ssl_certificate: self.ssl_certificate,
             ssl_private_key: self.ssl_private_key,
             renewal_token_path: None,

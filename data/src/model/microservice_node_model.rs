@@ -2,10 +2,9 @@ use crate::error::DataResponseError;
 use actix_web::dev::Payload;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use charybdis::macros::charybdis_model;
-use charybdis::types::{BigInt, Boolean, Inet, Text, Timestamp, TinyInt, Uuid};
+use charybdis::types::{BigInt, Boolean, Text, Timestamp, TinyInt, Uuid};
 use scylla::errors::PagerExecutionError;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 
 pub type MicroserviceNodeItem = Result<MicroserviceNode, PagerExecutionError>;
 
@@ -26,7 +25,7 @@ pub struct MicroserviceNode {
     pub access_token: Option<Text>,
     pub access_token_issued_at: Timestamp,
     pub renewal_token: Text,
-    pub address: Inet,
+    pub address: Text,
     pub created: Timestamp,
     pub register_code: Text,
 }
@@ -61,7 +60,7 @@ impl Default for MicroserviceNode {
             access_token: None,
             access_token_issued_at: Default::default(),
             renewal_token: "".to_string(),
-            address: Inet::from_str("0.0.0.0").unwrap(),
+            address: "0.0.0.0".to_string(),
             created: Default::default(),
             register_code: "".to_string(),
         }

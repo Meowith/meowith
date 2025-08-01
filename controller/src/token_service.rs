@@ -41,7 +41,7 @@ mod tests {
     fn test_generate_token_length() {
         let len = 32;
         let token = generate_token(len);
-        assert_eq!(token.len(), len, "Token length should be {}", len);
+        assert_eq!(token.len(), len, "Token length should be {len}");
     }
 
     #[test]
@@ -50,7 +50,7 @@ mod tests {
         let token = generate_token(len);
 
         for c in token.chars() {
-            assert!(CHARSET.contains(&c), "Character {} is not in CHARSET", c);
+            assert!(CHARSET.contains(&c), "Character {c} is not in CHARSET");
         }
     }
 

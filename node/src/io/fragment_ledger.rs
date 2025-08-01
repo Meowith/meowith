@@ -190,7 +190,7 @@ impl FragmentLedger {
                                 chunk_map.insert(id, discovered_chunk);
                             }
                             Err(err) => {
-                                panic!("fragment ledger init error {}", err);
+                                panic!("fragment ledger init error {err}");
                             }
                         }
 
@@ -258,11 +258,11 @@ impl FragmentLedger {
     pub async fn scan_missing_fragment_metadata(
         &self,
         session: &CachingSession,
-        mut missing_ids: HashSet<Uuid>,
+        mut chunk_ids_with_no_assoc: HashSet<Uuid>,
     ) -> MeowithIoResult<()> {
         info!(
             "Scanning for missing fragment metadata, Missing: {}",
-            missing_ids.len()
+            chunk_ids_with_no_assoc.len()
         );
 
         let mut file_stream = get_all_files(session)
@@ -273,8 +273,16 @@ impl FragmentLedger {
         while let Some(file) = file_stream.next().await {
             let file = file.map_err(|e| MeowithIoError::Internal(Some(Box::new(e))))?;
 
-            if missing_ids.contains(&file.id) {
-                info!("Found missing fragment metadata for {}", file.id);
+            let chunk_id = file
+                .chunk_ids
+                .iter()
+                .find(|it| chunk_ids_with_no_assoc.contains(&it.chunk_id));
+            if let Some(chunk_id) = chunk_id {
+                let chunk_id = chunk_id.chunk_id;
+                info!(
+                    "Found missing fragment metadata for file: {} chunk: {chunk_id}",
+                    file.id
+                );
                 self._internal
                     .ext_metadata_store
                     .read()
@@ -282,22 +290,22 @@ impl FragmentLedger {
                     .as_ref()
                     .map(|x| {
                         x.insert(
-                            file.id,
+                            chunk_id,
                             ExtFragmentMeta {
                                 bucket_id: file.bucket_id.to_u128_le(),
                                 file_id: file.id.to_u128_le(),
                             },
                         )
                     });
-                missing_ids.remove(&file.id);
+                chunk_ids_with_no_assoc.remove(&chunk_id);
             }
         }
 
         info!(
             "Orphaned fragments after scan {}. Deleting.",
-            missing_ids.len()
+            chunk_ids_with_no_assoc.len()
         );
-        for chunk_id in &missing_ids {
+        for chunk_id in &chunk_ids_with_no_assoc {
             self.delete_chunk(chunk_id).await?;
         }
 

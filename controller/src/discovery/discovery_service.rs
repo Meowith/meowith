@@ -8,7 +8,6 @@ use log::{error, info, warn};
 use openssl::x509::X509Req;
 use scylla::client::caching_session::CachingSession;
 use std::net::IpAddr;
-use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::error::node::NodeError;
@@ -33,7 +32,7 @@ pub async fn perform_register_node(
     req: NodeRegisterRequest,
     ctx: &ControllerRequestContext,
     session: &CachingSession,
-    node_addr: IpAddr,
+    node_addr: String,
 ) -> Result<NodeRegisterResponse, NodeError> {
     info!(
         "Attempting node registration. addr={node_addr} code='{}'",
@@ -141,6 +140,7 @@ pub async fn sign_node_csr(
     node: MicroserviceNode,
     csr: X509Req,
     ip_addrs: Vec<IpAddr>,
+    domains: Vec<String>,
     state: web::Data<AppState>,
 ) -> Result<Bytes, NodeError> {
     if renewal_token.is_none()
@@ -155,6 +155,7 @@ pub async fn sign_node_csr(
 
     let signing_data = SigningData {
         ip_addrs,
+        dns_names: domains,
         validity_days: state.config.autogen_ssl_validity,
     };
     let cert = commons::autoconfigure::ssl_conf::sign_csr(
@@ -171,17 +172,15 @@ pub async fn sign_node_csr(
 
 // Note: Its worth considering a self-reported address as it allows for potential proxy usage
 // Note: considered it.
-pub fn get_address(req: &HttpRequest) -> Result<IpAddr, ()> {
-    IpAddr::from_str(
-        req.headers()
-            .get(X_ADDR_HEADER)
-            .ok_or(())?
-            .to_str()
-            .map_err(|_| ())?,
-    )
-    .map_err(|_| ())
+pub fn get_address(req: &HttpRequest) -> Result<String, ()> {
+    req.headers()
+        .get(X_ADDR_HEADER)
+        .ok_or(())?
+        .to_str()
+        .map_err(|_| ())
+        .map(|s| s.to_string())
 }
-pub fn get_addresses(req: &HttpRequest) -> Result<Vec<IpAddr>, ()> {
+pub fn get_addresses(req: &HttpRequest) -> Result<(Vec<IpAddr>, Vec<String>), ()> {
     let header = req
         .headers()
         .get(X_ADDR_HEADER)

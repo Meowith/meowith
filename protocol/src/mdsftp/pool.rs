@@ -1,7 +1,12 @@
+use crate::framework::auth::ConnectionAuthContext;
+use crate::mdsftp::channel::MDSFTPChannel;
+use crate::mdsftp::connection::MDSFTPConnection;
+use crate::mdsftp::handler::PacketHandler;
+use crate::mdsftp::net::packet_reader::GlobalHandler;
+use commons::context::microservice_request_context::NodeAddrMap;
+use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
 use log::debug;
 use multimap::MultiMap;
-use std::net::{IpAddr, SocketAddr};
-use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -12,14 +17,6 @@ use tokio::task::JoinHandle;
 use tokio::time;
 use tokio_rustls::TlsStream;
 use uuid::Uuid;
-
-use crate::framework::auth::ConnectionAuthContext;
-use crate::mdsftp::channel::MDSFTPChannel;
-use crate::mdsftp::connection::MDSFTPConnection;
-use crate::mdsftp::handler::PacketHandler;
-use crate::mdsftp::net::packet_reader::GlobalHandler;
-use commons::context::microservice_request_context::NodeAddrMap;
-use commons::error::mdsftp_error::{MDSFTPError, MDSFTPResult};
 
 pub type PacketHandlerRef = Arc<Mutex<Box<dyn PacketHandler>>>;
 static STALE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
@@ -182,20 +179,10 @@ impl InternalMDSFTPPool {
         }
 
         let port = &self.connection_auth_context.port;
-
         let map = self.node_addr_map.read().await;
         let node = map.get(target).cloned().ok_or(MDSFTPError::NoSuchNode)?;
 
-        MDSFTPConnection::new(
-            SocketAddr::new(
-                IpAddr::from_str(node.as_str()).map_err(|_| MDSFTPError::AddressResolutionError)?,
-                *port,
-            ),
-            &self.connection_auth_context,
-            *target,
-            handler,
-        )
-        .await
+        MDSFTPConnection::new(node, *port, &self.connection_auth_context, *target, handler).await
     }
 
     pub(crate) async fn add_connection(

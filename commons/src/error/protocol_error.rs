@@ -32,7 +32,7 @@ pub enum ProtocolError {
 
 impl From<ProtocolError> for Error {
     fn from(value: ProtocolError) -> Self {
-        Error::new(io::ErrorKind::InvalidInput, format!("{:?}", value))
+        Error::new(io::ErrorKind::InvalidInput, format!("{value:?}"))
     }
 }
 
